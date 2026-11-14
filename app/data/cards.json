@@ -271,6 +271,38 @@
       "label": "UFC od 150 kW"
      }
     ]
+   },
+   "abroad": {
+    "ZSE Drive": [
+     {
+      "max": 149,
+      "day": 15,
+      "night": 15,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 15,
+      "night": 15,
+      "label": "UFC od 150 kW"
+     }
+    ],
+    "GreenWay": [
+     {
+      "max": 9999,
+      "day": 25,
+      "night": 25,
+      "label": "jedna cena"
+     }
+    ],
+    "Shell": [
+     {
+      "max": 9999,
+      "day": 23,
+      "night": 23,
+      "label": "jedna cena"
+     }
+    ]
    }
   },
   {
@@ -382,6 +414,38 @@
       "day": 27,
       "night": 27,
       "label": "UFC od 150 kW"
+     }
+    ]
+   },
+   "abroad": {
+    "ZSE Drive": [
+     {
+      "max": 149,
+      "day": 15,
+      "night": 15,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 15,
+      "night": 15,
+      "label": "UFC od 150 kW"
+     }
+    ],
+    "GreenWay": [
+     {
+      "max": 9999,
+      "day": 25,
+      "night": 25,
+      "label": "jedna cena"
+     }
+    ],
+    "Shell": [
+     {
+      "max": 9999,
+      "day": 23,
+      "night": 23,
+      "label": "jedna cena"
      }
     ]
    }
@@ -496,6 +560,38 @@
       "label": "UFC od 150 kW"
      }
     ]
+   },
+   "abroad": {
+    "ZSE Drive": [
+     {
+      "max": 149,
+      "day": 15,
+      "night": 15,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 15,
+      "night": 15,
+      "label": "UFC od 150 kW"
+     }
+    ],
+    "GreenWay": [
+     {
+      "max": 9999,
+      "day": 25,
+      "night": 25,
+      "label": "jedna cena"
+     }
+    ],
+    "Shell": [
+     {
+      "max": 9999,
+      "day": 23,
+      "night": 23,
+      "label": "jedna cena"
+     }
+    ]
    }
   },
   {
@@ -606,6 +702,38 @@
       "day": 27,
       "night": 27,
       "label": "UFC od 150 kW"
+     }
+    ]
+   },
+   "abroad": {
+    "ZSE Drive": [
+     {
+      "max": 149,
+      "day": 15,
+      "night": 15,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 15,
+      "night": 15,
+      "label": "UFC od 150 kW"
+     }
+    ],
+    "GreenWay": [
+     {
+      "max": 9999,
+      "day": 25,
+      "night": 25,
+      "label": "jedna cena"
+     }
+    ],
+    "Shell": [
+     {
+      "max": 9999,
+      "day": 23,
+      "night": 23,
+      "label": "jedna cena"
      }
     ]
    }
