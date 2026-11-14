@@ -35,13 +35,16 @@
   const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) { /* private mode */ } };
 
   // ------------------------------------------------------------------ data
-  let STATIONS = [], PRICES = null, CAL = null, META = null;
-  const dataReady = Promise.all(['stations', 'prices', 'calibration', 'meta'].map((n) =>
+  let STATIONS = [], CARDS = null, CAL = null, META = null;
+  let selCards = new Set();
+  const dataReady = Promise.all(['stations', 'cards', 'calibration', 'meta'].map((n) =>
     fetch(`data/${n}.json`, { cache: 'no-cache' }).then((r) => { if (!r.ok) throw new Error(n); return r.json(); })))
-    .then(([st, pr, cal, meta]) => {
+    .then(([st, cards, cal, meta]) => {
       STATIONS = st.rows.map((r) => Object.fromEntries(st.cols.map((c, i) => [c, r[i]])));
-      PRICES = pr; CAL = cal; META = meta;
-      renderDataInfo(); renderBrands();
+      CARDS = cards; CAL = cal; META = meta;
+      const known = new Set(CARDS.cards.map((c) => c.id));
+      selCards = new Set((prefs.cards || CARDS.default).filter((id) => known.has(id)));
+      renderDataInfo(); renderBrands(); renderCards();
     })
     .catch(() => setStatus('Nepodařilo se načíst data nabíječek. Zkus stránku obnovit.', true));
 
@@ -75,14 +78,58 @@
     }
     return t;
   }
-  function price(op, kw, date) {
-    const net = PRICES && PRICES.networks[op];
-    if (!net) return null;
-    const h = date.getHours(), [nFrom, nTo] = PRICES.night_hours;
+  /* Best price among the selected cards for a station of operator `op` with power `kw` at `date`.
+     Returns {czk|null, card, label, night, unknownKw, others:[…]} or null when no selected card works there. */
+  function price(op, kw, date, only) {
+    if (!CARDS) return null;
+    const h = date.getHours(), [nFrom, nTo] = CARDS.night_hours;
     const night = h >= nFrom || h < nTo;
-    const tier = net.tiers.find((t) => (kw || 0) <= t.max) || net.tiers[net.tiers.length - 1];
-    return { czk: night ? tier.night : tier.day, label: tier.label, card: net.card, night, unknownKw: !kw && net.tiers.length > 1 };
+    const opts = [];
+    for (const card of CARDS.cards) {
+      if (only ? !only.has(card.id) : !selCards.has(card.id)) continue;
+      let tiers, how = 'vlastní síť';
+      if (card.own && card.own[op]) tiers = card.own[op];
+      else if (card.roam && card.roam[op]) { tiers = card.roam[op]; how = 'roaming'; }
+      else if ('anywhere' in card) { tiers = card.anywhere; how = 'roaming'; } else continue;
+      if (!tiers) { opts.push({ czk: null, card: card.name, label: card.note || 'cena v aplikaci', how }); continue; }
+      const t = tiers.find((x) => (kw || 0) <= x.max) || tiers[tiers.length - 1];
+      opts.push({ czk: night ? t.night : t.day, card: card.name, label: t.label, how, unknownKw: !kw && tiers.length > 1,
+        dayNight: t.day !== t.night });
+    }
+    if (!opts.length) return null;
+    opts.sort((a, b) => (a.czk == null) - (b.czk == null) || (a.czk || 0) - (b.czk || 0));
+    return { ...opts[0], night, others: opts.slice(1) };
   }
+
+  function renderCards() {
+    const box = $('cards'); box.textContent = '';
+    const groups = {};
+    CARDS.cards.forEach((c) => { (groups[c.group] = groups[c.group] || []).push(c); });
+    Object.entries(groups).forEach(([g, list]) => {
+      box.append(el('div', { class: 'card-group' }, el('p', { class: 'card-group-name', text: g }),
+        list.map((c) => {
+          const id = `card-${c.id}`;
+          const fee = c.fee ? `${fmt(c.fee)} Kč/měs` : 'bez paušálu';
+          const net = c.own ? Object.keys(c.own).join(', ') : '';
+          const extra = [fee, c.roam ? `+ roaming ${Object.keys(c.roam).length} sítí` : null, 'anywhere' in c ? 'roaming téměř všude' : null,
+            c.note].filter(Boolean).join(' · ');
+          return el('label', { class: 'check inline card-opt', for: id },
+            el('input', { type: 'checkbox', id, checked: selCards.has(c.id), onchange: (e) => {
+              if (e.target.checked) selCards.add(c.id); else selCards.delete(c.id);
+              prefs.cards = [...selCards]; savePrefs(); renderCardsSummary();
+            } }),
+            el('span', {}, el('b', { text: c.name }), el('small', { text: [net, extra].filter(Boolean).join(' · ') })));
+        })));
+    });
+    renderCardsSummary();
+  }
+  function renderCardsSummary() {
+    const names = CARDS.cards.filter((c) => selCards.has(c.id)).map((c) => c.name);
+    $('cards-summary').textContent = `Moje karty a tarify (${names.length})`;
+  }
+  $('cards-default').addEventListener('click', () => {
+    selCards = new Set(CARDS.default); prefs.cards = [...selCards]; savePrefs(); renderCards();
+  });
 
   // ------------------------------------------------------------------ places UI
   const placesBox = $('places');
@@ -341,7 +388,7 @@
       if (s.lat < box[0] || s.lat > box[1] || s.lon < box[2] || s.lon > box[3]) continue;
       if (o.atPump && !s.fuel) continue;
       if (o.onlyFav && !favs.has(s.fuel)) continue;
-      if (o.myCards && !(PRICES.networks[s.op])) continue;
+      if (o.myCards && !price(s.op, s.kw, o.depart)) continue;
       if (s.kw == null ? !o.unknownKw : s.kw < o.minKw) continue;
       const n = nearestOnRoute(rt, s);
       if (n.dist > corridor) continue;
@@ -373,20 +420,20 @@
     const kwh = Math.max(0, target - arrive) * (CAL.kwh_per_pct || 0.98);
     const at = new Date(o.depart.getTime() + atMin * 60000);
     const pr = price(s.op, s.kw, at);
-    const cost = pr ? kwh * pr.czk : Infinity;
+    const cost = pr && pr.czk != null ? kwh * pr.czk : Infinity;
     const stopMin = Math.max(STOP_MIN, chargeMin + 2);
     const arriveDest = new Date(o.depart.getTime() + (totalMin + detourMin + stopMin) * 60000);
     const socDest = target - (totalKm - kmAt) * o.cons / CAP;
     const socHome = o.roundTrip ? socDest - totalKm * o.cons / CAP : null;
     // alternative stand per the user's tier rule
     let alt = null;
-    if (s.op === 'E.ON' && kwh > 0) {
+    if (s.op === 'E.ON' && kwh > 0 && pr && pr.czk != null) {
       if (s.kw && s.kw > 200 && arrive >= 50) {
         const p2 = price('E.ON', 150, at), m2 = chargeMinutes(arrive, target, 150);
-        alt = { kind: 'cheaper', czk: kwh * p2.czk, min: m2, label: p2.label, unit: p2.czk };
+        if (p2 && p2.czk != null && p2.czk < pr.czk) alt = { kind: 'cheaper', czk: kwh * p2.czk, min: m2, label: p2.label, unit: p2.czk };
       } else if (s.kw && s.kw <= 200 && arrive < 50) {
         const p3 = price('E.ON', 300, at), m3 = chargeMinutes(arrive, target, 300);
-        alt = { kind: 'faster', czk: kwh * p3.czk, min: m3, label: p3.label, unit: p3.czk };
+        if (p3 && p3.czk != null) alt = { kind: 'faster', czk: kwh * p3.czk, min: m3, label: p3.label, unit: p3.czk };
       }
     }
     return { s, n, atMin, at, detourMin, kmAt, arrive, target, need, short, chargeMin, kwh, pr, cost, stopMin,
@@ -454,7 +501,10 @@
       c.kwh > 0 ? el('dt', { text: 'Nabíjení' }) : null,
       c.kwh > 0 ? el('dd', { text: `~${fmt(c.chargeMin)} min · ${fmt(c.kwh, 1)} kWh` }) : null,
       el('dt', { text: 'Cena' }),
-      el('dd', { text: c.pr ? `${c.kwh > 0 ? fmt(c.cost) + ' Kč · ' : ''}${fmt(c.pr.czk, 2)} Kč/kWh (${c.pr.card}, ${c.pr.label}${c.pr.night ? ', noc' : ''})${c.pr.unknownKw ? ' – pásmo podle skutečného výkonu' : ''}` : 'bez vlastní karty (MB.CHARGE / ad hoc)' }),
+      el('dd', { text: priceText(c) }),
+      c.pr && c.pr.others.length ? el('dt', { text: 'Jiné karty' }) : null,
+      c.pr && c.pr.others.length ? el('dd', { class: 'small', text: c.pr.others.slice(0, 3)
+        .map((p) => `${p.card} ${p.czk != null ? fmt(p.czk, 2) + ' Kč' : '(cena v appce)'}`).join(' · ') }) : null,
       el('dt', { text: 'Zastávka' }), el('dd', { text: `${fmt(c.stopMin)} min · v cíli ${clock(c.arriveDest)}` }),
       el('dt', { text: c.socHome != null ? 'Dojezd' : 'V cíli' }),
       el('dd', { text: c.socHome != null ? `v cíli ~${fmt(c.socDest)} %, domů ~${fmt(c.socHome)} %` : `~${fmt(c.socDest)} %` }),
@@ -467,10 +517,69 @@
         el('div', { class: 'when' }, `za ${hm(c.atMin)}`, el('small', { text: `${clock(c.at)} · ${fmt(c.kmAt)} km` }))),
       badges, facts,
       adv ? el('p', { class: `advice${adv.warn ? ' warn' : ''}`, text: adv.text }) : null,
-      el('div', { class: 'cand-actions' },
-        el('a', { class: 'nav', href: navUrl(c, pts), target: '_blank', rel: 'noopener', text: 'Navigovat přes zastávku' }),
-        el('a', { href: `https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lon}`, target: '_blank', rel: 'noopener', text: 'Místo v Mapách' })),
+      exportBox(c, pts),
     );
+  }
+
+  function priceText(c) {
+    const p = c.pr;
+    if (!p) return 'žádná z vybraných karet tu nefunguje';
+    if (p.czk == null) return `${p.card}: ${p.label}`;
+    return `${c.kwh > 0 ? fmt(c.cost) + ' Kč · ' : ''}${fmt(p.czk, 2)} Kč/kWh (${p.card}${p.how === 'roaming' ? ', roaming' : ''}, ${p.label}${p.dayNight ? (p.night ? ', noční cena' : ', denní cena') : ''})` +
+      (p.unknownKw ? ' – pásmo podle skutečného výkonu' : '');
+  }
+
+  // ------------------------------------------------------------------ export: Waze, Google Maps → Mercedes, GPX, share
+  const wazeUrl = (p) => `https://waze.com/ul?ll=${p.lat.toFixed(6)},${p.lon.toFixed(6)}&navigate=yes&zoom=17`;
+  const gPlace = (p) => `https://www.google.com/maps/search/?api=1&query=${p.lat.toFixed(6)},${p.lon.toFixed(6)}`;
+  function legs(c, pts) {  // ordered points after the start: vias + the stop + destination
+    const vias = pts.slice(1, -1).map((p) => ({ p, name: p.label || 'Přes', t: nearestOnRoute(lastRun.rt, p).t }));
+    vias.push({ p: c.s, name: `Nabíjení: ${c.s.fuel || ''} ${c.s.op || ''}`.trim(), t: c.n.t, stop: true });
+    vias.sort((a, b) => a.t - b.t);
+    vias.push({ p: pts[pts.length - 1], name: pts[pts.length - 1].label || 'Cíl', dest: true });
+    return vias;
+  }
+  function exportBox(c, pts) {
+    const steps = legs(c, pts);
+    const waze = steps.map((st, k) => el('a', { href: wazeUrl(st.p), target: '_blank', rel: 'noopener', class: st.stop ? 'waze main' : 'waze',
+      text: `${k + 1}. Waze → ${st.stop ? 'zastávka' : st.dest ? 'cíl' : (st.name || 'přes').split(',')[0]}` }));
+    return el('div', { class: 'export' },
+      el('div', { class: 'cand-actions' },
+        waze.find((a) => a.classList.contains('main')),
+        el('a', { class: 'nav', href: navUrl(c, pts), target: '_blank', rel: 'noopener', text: 'Google Mapy: celá trasa' })),
+      el('details', { class: 'more-export' }, el('summary', { text: 'Další export (Waze po krocích, Mercedes, GPX)' }),
+        el('p', { class: 'small muted', text: 'Waze přes odkaz neumí víc zastávek: po nabití klepni na další krok.' }),
+        el('div', { class: 'cand-actions multi' }, waze.filter((a) => !a.classList.contains('main'))),
+        el('p', { class: 'small muted', text: 'Do Mercedesu: otevři odkaz v Google Mapách, dej Sdílet → Mercedes-Benz → Odeslat do vozidla (Send2Car). Mercedes převezme cíl. Zastávku si pošli zvlášť jako první cíl.' }),
+        el('div', { class: 'cand-actions multi' },
+          el('a', { href: gPlace(c.s), target: '_blank', rel: 'noopener', text: 'Google Mapy: jen zastávka' }),
+          el('a', { href: gPlace(pts[pts.length - 1]), target: '_blank', rel: 'noopener', text: 'Google Mapy: jen cíl' }),
+          el('button', { type: 'button', class: 'linkish', onclick: () => downloadGpx(c, pts), text: 'Stáhnout GPX' }),
+          navigator.share ? el('button', { type: 'button', class: 'linkish', onclick: () => shareTrip(c, pts), text: 'Sdílet…' }) : null)));
+  }
+
+  const xml = (s) => String(s).replace(/[<>&"']/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[ch]));
+  function gpx(c, pts) {
+    const steps = [{ p: pts[0], name: pts[0].label || 'Start' }, ...legs(c, pts)];
+    const wpt = steps.map((st) => `<wpt lat="${st.p.lat.toFixed(6)}" lon="${st.p.lon.toFixed(6)}"><name>${xml(st.name)}</name></wpt>`).join('\n');
+    const rte = steps.map((st) => `<rtept lat="${st.p.lat.toFixed(6)}" lon="${st.p.lon.toFixed(6)}"><name>${xml(st.name)}</name></rtept>`).join('\n');
+    const L = lastRun.rt.line, step = Math.max(1, Math.floor(L.length / 1500));
+    const trk = L.filter((_, k) => k % step === 0 || k === L.length - 1).map((p) => `<trkpt lat="${p.lat.toFixed(5)}" lon="${p.lon.toFixed(5)}"/>`).join('');
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Nabíjecí plánovač" xmlns="http://www.topografix.com/GPX/1/1">\n${wpt}\n<rte><name>Trasa s nabíjením</name>\n${rte}\n</rte>\n<trk><name>Trasa</name><trkseg>${trk}</trkseg></trk>\n</gpx>\n`;
+  }
+  async function downloadGpx(c, pts) {
+    const name = `trasa-${(pts[pts.length - 1].label || 'cil').split(',')[0].replace(/[^\p{L}\p{N}]+/gu, '-').toLowerCase()}.gpx`;
+    const file = new File([gpx(c, pts)], name, { type: 'application/gpx+xml' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: name }); return; } catch (e) { if (e.name === 'AbortError') return; }
+    }
+    const a = el('a', { href: URL.createObjectURL(file), download: name });
+    document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+  async function shareTrip(c, pts) {
+    const text = `Nabíjení: ${c.s.fuel || ''} ${c.s.op || ''} ${c.s.kw ? c.s.kw + ' kW' : ''} za ${hm(c.atMin)} (${clock(c.at)}), ` +
+      `nabít na ${fmt(c.target)} %${c.pr && c.pr.czk != null ? `, ~${fmt(c.cost)} Kč` : ''}.`;
+    try { await navigator.share({ title: 'Trasa s nabíjením', text, url: navUrl(c, pts) }); } catch (e) { /* cancelled */ }
   }
 
   function warn800(s) {
@@ -493,8 +602,8 @@
     } else if (c.alt && c.alt.kind === 'faster' && c.chargeMin - c.alt.min > 1) {
       parts.push(`Na stojanu nad 200 kW by to bylo o ~${fmt(c.chargeMin - c.alt.min)} min rychlejší za ${fmt(c.alt.czk - c.cost)} Kč navíc.`);
     }
-    if (c.s.op && c.s.op !== 'Tesla' && PRICES.networks[c.s.op]) parts.push('Vypni Plug & Charge, jinak to naúčtuje MB.CHARGE.');
-    if (c.pr && c.pr.card === 'platební karta u stojanu') parts.push('Shell: zaplať kartou u stojanu (blokace 500 Kč). Když neprojde, je hned vedle často ČEZ.');
+    if (c.pr && !/MB\.CHARGE/.test(c.pr.card) && c.s.op !== 'Tesla') parts.push(`Plať kartou ${c.pr.card} a vypni Plug & Charge, jinak to naúčtuje MB.CHARGE.`);
+    if (c.pr && /Shell/.test(c.pr.card)) parts.push('Shell: zaplať kartou u stojanu (blokace 500 Kč). Když neprojde, je hned vedle často ČEZ.');
     return parts.length ? { text: parts.join(' '), warn } : null;
   }
 
@@ -524,7 +633,7 @@
     lastRun.pts.forEach((p, i) => L.circleMarker([p.lat, p.lon], { radius: 7, color: '#13201E', fillColor: i === lastRun.pts.length - 1 ? '#0A7F6C' : '#fff', fillOpacity: 1 })
       .bindTooltip(p.label || '').addTo(layer));
     lastRun.res.cands.forEach((c, i) => L.marker([c.s.lat, c.s.lon], { icon: L.divIcon({ className: 'pin', html: String(i + 1), iconSize: [28, 28] }) })
-      .bindPopup(`<b>${i + 1}. ${(c.s.fuel || '')} ${c.s.op || ''} ${c.s.kw ? c.s.kw + ' kW' : ''}</b><br>za ${hm(c.atMin)} · ${c.pr ? fmt(c.pr.czk, 2) + ' Kč/kWh' : ''}`)
+      .bindPopup(`<b>${i + 1}. ${xml(c.s.fuel || '')} ${xml(c.s.op || '')} ${c.s.kw ? c.s.kw + ' kW' : ''}</b><br>za ${hm(c.atMin)} · ${c.pr && c.pr.czk != null ? fmt(c.pr.czk, 2) + ' Kč/kWh' : ''}`)
       .addTo(layer));
     setTimeout(() => { map.invalidateSize(); map.fitBounds(line.getBounds(), { padding: [24, 24] }); }, 60);
   }

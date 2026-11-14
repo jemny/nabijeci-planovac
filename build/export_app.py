@@ -29,7 +29,63 @@ FUEL_BRANDS = [
     ("Slovnaft", r"slovnaft"), ("Hruška", r"hruška|hruska"), ("Benzina Plus", r"benzina plus"),
 ]
 
-PRICES = {  # Kč/kWh incl. VAT with the user's own cards; night = 20–8 where it differs (memory user-charging-cards)
+def _t(*bands):
+    """bands: (max_kw, day, night, label) -> list of dicts"""
+    return [{"max": m, "day": d, "night": n, "label": lab} for m, d, n, lab in bands]
+
+
+DC_UFC = lambda dc, ufc, lab_dc="DC do 149 kW", lab_ufc="UFC od 150 kW": _t(  # noqa: E731
+    (149, dc, dc, lab_dc), (9999, ufc, ufc, lab_ufc))
+FLAT = lambda p, lab="jedna cena": _t((9999, p, p, lab))  # noqa: E731
+EON_REG = _t((100, 9.5, 8.0, "pásmo do 100 kW"), (200, 13.0, 10.0, "pásmo 101–200 kW"), (400, 16.9, 12.0, "pásmo 201–400 kW"))
+EON_ADHOC = _t((100, 10.5, 8.5, "pásmo do 100 kW"), (200, 14.5, 11.0, "pásmo 101–200 kW"), (400, 20.0, 14.0, "pásmo 201–400 kW"))
+# PRE customers on other operators' stations in CZ (PRE ceník platný od 1. 7. 2026), blocking fees not included
+PRE_ROAM = {"E.ON": DC_UFC(18, 21), "ČEZ": DC_UFC(19, 26), "IONITY": FLAT(25), "Teplárny Brno": DC_UFC(17, 18),
+            "Lidl": FLAT(13.2, "DC"), "Shell": FLAT(17), "ORLEN": FLAT(13), "Chargee": DC_UFC(25, 27)}
+
+# Charging cards / tariffs available in CZ (WattBox srovnání, aktualizováno 11. 11. 2026; E.ON ceník od 1. 4. 2026;
+# PRE roaming ceník od 1. 7. 2026; Shell shell.cz). "own" = networks where the price applies,
+# "anywhere" = roams on (almost) every station: price known (tiers) or unknown (None).
+CARDS = [
+    {"id": "cez-basic", "group": "ČEZ", "name": "ČEZ Basic", "fee": 0, "own": {"ČEZ": DC_UFC(12.9, 15.9)}},
+    {"id": "cez-standard", "group": "ČEZ", "name": "ČEZ Standard", "fee": 100, "own": {"ČEZ": DC_UFC(12.4, 12.4)}},
+    {"id": "cez-premium", "group": "ČEZ", "name": "ČEZ Premium", "fee": 300, "own": {"ČEZ": DC_UFC(11.4, 11.4)}},
+    {"id": "cez-adhoc", "group": "ČEZ", "name": "ČEZ bez registrace", "fee": 0, "own": {"ČEZ": DC_UFC(16.9, 22.9)}},
+    {"id": "eon", "group": "E.ON", "name": "E.ON Drive (registrace)", "fee": 0, "own": {"E.ON": EON_REG}},
+    {"id": "eon-adhoc", "group": "E.ON", "name": "E.ON bez registrace (QR/terminál)", "fee": 0, "own": {"E.ON": EON_ADHOC}},
+    {"id": "pre-start", "group": "PRE", "name": "PRE Start", "fee": 0, "own": {"PRE": DC_UFC(12, 14)}, "roam": PRE_ROAM},
+    {"id": "pre-silver", "group": "PRE", "name": "PRE Silver", "fee": 150, "note": "0 Kč pro zákazníky PRE",
+     "own": {"PRE": DC_UFC(11, 13)}, "roam": PRE_ROAM},
+    {"id": "pre-gold", "group": "PRE", "name": "PRE Gold (jen zákazníci PRE)", "fee": 150, "own": {"PRE": DC_UFC(10, 12)}, "roam": PRE_ROAM},
+    {"id": "pre-platinum", "group": "PRE", "name": "PRE Platinum", "fee": 300, "own": {"PRE": DC_UFC(10, 11)}, "roam": PRE_ROAM},
+    {"id": "pre-adhoc", "group": "PRE", "name": "PRE bez registrace", "fee": 0, "own": {"PRE": DC_UFC(13, 15)}},
+    {"id": "mol", "group": "MOL", "name": "MOL Plugee (registrace)", "fee": 0, "own": {"MOL": DC_UFC(13, 14)}},
+    {"id": "mol-adhoc", "group": "MOL", "name": "MOL bez registrace", "fee": 0, "own": {"MOL": DC_UFC(14.5, 15.5)}},
+    {"id": "orlen", "group": "ORLEN", "name": "ORLEN Charge", "fee": 0, "own": {"ORLEN": FLAT(11)}},
+    {"id": "shell-adhoc", "group": "Shell", "name": "Shell – platební karta u stojanu", "fee": 0, "own": {"Shell": FLAT(15, "ad hoc")}},
+    {"id": "ionity-direct", "group": "IONITY", "name": "IONITY Direct (bez registrace)", "fee": 0, "own": {"IONITY": FLAT(21)}},
+    {"id": "ionity-go", "group": "IONITY", "name": "IONITY Go", "fee": 0, "own": {"IONITY": FLAT(19.95)}},
+    {"id": "ionity-motion", "group": "IONITY", "name": "IONITY Motion", "fee": 142, "own": {"IONITY": FLAT(15)}},
+    {"id": "ionity-power", "group": "IONITY", "name": "IONITY Power", "fee": 305, "own": {"IONITY": FLAT(12)}},
+    {"id": "tesla-non", "group": "Tesla", "name": "Tesla nečlen", "fee": 0,
+     "own": {"Tesla": _t((9999, 21.1, 13.8, "špička 18,60–23,60 / mimo 8,80–18,80, podle stanice"))}},
+    {"id": "tesla-member", "group": "Tesla", "name": "Tesla člen", "fee": 290,
+     "own": {"Tesla": _t((9999, 14.0, 9.9, "špička 13,10–14,90 / mimo 6,30–13,40, podle stanice"))}},
+    {"id": "chargee", "group": "Chargee", "name": "Chargee (registrace)", "fee": 0,
+     "own": {"Chargee": DC_UFC(9, 14), "Teplárny Brno": DC_UFC(9, 14)}},
+    {"id": "lidl-plus", "group": "Lidl", "name": "Lidl Plus", "fee": 0, "own": {"Lidl": FLAT(10, "DC")}},
+    {"id": "lidl-noapp", "group": "Lidl", "name": "Lidl bez aplikace", "fee": 0, "own": {"Lidl": FLAT(11.9, "DC")}},
+    {"id": "elli-premium", "group": "Škoda Powerpass / Elli", "name": "Powerpass Charge Premium", "fee": 429,
+     "own": {"IONITY": FLAT(12.5)}, "anywhere": FLAT(16, "DC kdekoli")},
+    {"id": "elli-basic", "group": "Škoda Powerpass / Elli", "name": "Powerpass Charge Basic", "fee": 0, "anywhere": None},
+    {"id": "mbcharge", "group": "Mercedes", "name": "MB.CHARGE Public", "fee": 0, "anywhere": None,
+     "note": "roaming téměř všude, cenu ukáže aplikace Mercedes"},
+]
+# what the user has today (memory user-charging-cards) – the app's default selection
+DEFAULT_CARDS = ["cez-basic", "eon", "chargee", "lidl-noapp", "mbcharge", "orlen", "pre-start", "mol", "tesla-non",
+                 "ionity-go", "shell-adhoc"]
+
+PRICES = {  # legacy single-card table (CLI / query.py); the app uses CARDS
     "night_hours": [20, 8],
     "networks": {
         "E.ON": {"card": "E.ON Drive", "tiers": [
@@ -97,6 +153,10 @@ def main():
 
     with open(os.path.join(APP_DATA, "prices.json"), "w", encoding="utf-8") as f:
         json.dump(PRICES, f, ensure_ascii=False, indent=1)
+    with open(os.path.join(APP_DATA, "cards.json"), "w", encoding="utf-8") as f:
+        json.dump({"night_hours": [20, 8], "default": DEFAULT_CARDS, "cards": CARDS,
+                   "source": "WattBox srovnání karet (11. 11. 2026), E.ON ceník od 1. 4. 2026, PRE roaming od 1. 7. 2026, shell.cz"},
+                  f, ensure_ascii=False, indent=1)
 
     cal = {"k_median": 0.72, "bands": [], "updated": None}
     try:

@@ -83,6 +83,13 @@
       <label class="check inline"><input type="checkbox" id="only-fav"><span>Ukázat jen oblíbené pumpy</span></label>
     </div>
 
+    <details class="more" id="cards-box">
+      <summary id="cards-summary">Moje karty a tarify</summary>
+      <p class="small muted">Zaškrtni, čím můžeš platit. U každé stanice appka vybere nejlevnější z nich. Ceny podle WattBoxu (11. 11. 2026), E.ON od 1. 4. 2026, roaming PRE od 1. 7. 2026.</p>
+      <div id="cards" class="cards"></div>
+      <button type="button" class="link-btn" id="cards-default">Vrátit moje karty</button>
+    </details>
+
     <details class="more">
       <summary>Další možnosti</summary>
       <div class="grid2">
@@ -93,7 +100,7 @@
       </div>
       <label class="field"><span>Časy jízdy</span>
         <select id="tempo"><option value="0.93" selected>Moje tempo, dálnice ~130 km/h (jako Google)</option><option value="1">Klidnější jízda (časy OSRM)</option></select></label>
-      <label class="check inline"><input type="checkbox" id="my-cards" checked><span>Jen sítě, na které mám kartu (+ Shell kartou u stojanu)</span></label>
+      <label class="check inline"><input type="checkbox" id="my-cards" checked><span>Jen stanice, kde zaplatím vybranou kartou</span></label>
       <label class="check inline"><input type="checkbox" id="unknown-kw"><span>Ukázat i stanice bez známého výkonu</span></label>
       <p class="small muted">Spotřeba 23,8 kWh/100 km je horší případ v zimě při 130 km/h. Reálně naměřeno v listopadu: 22,4.</p>
     </details>

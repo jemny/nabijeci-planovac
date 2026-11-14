@@ -1,0 +1,916 @@
+{
+ "night_hours": [
+  20,
+  8
+ ],
+ "default": [
+  "cez-basic",
+  "eon",
+  "chargee",
+  "lidl-noapp",
+  "mbcharge",
+  "orlen",
+  "pre-start",
+  "mol",
+  "tesla-non",
+  "ionity-go",
+  "shell-adhoc"
+ ],
+ "cards": [
+  {
+   "id": "cez-basic",
+   "group": "ČEZ",
+   "name": "ČEZ Basic",
+   "fee": 0,
+   "own": {
+    "ČEZ": [
+     {
+      "max": 149,
+      "day": 12.9,
+      "night": 12.9,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 15.9,
+      "night": 15.9,
+      "label": "UFC od 150 kW"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cez-standard",
+   "group": "ČEZ",
+   "name": "ČEZ Standard",
+   "fee": 100,
+   "own": {
+    "ČEZ": [
+     {
+      "max": 149,
+      "day": 12.4,
+      "night": 12.4,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 12.4,
+      "night": 12.4,
+      "label": "UFC od 150 kW"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cez-premium",
+   "group": "ČEZ",
+   "name": "ČEZ Premium",
+   "fee": 300,
+   "own": {
+    "ČEZ": [
+     {
+      "max": 149,
+      "day": 11.4,
+      "night": 11.4,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 11.4,
+      "night": 11.4,
+      "label": "UFC od 150 kW"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cez-adhoc",
+   "group": "ČEZ",
+   "name": "ČEZ bez registrace",
+   "fee": 0,
+   "own": {
+    "ČEZ": [
+     {
+      "max": 149,
+      "day": 16.9,
+      "night": 16.9,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 22.9,
+      "night": 22.9,
+      "label": "UFC od 150 kW"
+     }
+    ]
+   }
+  },
+  {
+   "id": "eon",
+   "group": "E.ON",
+   "name": "E.ON Drive (registrace)",
+   "fee": 0,
+   "own": {
+    "E.ON": [
+     {
+      "max": 100,
+      "day": 9.5,
+      "night": 8.0,
+      "label": "pásmo do 100 kW"
+     },
+     {
+      "max": 200,
+      "day": 13.0,
+      "night": 10.0,
+      "label": "pásmo 101–200 kW"
+     },
+     {
+      "max": 400,
+      "day": 16.9,
+      "night": 12.0,
+      "label": "pásmo 201–400 kW"
+     }
+    ]
+   }
+  },
+  {
+   "id": "eon-adhoc",
+   "group": "E.ON",
+   "name": "E.ON bez registrace (QR/terminál)",
+   "fee": 0,
+   "own": {
+    "E.ON": [
+     {
+      "max": 100,
+      "day": 10.5,
+      "night": 8.5,
+      "label": "pásmo do 100 kW"
+     },
+     {
+      "max": 200,
+      "day": 14.5,
+      "night": 11.0,
+      "label": "pásmo 101–200 kW"
+     },
+     {
+      "max": 400,
+      "day": 20.0,
+      "night": 14.0,
+      "label": "pásmo 201–400 kW"
+     }
+    ]
+   }
+  },
+  {
+   "id": "pre-start",
+   "group": "PRE",
+   "name": "PRE Start",
+   "fee": 0,
+   "own": {
+    "PRE": [
+     {
+      "max": 149,
+      "day": 12,
+      "night": 12,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 14,
+      "night": 14,
+      "label": "UFC od 150 kW"
+     }
+    ]
+   },
+   "roam": {
+    "E.ON": [
+     {
+      "max": 149,
+      "day": 18,
+      "night": 18,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 21,
+      "night": 21,
+      "label": "UFC od 150 kW"
+     }
+    ],
+    "ČEZ": [
+     {
+      "max": 149,
+      "day": 19,
+      "night": 19,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 26,
+      "night": 26,
+      "label": "UFC od 150 kW"
+     }
+    ],
+    "IONITY": [
+     {
+      "max": 9999,
+      "day": 25,
+      "night": 25,
+      "label": "jedna cena"
+     }
+    ],
+    "Teplárny Brno": [
+     {
+      "max": 149,
+      "day": 17,
+      "night": 17,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 18,
+      "night": 18,
+      "label": "UFC od 150 kW"
+     }
+    ],
+    "Lidl": [
+     {
+      "max": 9999,
+      "day": 13.2,
+      "night": 13.2,
+      "label": "DC"
+     }
+    ],
+    "Shell": [
+     {
+      "max": 9999,
+      "day": 17,
+      "night": 17,
+      "label": "jedna cena"
+     }
+    ],
+    "ORLEN": [
+     {
+      "max": 9999,
+      "day": 13,
+      "night": 13,
+      "label": "jedna cena"
+     }
+    ],
+    "Chargee": [
+     {
+      "max": 149,
+      "day": 25,
+      "night": 25,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 27,
+      "night": 27,
+      "label": "UFC od 150 kW"
+     }
+    ]
+   }
+  },
+  {
+   "id": "pre-silver",
+   "group": "PRE",
+   "name": "PRE Silver",
+   "fee": 150,
+   "note": "0 Kč pro zákazníky PRE",
+   "own": {
+    "PRE": [
+     {
+      "max": 149,
+      "day": 11,
+      "night": 11,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 13,
+      "night": 13,
+      "label": "UFC od 150 kW"
+     }
+    ]
+   },
+   "roam": {
+    "E.ON": [
+     {
+      "max": 149,
+      "day": 18,
+      "night": 18,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 21,
+      "night": 21,
+      "label": "UFC od 150 kW"
+     }
+    ],
+    "ČEZ": [
+     {
+      "max": 149,
+      "day": 19,
+      "night": 19,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 26,
+      "night": 26,
+      "label": "UFC od 150 kW"
+     }
+    ],
+    "IONITY": [
+     {
+      "max": 9999,
+      "day": 25,
+      "night": 25,
+      "label": "jedna cena"
+     }
+    ],
+    "Teplárny Brno": [
+     {
+      "max": 149,
+      "day": 17,
+      "night": 17,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 18,
+      "night": 18,
+      "label": "UFC od 150 kW"
+     }
+    ],
+    "Lidl": [
+     {
+      "max": 9999,
+      "day": 13.2,
+      "night": 13.2,
+      "label": "DC"
+     }
+    ],
+    "Shell": [
+     {
+      "max": 9999,
+      "day": 17,
+      "night": 17,
+      "label": "jedna cena"
+     }
+    ],
+    "ORLEN": [
+     {
+      "max": 9999,
+      "day": 13,
+      "night": 13,
+      "label": "jedna cena"
+     }
+    ],
+    "Chargee": [
+     {
+      "max": 149,
+      "day": 25,
+      "night": 25,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 27,
+      "night": 27,
+      "label": "UFC od 150 kW"
+     }
+    ]
+   }
+  },
+  {
+   "id": "pre-gold",
+   "group": "PRE",
+   "name": "PRE Gold (jen zákazníci PRE)",
+   "fee": 150,
+   "own": {
+    "PRE": [
+     {
+      "max": 149,
+      "day": 10,
+      "night": 10,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 12,
+      "night": 12,
+      "label": "UFC od 150 kW"
+     }
+    ]
+   },
+   "roam": {
+    "E.ON": [
+     {
+      "max": 149,
+      "day": 18,
+      "night": 18,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 21,
+      "night": 21,
+      "label": "UFC od 150 kW"
+     }
+    ],
+    "ČEZ": [
+     {
+      "max": 149,
+      "day": 19,
+      "night": 19,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 26,
+      "night": 26,
+      "label": "UFC od 150 kW"
+     }
+    ],
+    "IONITY": [
+     {
+      "max": 9999,
+      "day": 25,
+      "night": 25,
+      "label": "jedna cena"
+     }
+    ],
+    "Teplárny Brno": [
+     {
+      "max": 149,
+      "day": 17,
+      "night": 17,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 18,
+      "night": 18,
+      "label": "UFC od 150 kW"
+     }
+    ],
+    "Lidl": [
+     {
+      "max": 9999,
+      "day": 13.2,
+      "night": 13.2,
+      "label": "DC"
+     }
+    ],
+    "Shell": [
+     {
+      "max": 9999,
+      "day": 17,
+      "night": 17,
+      "label": "jedna cena"
+     }
+    ],
+    "ORLEN": [
+     {
+      "max": 9999,
+      "day": 13,
+      "night": 13,
+      "label": "jedna cena"
+     }
+    ],
+    "Chargee": [
+     {
+      "max": 149,
+      "day": 25,
+      "night": 25,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 27,
+      "night": 27,
+      "label": "UFC od 150 kW"
+     }
+    ]
+   }
+  },
+  {
+   "id": "pre-platinum",
+   "group": "PRE",
+   "name": "PRE Platinum",
+   "fee": 300,
+   "own": {
+    "PRE": [
+     {
+      "max": 149,
+      "day": 10,
+      "night": 10,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 11,
+      "night": 11,
+      "label": "UFC od 150 kW"
+     }
+    ]
+   },
+   "roam": {
+    "E.ON": [
+     {
+      "max": 149,
+      "day": 18,
+      "night": 18,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 21,
+      "night": 21,
+      "label": "UFC od 150 kW"
+     }
+    ],
+    "ČEZ": [
+     {
+      "max": 149,
+      "day": 19,
+      "night": 19,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 26,
+      "night": 26,
+      "label": "UFC od 150 kW"
+     }
+    ],
+    "IONITY": [
+     {
+      "max": 9999,
+      "day": 25,
+      "night": 25,
+      "label": "jedna cena"
+     }
+    ],
+    "Teplárny Brno": [
+     {
+      "max": 149,
+      "day": 17,
+      "night": 17,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 18,
+      "night": 18,
+      "label": "UFC od 150 kW"
+     }
+    ],
+    "Lidl": [
+     {
+      "max": 9999,
+      "day": 13.2,
+      "night": 13.2,
+      "label": "DC"
+     }
+    ],
+    "Shell": [
+     {
+      "max": 9999,
+      "day": 17,
+      "night": 17,
+      "label": "jedna cena"
+     }
+    ],
+    "ORLEN": [
+     {
+      "max": 9999,
+      "day": 13,
+      "night": 13,
+      "label": "jedna cena"
+     }
+    ],
+    "Chargee": [
+     {
+      "max": 149,
+      "day": 25,
+      "night": 25,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 27,
+      "night": 27,
+      "label": "UFC od 150 kW"
+     }
+    ]
+   }
+  },
+  {
+   "id": "pre-adhoc",
+   "group": "PRE",
+   "name": "PRE bez registrace",
+   "fee": 0,
+   "own": {
+    "PRE": [
+     {
+      "max": 149,
+      "day": 13,
+      "night": 13,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 15,
+      "night": 15,
+      "label": "UFC od 150 kW"
+     }
+    ]
+   }
+  },
+  {
+   "id": "mol",
+   "group": "MOL",
+   "name": "MOL Plugee (registrace)",
+   "fee": 0,
+   "own": {
+    "MOL": [
+     {
+      "max": 149,
+      "day": 13,
+      "night": 13,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 14,
+      "night": 14,
+      "label": "UFC od 150 kW"
+     }
+    ]
+   }
+  },
+  {
+   "id": "mol-adhoc",
+   "group": "MOL",
+   "name": "MOL bez registrace",
+   "fee": 0,
+   "own": {
+    "MOL": [
+     {
+      "max": 149,
+      "day": 14.5,
+      "night": 14.5,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 15.5,
+      "night": 15.5,
+      "label": "UFC od 150 kW"
+     }
+    ]
+   }
+  },
+  {
+   "id": "orlen",
+   "group": "ORLEN",
+   "name": "ORLEN Charge",
+   "fee": 0,
+   "own": {
+    "ORLEN": [
+     {
+      "max": 9999,
+      "day": 11,
+      "night": 11,
+      "label": "jedna cena"
+     }
+    ]
+   }
+  },
+  {
+   "id": "shell-adhoc",
+   "group": "Shell",
+   "name": "Shell – platební karta u stojanu",
+   "fee": 0,
+   "own": {
+    "Shell": [
+     {
+      "max": 9999,
+      "day": 15,
+      "night": 15,
+      "label": "ad hoc"
+     }
+    ]
+   }
+  },
+  {
+   "id": "ionity-direct",
+   "group": "IONITY",
+   "name": "IONITY Direct (bez registrace)",
+   "fee": 0,
+   "own": {
+    "IONITY": [
+     {
+      "max": 9999,
+      "day": 21,
+      "night": 21,
+      "label": "jedna cena"
+     }
+    ]
+   }
+  },
+  {
+   "id": "ionity-go",
+   "group": "IONITY",
+   "name": "IONITY Go",
+   "fee": 0,
+   "own": {
+    "IONITY": [
+     {
+      "max": 9999,
+      "day": 19.95,
+      "night": 19.95,
+      "label": "jedna cena"
+     }
+    ]
+   }
+  },
+  {
+   "id": "ionity-motion",
+   "group": "IONITY",
+   "name": "IONITY Motion",
+   "fee": 142,
+   "own": {
+    "IONITY": [
+     {
+      "max": 9999,
+      "day": 15,
+      "night": 15,
+      "label": "jedna cena"
+     }
+    ]
+   }
+  },
+  {
+   "id": "ionity-power",
+   "group": "IONITY",
+   "name": "IONITY Power",
+   "fee": 305,
+   "own": {
+    "IONITY": [
+     {
+      "max": 9999,
+      "day": 12,
+      "night": 12,
+      "label": "jedna cena"
+     }
+    ]
+   }
+  },
+  {
+   "id": "tesla-non",
+   "group": "Tesla",
+   "name": "Tesla nečlen",
+   "fee": 0,
+   "own": {
+    "Tesla": [
+     {
+      "max": 9999,
+      "day": 21.1,
+      "night": 13.8,
+      "label": "špička 18,60–23,60 / mimo 8,80–18,80, podle stanice"
+     }
+    ]
+   }
+  },
+  {
+   "id": "tesla-member",
+   "group": "Tesla",
+   "name": "Tesla člen",
+   "fee": 290,
+   "own": {
+    "Tesla": [
+     {
+      "max": 9999,
+      "day": 14.0,
+      "night": 9.9,
+      "label": "špička 13,10–14,90 / mimo 6,30–13,40, podle stanice"
+     }
+    ]
+   }
+  },
+  {
+   "id": "chargee",
+   "group": "Chargee",
+   "name": "Chargee (registrace)",
+   "fee": 0,
+   "own": {
+    "Chargee": [
+     {
+      "max": 149,
+      "day": 9,
+      "night": 9,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 14,
+      "night": 14,
+      "label": "UFC od 150 kW"
+     }
+    ],
+    "Teplárny Brno": [
+     {
+      "max": 149,
+      "day": 9,
+      "night": 9,
+      "label": "DC do 149 kW"
+     },
+     {
+      "max": 9999,
+      "day": 14,
+      "night": 14,
+      "label": "UFC od 150 kW"
+     }
+    ]
+   }
+  },
+  {
+   "id": "lidl-plus",
+   "group": "Lidl",
+   "name": "Lidl Plus",
+   "fee": 0,
+   "own": {
+    "Lidl": [
+     {
+      "max": 9999,
+      "day": 10,
+      "night": 10,
+      "label": "DC"
+     }
+    ]
+   }
+  },
+  {
+   "id": "lidl-noapp",
+   "group": "Lidl",
+   "name": "Lidl bez aplikace",
+   "fee": 0,
+   "own": {
+    "Lidl": [
+     {
+      "max": 9999,
+      "day": 11.9,
+      "night": 11.9,
+      "label": "DC"
+     }
+    ]
+   }
+  },
+  {
+   "id": "elli-premium",
+   "group": "Škoda Powerpass / Elli",
+   "name": "Powerpass Charge Premium",
+   "fee": 429,
+   "own": {
+    "IONITY": [
+     {
+      "max": 9999,
+      "day": 12.5,
+      "night": 12.5,
+      "label": "jedna cena"
+     }
+    ]
+   },
+   "anywhere": [
+    {
+     "max": 9999,
+     "day": 16,
+     "night": 16,
+     "label": "DC kdekoli"
+    }
+   ]
+  },
+  {
+   "id": "elli-basic",
+   "group": "Škoda Powerpass / Elli",
+   "name": "Powerpass Charge Basic",
+   "fee": 0,
+   "anywhere": null
+  },
+  {
+   "id": "mbcharge",
+   "group": "Mercedes",
+   "name": "MB.CHARGE Public",
+   "fee": 0,
+   "anywhere": null,
+   "note": "roaming téměř všude, cenu ukáže aplikace Mercedes"
+  }
+ ],
+ "source": "WattBox srovnání karet (11. 11. 2026), E.ON ceník od 1. 4. 2026, PRE roaming od 1. 7. 2026, shell.cz"
+}

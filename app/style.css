@@ -89,7 +89,7 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--ev);flex:none;mar
 .chip[aria-pressed="true"]{background:var(--ev-soft);border-color:var(--ev);color:var(--ev);font-weight:600}
 .chip small{color:var(--muted);font-weight:400;margin-left:4px}
 details.more summary{cursor:pointer;font-weight:600;color:var(--ev);padding:4px 0;min-height:36px;display:flex;align-items:center}
-details.more[open]{display:flex;flex-direction:column;gap:10px}
+details.more[open] > :not(summary){margin-top:10px}
 
 /* bottom action bar */
 .actionbar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;gap:10px;justify-content:center;
@@ -129,6 +129,17 @@ details.more[open]{display:flex;flex-direction:column;gap:10px}
 .cand-actions a{flex:1;min-height:46px;display:grid;place-items:center;border-radius:10px;border:1px solid var(--line);text-decoration:none;font-weight:600;color:var(--ink);background:var(--surface);padding:0 10px;text-align:center}
 .cand-actions a.nav{background:var(--ev);border-color:var(--ev);color:var(--ev-ink)}
 .more-results{align-self:center}
+.cards{display:flex;flex-direction:column;gap:10px}
+.card-group{display:flex;flex-direction:column}
+.card-group-name{font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-top:4px}
+.card-opt{align-items:flex-start!important}
+.card-opt small{display:block;color:var(--muted);font-size:.78rem;font-weight:400}
+.export{display:flex;flex-direction:column;gap:8px}
+.cand-actions.multi a,.cand-actions.multi button{flex:1 1 45%}
+.cand-actions a.waze{background:#33CCFF22;border-color:#33CCFF}
+.linkish{min-height:46px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-weight:600;cursor:pointer;padding:0 10px}
+details.more-export summary{cursor:pointer;color:var(--ev);font-weight:600;font-size:.9rem;min-height:36px;display:flex;align-items:center}
+details.more-export[open] > :not(summary){margin-top:8px}
 #map{height:62vh;min-height:320px;border-radius:var(--radius);border:1px solid var(--line)}
 .leaflet-container{font:inherit}
 .pin{background:var(--ev);color:var(--ev-ink);border:2px solid #fff;border-radius:50%;width:28px!important;height:28px!important;
