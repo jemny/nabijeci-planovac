@@ -54,10 +54,12 @@
     </div>
     <button type="button" class="link-btn add-via" id="add-via">+ Přidat místo, přes které pojedu</button>
 
-    <div class="grid2">
-      <label class="field"><span>Odjezd</span><input type="datetime-local" id="depart"></label>
+    <label class="field"><span>Odjezd</span><input type="datetime-local" id="depart"></label>
+    <div class="grid2 even">
       <label class="field"><span>Baterie na startu</span>
         <span class="suffix"><input type="number" id="soc0" min="5" max="100" step="1" inputmode="numeric" value="100"><i>%</i></span></label>
+      <label class="field"><span id="reserve-label">Domů dojet s alespoň</span>
+        <span class="suffix"><input type="number" id="reserve" min="0" max="80" step="1" inputmode="numeric" value="10"><i>%</i></span></label>
     </div>
 
     <fieldset class="field window">

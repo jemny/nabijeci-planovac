@@ -7,7 +7,7 @@
   const OSRM = 'https://router.project-osrm.org/route/v1/driving/';
   const PHOTON = 'https://photon.komoot.io/api/';
   const STOP_MIN = 12;           // coffee + párek + toilet (user rule)
-  const RESERVE_PCT = 10;        // arrive home / at destination with at least this
+  const RESERVE_DEFAULT = 10;    // arrive home / at destination with at least this (user can change)
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const PREFS_KEY = 'np.prefs.v1';
@@ -202,6 +202,10 @@
   if (prefs.minKw) $('min-kw').value = String(prefs.minKw);
   if (prefs.cons) $('cons').value = String(prefs.cons);
   if (prefs.tempo) $('tempo').value = String(prefs.tempo);
+  $('reserve').value = String(prefs.reserve != null ? prefs.reserve : RESERVE_DEFAULT);
+  const syncReserveLabel = () => { $('reserve-label').textContent = $('round-trip').checked ? 'Domů dojet s alespoň' : 'Do cíle dojet s alespoň'; };
+  $('round-trip').addEventListener('change', syncReserveLabel);
+  syncReserveLabel();
   let favs = new Set(prefs.favs || DEFAULT_FAVS);
 
   function renderBrands() {
@@ -295,8 +299,10 @@
       onlyFav: $('only-fav').checked, myCards: $('my-cards').checked, unknownKw: $('unknown-kw').checked,
       minKw: +$('min-kw').value, cons: parseFloat(String($('cons').value).replace(',', '.')) || 23.8,
       tempo: parseFloat($('tempo').value) || 0.93,
+      reserve: Math.max(0, Math.min(80, parseFloat($('reserve').value))),
     };
-    prefs.tempo = opts.tempo;
+    if (!Number.isFinite(opts.reserve)) opts.reserve = RESERVE_DEFAULT;
+    prefs.tempo = opts.tempo; prefs.reserve = opts.reserve;
     Object.assign(prefs, { places, winFrom: opts.winFrom, winTo: opts.winTo, 'en-route': opts.enRoute, 'at-pump': opts.atPump,
       'round-trip': opts.roundTrip, 'only-fav': opts.onlyFav, 'my-cards': opts.myCards, 'unknown-kw': opts.unknownKw,
       minKw: opts.minKw, cons: opts.cons, favs: [...favs] });
@@ -358,7 +364,7 @@
     const kmAt = n.d / 1000;
     const arrive = Math.max(0, o.soc0 - kmAt * o.cons / CAP);
     const remainKm = (totalKm - kmAt) + (o.roundTrip ? totalKm : 0) + (2 * n.dist / 1000);
-    const need = remainKm * o.cons / CAP + RESERVE_PCT;
+    const need = remainKm * o.cons / CAP + o.reserve;
     let target = Math.max(arrive, Math.min(need, MAX_TARGET));
     target = Math.round(target);
     const short = need > MAX_TARGET;
@@ -399,9 +405,9 @@
       el('div', { class: 'stat' }, el('b', { text: hm(res.totalMin) }), el('span', { text: 'jízda tam (bez zastávek)' })),
       el('div', { class: 'stat' }, el('b', { text: `${fmt(Math.max(destNo, -99))} %` }), el('span', { text: 'v cíli bez nabíjení' })),
       el('p', { class: 'summary-note', text:
-        (o.roundTrip ? (homeNo >= RESERVE_PCT ? `Tam i zpět dojedeš bez nabíjení (domů s ~${fmt(homeNo)} %). Zastávka je jen na kávu a dotlačení kWh.`
-          : `Bez nabíjení bys domů dojel s ${fmt(homeNo)} %. Potřebuješ dobít asi ${fmt(RESERVE_PCT - homeNo)} % baterie.`)
-          : (destNo >= RESERVE_PCT ? 'Do cíle dojedeš i bez nabíjení.' : `Do cíle potřebuješ dobít asi ${fmt(RESERVE_PCT - destNo)} %.`)) +
+        (o.roundTrip ? (homeNo >= o.reserve ? `Tam i zpět dojedeš bez nabíjení (domů s ~${fmt(homeNo)} %, chceš alespoň ${fmt(o.reserve)} %). Zastávka je jen na kávu a dotlačení kWh.`
+          : `Bez nabíjení bys domů dojel s ${fmt(homeNo)} %. Aby zbylo ${fmt(o.reserve)} %, potřebuješ dobít asi ${fmt(o.reserve - homeNo)} % baterie.`)
+          : (destNo >= o.reserve ? `Do cíle dojedeš i bez nabíjení (s ~${fmt(destNo)} %).` : `Aby v cíli zbylo ${fmt(o.reserve)} %, potřebuješ dobít asi ${fmt(o.reserve - destNo)} %.`)) +
         ` Okno zastávky ${hm(o.winFrom)}–${hm(o.winTo)}: ${res.inWindow} v okně` +
         (res.cands.length > res.inWindow ? `, ${res.cands.length - res.inWindow} do ${SOFT_MIN} min mimo.` : '.') }),
     );
