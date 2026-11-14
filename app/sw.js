@@ -1,5 +1,5 @@
 /* Offline fallback: same-origin files network-first with a cache copy; external APIs untouched. */
-const VERSION = 'np-v2';
+const VERSION = 'np-v3';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {

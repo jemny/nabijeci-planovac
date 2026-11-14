@@ -58,24 +58,40 @@
     <div class="grid2 even">
       <label class="field"><span>Baterie na startu</span>
         <span class="suffix"><input type="number" id="soc0" min="5" max="100" step="1" inputmode="numeric" value="100"><i>%</i></span></label>
-      <label class="field"><span id="reserve-label">Domů dojet s alespoň</span>
+      <label class="field"><span id="reserve-label">Přijet s alespoň</span>
         <span class="suffix"><input type="number" id="reserve" min="0" max="80" step="1" inputmode="numeric" value="10"><i>%</i></span></label>
     </div>
+    <p class="small muted hint-top">„Přijet s alespoň“ platí pro každou zastávku i pro cíl a cestu domů.</p>
 
     <fieldset class="field window">
-      <legend>Zastavit po jízdě</legend>
-      <div class="window-row">
-        <label><span class="sr">od</span><select id="win-from"></select></label>
-        <span class="dash">až</span>
-        <label><span class="sr">do</span><select id="win-to"></select></label>
+      <legend>Zastavovat</legend>
+      <div class="seg" role="radiogroup" aria-label="Zastavovat podle">
+        <input type="radio" name="stop-by" id="by-time" value="time" checked><label for="by-time">Po čase jízdy</label>
+        <input type="radio" name="stop-by" id="by-km" value="km"><label for="by-km">Po kilometrech</label>
       </div>
+      <div class="window-row" id="row-time">
+        <span>každých</span>
+        <label><span class="sr">interval</span><select id="int-time"></select></label>
+        <span class="dash">±</span>
+        <label><span class="sr">tolerance</span><select id="tol-time"></select></label>
+      </div>
+      <div class="window-row" id="row-km" hidden>
+        <span>každých</span>
+        <label><span class="sr">interval km</span><span class="suffix"><input type="number" id="int-km" min="20" max="500" step="10" inputmode="numeric" value="130"><i>km</i></span></label>
+        <span class="dash">±</span>
+        <label><span class="sr">tolerance km</span><span class="suffix"><input type="number" id="tol-km" min="0" max="150" step="5" inputmode="numeric" value="20"><i>km</i></span></label>
+      </div>
+      <p class="small muted" id="win-hint"></p>
     </fieldset>
 
+    <label class="field"><span>Objížďka k nabíječce</span>
+      <select id="detour"><option value="1.5" selected>Žádná, jen přímo u trasy</option><option value="5">Do 5 km od trasy</option><option value="15">Do 15 km od trasy</option></select></label>
+
     <div class="checks">
-      <label class="check"><input type="checkbox" id="en-route" checked><span><b>Nabíjet po cestě</b><small>jen stanice u trasy, bez objížďky</small></span></label>
       <label class="check"><input type="checkbox" id="at-pump" checked><span><b>Jen na pumpách</b><small>káva, párek, záchod</small></span></label>
-      <label class="check"><input type="checkbox" id="round-trip" checked><span><b>Počítat i cestu zpět</b><small>stejnou trasou, dobít tak, abych dojel domů</small></span></label>
+      <label class="check"><input type="checkbox" id="round-trip" checked><span><b>Počítat i cestu zpět</b><small>stejnou trasou, ten samý den</small></span></label>
     </div>
+    <label class="field" id="ret-field"><span>Zpátky vyrážím v</span><input type="time" id="ret-time" value="16:00"></label>
 
     <div class="field" id="brands-field">
       <span class="lbl">Oblíbené pumpy <small class="muted">jsou nahoře výsledků</small></span>
