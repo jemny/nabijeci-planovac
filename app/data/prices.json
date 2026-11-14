@@ -1,0 +1,155 @@
+{
+ "night_hours": [
+  20,
+  8
+ ],
+ "networks": {
+  "E.ON": {
+   "card": "E.ON Drive",
+   "tiers": [
+    {
+     "max": 100,
+     "day": 9.5,
+     "night": 8.0,
+     "label": "pásmo do 100 kW"
+    },
+    {
+     "max": 200,
+     "day": 13.0,
+     "night": 10.0,
+     "label": "pásmo 101–200 kW"
+    },
+    {
+     "max": 400,
+     "day": 16.9,
+     "night": 12.0,
+     "label": "pásmo 201–400 kW"
+    }
+   ]
+  },
+  "ČEZ": {
+   "card": "ČEZ Basic",
+   "tiers": [
+    {
+     "max": 149,
+     "day": 12.9,
+     "night": 12.9,
+     "label": "DC 50–149 kW"
+    },
+    {
+     "max": 9999,
+     "day": 15.9,
+     "night": 15.9,
+     "label": "UFC od 150 kW"
+    }
+   ]
+  },
+  "PRE": {
+   "card": "PRE Start",
+   "tiers": [
+    {
+     "max": 149,
+     "day": 12.0,
+     "night": 12.0,
+     "label": "DC (hranice pásma neověřena)"
+    },
+    {
+     "max": 9999,
+     "day": 14.0,
+     "night": 14.0,
+     "label": "UFC (hranice pásma neověřena)"
+    }
+   ]
+  },
+  "MOL": {
+   "card": "MOL",
+   "tiers": [
+    {
+     "max": 149,
+     "day": 13.0,
+     "night": 13.0,
+     "label": "DC (hranice pásma neověřena)"
+    },
+    {
+     "max": 9999,
+     "day": 14.0,
+     "night": 14.0,
+     "label": "UFC (hranice pásma neověřena)"
+    }
+   ]
+  },
+  "Chargee": {
+   "card": "Chargee",
+   "tiers": [
+    {
+     "max": 149,
+     "day": 9.0,
+     "night": 9.0,
+     "label": "DC (hranice pásma neověřena)"
+    },
+    {
+     "max": 9999,
+     "day": 14.0,
+     "night": 14.0,
+     "label": "UFC (hranice pásma neověřena)"
+    }
+   ]
+  },
+  "ORLEN": {
+   "card": "ORLEN",
+   "tiers": [
+    {
+     "max": 9999,
+     "day": 11.0,
+     "night": 11.0,
+     "label": "jedna cena"
+    }
+   ]
+  },
+  "Shell": {
+   "card": "platební karta u stojanu",
+   "tiers": [
+    {
+     "max": 9999,
+     "day": 15.0,
+     "night": 15.0,
+     "label": "ad hoc, bez karty"
+    }
+   ]
+  },
+  "IONITY": {
+   "card": "IONITY Go",
+   "tiers": [
+    {
+     "max": 9999,
+     "day": 19.95,
+     "night": 19.95,
+     "label": "jedna cena"
+    }
+   ]
+  },
+  "Tesla": {
+   "card": "Tesla nečlen",
+   "tiers": [
+    {
+     "max": 9999,
+     "day": 20.3,
+     "night": 10.3,
+     "label": "špička / mimo špičku (orientačně)"
+    }
+   ]
+  },
+  "Lidl": {
+   "card": "Lidl",
+   "tiers": [
+    {
+     "max": 9999,
+     "day": 11.9,
+     "night": 11.9,
+     "label": "DC"
+    }
+   ]
+  }
+ },
+ "source": "ceníky ověřené 2026-11-14 (E.ON od 1. 4. 2026, ČEZ dle Autohledu, ostatní WattBox, Shell shell.cz)"
+}

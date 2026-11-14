@@ -1,0 +1,6 @@
+build/raw/
+build/*.sqlite
+build/nabijecky.csv
+build/*.geojson
+__pycache__/
+.DS_Store

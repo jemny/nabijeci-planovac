@@ -1,0 +1,22 @@
+{
+ "exported": "2026-11-14T23:21",
+ "osm_base": "2026-11-14T21:52:21Z",
+ "ocm_export_date": "2026-04-22",
+ "dc_stations": 1315,
+ "fast_150": 200,
+ "importers": {
+  "eon_map": {
+   "ok": true,
+   "rows": 949,
+   "updated": 829,
+   "added": 120
+  },
+  "tesla": {
+   "ok": true,
+   "rows": 12,
+   "updated": 12,
+   "added": 0
+  }
+ },
+ "license": "OSM data © OpenStreetMap contributors (ODbL); OCM data CC BY 4.0; E.ON Drive map (roaming stations); supercharge.info"
+}

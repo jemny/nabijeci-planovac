@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nabíjecí plánovač</title>
+<meta name="description" content="Kde po cestě nabít: zastávky na pumpách v zadaném čase jízdy, s cenou podle mých karet a doporučením stojanu.">
+<meta name="theme-color" content="#0A7F6C" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0D1413" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Nabíjení">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="wrap">
+  <header class="top">
+    <div>
+      <p class="eyebrow">CLA 350 4MATIC · 85 kWh · 800 V</p>
+      <h1>Kde po cestě nabít</h1>
+    </div>
+    <button type="button" class="icon-btn" id="btn-settings" aria-expanded="false" aria-controls="settings" title="Nastavení">⚙︎</button>
+  </header>
+
+  <section class="card settings" id="settings" hidden>
+    <h2>Nastavení</h2>
+    <div class="row-field">
+      <span>Domů</span>
+      <span class="muted" id="home-label">neuloženo</span>
+      <button type="button" class="link-btn" id="home-from-start">Uložit „Odkud“ jako Domů</button>
+    </div>
+    <div class="row-field">
+      <span>Data nabíječek</span>
+      <span class="muted" id="data-date">načítám…</span>
+      <a class="link-btn" id="update-link" href="https://github.com/jemny/nabijeci-planovac/actions/workflows/update-data.yml" target="_blank" rel="noopener">Aktualizovat teď</a>
+    </div>
+    <div class="row-field">
+      <span>Model nabíjení</span>
+      <span class="muted" id="model-info">–</span>
+    </div>
+    <p class="small muted">Adresa domova a oblíbené pumpy se ukládají jen v tomhle telefonu. Data se aktualizují samy každé pondělí ráno.</p>
+  </section>
+
+  <form id="form" class="card form" novalidate autocomplete="off">
+    <div class="places" id="places">
+      <!-- place rows are rendered by app.js: Odkud, Přes…, Kam -->
+    </div>
+    <button type="button" class="link-btn add-via" id="add-via">+ Přidat místo, přes které pojedu</button>
+
+    <div class="grid2">
+      <label class="field"><span>Odjezd</span><input type="datetime-local" id="depart"></label>
+      <label class="field"><span>Baterie na startu</span>
+        <span class="suffix"><input type="number" id="soc0" min="5" max="100" step="1" inputmode="numeric" value="100"><i>%</i></span></label>
+    </div>
+
+    <fieldset class="field window">
+      <legend>Zastavit po jízdě</legend>
+      <div class="window-row">
+        <label><span class="sr">od</span><select id="win-from"></select></label>
+        <span class="dash">až</span>
+        <label><span class="sr">do</span><select id="win-to"></select></label>
+      </div>
+    </fieldset>
+
+    <div class="checks">
+      <label class="check"><input type="checkbox" id="en-route" checked><span><b>Nabíjet po cestě</b><small>jen stanice u trasy, bez objížďky</small></span></label>
+      <label class="check"><input type="checkbox" id="at-pump" checked><span><b>Jen na pumpách</b><small>káva, párek, záchod</small></span></label>
+      <label class="check"><input type="checkbox" id="round-trip" checked><span><b>Počítat i cestu zpět</b><small>stejnou trasou, dobít tak, abych dojel domů</small></span></label>
+    </div>
+
+    <div class="field" id="brands-field">
+      <span class="lbl">Oblíbené pumpy <small class="muted">jsou nahoře výsledků</small></span>
+      <div class="chips" id="brands" role="group" aria-label="Oblíbené pumpy"></div>
+      <label class="check inline"><input type="checkbox" id="only-fav"><span>Ukázat jen oblíbené pumpy</span></label>
+    </div>
+
+    <details class="more">
+      <summary>Další možnosti</summary>
+      <div class="grid2">
+        <label class="field"><span>Min. výkon</span>
+          <select id="min-kw"><option value="100" selected>100 kW</option><option value="150">150 kW</option><option value="50">50 kW</option></select></label>
+        <label class="field"><span>Spotřeba</span>
+          <span class="suffix"><input type="number" id="cons" min="12" max="35" step="0.1" inputmode="decimal" value="23.8"><i>kWh/100</i></span></label>
+      </div>
+      <label class="field"><span>Časy jízdy</span>
+        <select id="tempo"><option value="0.93" selected>Moje tempo, dálnice ~130 km/h (jako Google)</option><option value="1">Klidnější jízda (časy OSRM)</option></select></label>
+      <label class="check inline"><input type="checkbox" id="my-cards" checked><span>Jen sítě, na které mám kartu (+ Shell kartou u stojanu)</span></label>
+      <label class="check inline"><input type="checkbox" id="unknown-kw"><span>Ukázat i stanice bez známého výkonu</span></label>
+      <p class="small muted">Spotřeba 23,8 kWh/100 km je horší případ v zimě při 130 km/h. Reálně naměřeno v listopadu: 22,4.</p>
+    </details>
+  </form>
+
+  <section id="status" class="status" aria-live="polite"></section>
+  <section id="summary"></section>
+  <section id="map-wrap" hidden><div id="map"></div></section>
+  <section id="results" class="results"></section>
+
+  <footer class="foot small muted">
+    <p>Trasa: OSRM · hledání míst: Photon · data: OpenStreetMap, Open Charge Map, mapa E.ON Drive, supercharge.info. Ceny jsou orientační podle tvých karet, platí cena v aplikaci u stojanu. U Tesla a stanic pod 150 kW ověř, že umí 800 V.</p>
+  </footer>
+</main>
+
+<div class="actionbar">
+  <button type="button" class="btn ghost" id="btn-map" disabled>Mapa</button>
+  <button type="submit" form="form" class="btn primary" id="btn-go">Najít zastávky</button>
+</div>
+
+<template id="tpl-place">
+  <div class="place">
+    <label class="place-label"></label>
+    <div class="place-input">
+      <input type="text" inputmode="search" enterkeyhint="search" autocomplete="off" spellcheck="false">
+      <button type="button" class="icon-btn gps" title="Moje poloha" aria-label="Moje poloha">◎</button>
+      <button type="button" class="icon-btn home" title="Domů" aria-label="Domů">⌂</button>
+      <button type="button" class="icon-btn up" title="Posunout výš" aria-label="Posunout výš">↑</button>
+      <button type="button" class="icon-btn del" title="Odebrat" aria-label="Odebrat">✕</button>
+    </div>
+    <ul class="suggest" role="listbox" hidden></ul>
+    <p class="picked small muted"></p>
+  </div>
+</template>
+
+<script src="app.js" defer></script>
+</body>
+</html>

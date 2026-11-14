@@ -1,0 +1,57 @@
+name: Aktualizace dat nabíječek
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"   # každé pondělí 03:00 UTC (4:00/5:00 v ČR)
+  workflow_dispatch: {}    # tlačítko „Run workflow“ (i z mobilní appky GitHub)
+  push:
+    branches: [main]
+    paths: ["app/**", ".github/workflows/update-data.yml"]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-data:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Stáhnout data a postavit databázi
+        run: python3 build/build_db.py --refresh
+      - name: Export pro appku
+        run: python3 build/export_app.py
+      - name: Uložit změny
+        run: |
+          git config user.name "nabijeci-planovac bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add app/data build/cache
+          if git diff --cached --quiet; then echo "Beze změn"; else git commit -m "Data nabíječek $(date -u +%Y-%m-%d)" && git push; fi
+
+  deploy:
+    needs: [build-data]
+    if: always() && (needs.build-data.result == 'success' || needs.build-data.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app
+      - id: deployment
+        uses: actions/deploy-pages@v4

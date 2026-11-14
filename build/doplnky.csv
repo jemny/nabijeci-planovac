@@ -1,0 +1,4 @@
+name,operator,lat,lon,dc_kw,ccs_count,match_radius_m,source_note
+E.ON MOL Vyškov (D46 exit 2),E.ON,49.281448,17.019908,240,6,60,Google Mapy + WattBox 2026-11
+E.ON Mořice Charging Hub (D1 exit 244),E.ON,49.318865,17.199549,400,15,80,Google Mapy 2026-11
+Shell Ivanovice na Hané (D1 exit 236),Shell,49.290590,17.096635,180,2,80,shell.cz ceník 2026-11-14 (15 Kč/kWh)
