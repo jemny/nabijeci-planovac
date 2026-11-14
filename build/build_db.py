@@ -19,6 +19,7 @@ Usage:  python3 nabijecky/build_db.py [--refresh] [--ocm PATH_TO_ocm-export]
 """
 import argparse
 import sys
+import time
 import csv
 import datetime as dt
 import glob
@@ -29,6 +30,7 @@ import re
 import sqlite3
 import subprocess
 import urllib.parse
+import urllib.error
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -36,10 +38,12 @@ sys.path.insert(0, HERE)
 RAW = os.path.join(HERE, "raw")
 OVERPASS = "https://overpass-api.de/api/interpreter"
 UA = "elektroauta-chargers-db/0.1 (personal, non-commercial)"
-Q_CHARGING = ('[out:json][timeout:240];area["ISO3166-1"="CZ"][admin_level=2]->.cz;'
-              '(nwr["amenity"="charging_station"](area.cz););out center tags;')
-Q_FUEL = ('[out:json][timeout:240];area["ISO3166-1"="CZ"][admin_level=2]->.cz;'
-          '(nwr["amenity"="fuel"](area.cz););out center tags;')
+COUNTRIES = ["CZ", "SK", "PL", "AT", "DE"]  # neighbours for trips abroad (OSM + OCM; E.ON map only CZ/SK)
+
+
+def q_amenity(cc, amenity):
+    return (f'[out:json][timeout:240];area["ISO3166-1"="{cc}"][admin_level=2]->.a;'
+            f'(nwr["amenity"="{amenity}"](area.a););out center tags;')
 
 # ---------------------------------------------------------------- helpers
 def haversine_m(lat1, lon1, lat2, lon2):
@@ -77,26 +81,48 @@ def overpass(query, path, refresh):
     if os.path.exists(path) and not refresh:
         age = dt.date.today() - dt.date.fromtimestamp(os.path.getmtime(path))
         if age.days < 1:
-            return json.load(open(path, encoding="utf-8"))
+            try:
+                return json.load(open(path, encoding="utf-8"))
+            except ValueError:
+                pass  # a cached error page: download again
     data = urllib.parse.urlencode({"data": query}).encode()
-    req = urllib.request.Request(OVERPASS, data=data, headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=300) as r:
-        body = r.read()
-    with open(path, "wb") as f:
-        f.write(body)
-    return json.loads(body)
+    for attempt in range(6):  # Overpass answers an HTML error page when busy: wait and retry, never cache it
+        req = urllib.request.Request(OVERPASS, data=data, headers={"User-Agent": UA})
+        try:
+            with urllib.request.urlopen(req, timeout=600) as r:
+                body = r.read()
+        except urllib.error.HTTPError as e:
+            body = b""
+            print(f"overpass HTTP {e.code}")
+        except urllib.error.URLError:  # old local Python/LibreSSL can fail the TLS handshake: fall back to curl
+            body = subprocess.run(["curl", "-s", "-m", "600", "-A", UA, "--data-urlencode", f"data={query}", OVERPASS],
+                                  capture_output=True).stdout
+        try:
+            parsed = json.loads(body)
+        except ValueError:
+            wait = 30 * (attempt + 1)
+            print(f"overpass busy for {os.path.basename(path)}, retry in {wait}s")
+            time.sleep(wait)
+            continue
+        with open(path, "wb") as f:
+            f.write(body)
+        time.sleep(3)
+        return parsed
+    raise RuntimeError(f"Overpass failed for {path}")
 
 
 def ensure_ocm(path):
-    """Sparse-clone only data/CZ of the OCM export (≈650 small JSON files)."""
-    if os.path.isdir(os.path.join(path, "data", "CZ")):
+    """Sparse-clone only data/<country> of the OCM export (small JSON files per POI)."""
+    dirs = [f"data/{cc}" for cc in COUNTRIES]
+    if os.path.isdir(os.path.join(path, ".git")):
+        subprocess.run(["git", "-C", path, "sparse-checkout", "set", *dirs], check=False)
         subprocess.run(["git", "-C", path, "pull", "-q", "--depth", "1"], check=False)
         return path
     os.makedirs(os.path.dirname(path), exist_ok=True)
     subprocess.run(["git", "clone", "-q", "--depth", "1", "--filter=blob:none", "--no-checkout",
                     "https://github.com/openchargemap/ocm-export.git", path], check=True)
     subprocess.run(["git", "-C", path, "sparse-checkout", "init", "--cone"], check=True)
-    subprocess.run(["git", "-C", path, "sparse-checkout", "set", "data/CZ"], check=True)
+    subprocess.run(["git", "-C", path, "sparse-checkout", "set", *dirs], check=True)
     subprocess.run(["git", "-C", path, "checkout", "-q"], check=True)
     return path
 
@@ -146,6 +172,9 @@ OPERATORS = [  # (canonical, regex on operator/network/brand/name, lower-case)
     ("Olife Energy", r"olife"),
     ("ChargeUp", r"chargeup"),
     ("Ledeos", r"ledeos"),
+    ("ZSE Drive", r"\bzse\b|západoslovensk|zapadoslovensk"),
+    ("GreenWay", r"greenway|green way"),
+    ("Slovnaft", r"slovnaft"),
 ]
 
 
@@ -227,7 +256,7 @@ BIKE_ONLY = {"bosch_3pin", "bosch_5pin", "shimano_steps_5pin", "xlr_3pin_cable",
              "panasonic", "ebike"}
 
 
-def parse_osm(elements):
+def parse_osm(elements, cc="CZ"):
     out = []
     for e in elements:
         t = e.get("tags", {})
@@ -258,7 +287,7 @@ def parse_osm(elements):
             "has_dc": int(has_dc), "dc_kw": dc_kw, "ccs_count": ccs_n or (1 if ccs_kw else 0),
             "chademo_count": cha_n, "ac_kw": t2_kw, "capacity": count(t.get("capacity")) or None,
             "opening_hours": t.get("opening_hours"), "evse_ref": t.get("ref:EU:EVSE"),
-            "fee": t.get("fee"), "check_date": t.get("check_date"), "source": "osm",
+            "fee": t.get("fee"), "check_date": t.get("check_date"), "source": "osm", "cc": cc,
         })
     return out
 
@@ -267,7 +296,8 @@ def parse_ocm(path):
     ref = json.load(open(os.path.join(path, "data", "referencedata.json"), encoding="utf-8"))
     ops = {o["ID"]: o["Title"] for o in ref["Operators"]}
     out = []
-    for fn in glob.glob(os.path.join(path, "data", "CZ", "*.json")):
+    files = [(cc, fn) for cc in COUNTRIES for fn in glob.glob(os.path.join(path, "data", cc, "*.json"))]
+    for cc, fn in files:
         p = json.load(open(fn, encoding="utf-8"))
         a = p.get("AddressInfo") or {}
         if p.get("StatusTypeID") in (100, 150, 200):  # not operational / removed
@@ -297,7 +327,7 @@ def parse_ocm(path):
             "has_dc": int(has_dc), "dc_kw": dc_kw, "ccs_count": ccs, "chademo_count": cha, "ac_kw": ac_kw,
             "capacity": p.get("NumberOfPoints"), "opening_hours": None, "evse_ref": None, "fee": None,
             "check_date": (p.get("DateLastVerified") or p.get("DateLastStatusUpdate") or "")[:10] or None,
-            "source": "ocm",
+            "source": "ocm", "cc": cc,
         })
     return out
 
@@ -379,7 +409,7 @@ def apply_overrides(stations, path):
             else:
                 s = {"id": f"manual:{lat:.5f},{lon:.5f}", "osm_id": None, "ocm_id": None, "operator_raw": r["operator"],
                      "lat": lat, "lon": lon, "address": None, "city": None, "ac_kw": None, "capacity": None,
-                     "opening_hours": None, "evse_ref": None, "fee": None, "chademo_count": 0}
+                     "opening_hours": None, "evse_ref": None, "fee": None, "chademo_count": 0, "cc": r.get("cc") or "CZ"}
                 stations.append(s)
                 added += 1
             s.update({"name": r["name"], "operator": r["operator"], "has_dc": 1, "dc_kw": kw,
@@ -407,7 +437,7 @@ def parse_fuel(elements):
 COLUMNS = ["id", "name", "operator", "operator_raw", "lat", "lon", "address", "city", "has_dc", "dc_kw",
            "ccs_count", "chademo_count", "ac_kw", "capacity", "usable_cla", "price_day", "price_night",
            "price_card", "price_note", "fuel_brand", "fuel_dist_m", "opening_hours", "evse_ref", "fee",
-           "check_date", "osm_id", "ocm_id", "source", "gmaps"]
+           "check_date", "osm_id", "ocm_id", "source", "gmaps", "cc"]
 
 
 def main():
@@ -419,9 +449,14 @@ def main():
     a = ap.parse_args()
     os.makedirs(RAW, exist_ok=True)
 
-    charging = overpass(Q_CHARGING, os.path.join(RAW, "osm_charging.json"), a.refresh)
-    fuel = overpass(Q_FUEL, os.path.join(RAW, "osm_fuel.json"), a.refresh)
-    stations = parse_osm(charging["elements"])
+    stations, fuel_elements, osm_base = [], [], None
+    for cc in COUNTRIES:
+        charging = overpass(q_amenity(cc, "charging_station"), os.path.join(RAW, f"osm_charging_{cc}.json"), a.refresh)
+        fuel_cc = overpass(q_amenity(cc, "fuel"), os.path.join(RAW, f"osm_fuel_{cc}.json"), a.refresh)
+        stations += parse_osm(charging["elements"], cc)
+        fuel_elements += fuel_cc["elements"]
+        osm_base = charging.get("osm3s", {}).get("timestamp_osm_base") or osm_base
+    fuel = {"elements": fuel_elements}
     n_osm = len(stations)
     ocm_added, ocm_date = 0, None
     if not a.no_ocm:
@@ -468,7 +503,7 @@ def main():
                     [[s.get(c) for c in COLUMNS] for s in stations])
     con.execute("CREATE INDEX idx_latlon ON stations(lat, lon)")
     meta = {"built": dt.datetime.now().isoformat(timespec="minutes"),
-            "osm_base": charging.get("osm3s", {}).get("timestamp_osm_base"),
+            "osm_base": osm_base, "countries": ",".join(COUNTRIES),
             "ocm_export_date": ocm_date, "stations": len(stations), "from_osm": n_osm,
             "added_from_ocm": ocm_added, "manual_fixed": n_fixed, "manual_added": n_added_manual,
             "fuel_stations": len(pumps), "importers": json.dumps(importers, ensure_ascii=False),

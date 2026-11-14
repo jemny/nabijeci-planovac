@@ -16,7 +16,10 @@ import time
 import urllib.request
 
 UA = "Mozilla/5.0 (compatible; nabijeci-planovac/0.1; personal trip planner, weekly)"
-CZ_BBOX = {"latMax": 51.06, "latMin": 48.55, "longMax": 18.87, "longMin": 12.09}
+BBOXES = [{"latMax": 51.06, "latMin": 48.55, "longMax": 18.87, "longMin": 12.09},   # Czechia
+          {"latMax": 49.62, "latMin": 47.73, "longMax": 22.57, "longMin": 16.83}]   # Slovakia
+COUNTRIES = {"CZ", "SK"}  # E.ON map details: only CZ/SK (DE/AT/PL would be thousands of requests)
+TESLA_CC = {"Czech Republic": "CZ", "Czechia": "CZ", "Slovakia": "SK", "Poland": "PL", "Austria": "AT", "Germany": "DE"}
 HERE = os.path.dirname(os.path.abspath(__file__))
 CACHE = os.path.join(HERE, "cache")
 
@@ -29,14 +32,18 @@ def _get(url, data=None, timeout=90):
 
 def eon_map(near_cz, canon_operator, log=print, max_stale=300, pause=0.25):
     """near_cz(lat, lon) -> bool : cheap pre-filter so we don't fetch details for Vienna or Munich."""
-    body = json.dumps({"boundingBox": CZ_BBOX, "powerType": "", "chargingPower": "", "connectorType": "",
-                       "country": "", "search": "", "stationOperator": "", "operatorName": ""}).encode()
-    raw = _get("https://www.eon-drive.cz/api/search", data=body)
-    pins = []
-    for chunk in raw.split("\n"):
-        chunk = chunk.strip()
-        if chunk:
-            pins += json.loads(chunk)
+    pins, seen = [], set()
+    for bbox in BBOXES:
+        body = json.dumps({"boundingBox": bbox, "powerType": "", "chargingPower": "", "connectorType": "",
+                           "country": "", "search": "", "stationOperator": "", "operatorName": ""}).encode()
+        raw = _get("https://www.eon-drive.cz/api/search", data=body)
+        for chunk in raw.split("\n"):
+            chunk = chunk.strip()
+            if chunk:
+                for p in json.loads(chunk):
+                    if p["id"] not in seen:
+                        seen.add(p["id"])
+                        pins.append(p)
     cand = [p for p in pins if (p.get("isDC") or p.get("isUFC")) and near_cz(float(p["latitude"]), float(p["longitude"]))]
 
     os.makedirs(CACHE, exist_ok=True)
@@ -69,7 +76,7 @@ def eon_map(near_cz, canon_operator, log=print, max_stale=300, pause=0.25):
     out = []
     for p in cand:
         d = cache.get(str(p["id"]))
-        if not d or d.get("country") != "CZ" or d.get("isRemoved"):
+        if not d or d.get("country") not in COUNTRIES or d.get("isRemoved"):
             continue
         dc_kw, ccs, chademo = None, 0, 0
         for e in d.get("evses") or []:
@@ -92,9 +99,9 @@ def eon_map(near_cz, canon_operator, log=print, max_stale=300, pause=0.25):
             "address": d.get("address"), "city": d.get("city"), "has_dc": 1, "dc_kw": dc_kw,
             "ccs_count": ccs, "chademo_count": chademo, "ac_kw": None, "capacity": len(d.get("evses") or []) or None,
             "opening_hours": None, "evse_ref": ((d.get("evses") or [{}])[0] or {}).get("evseId"), "fee": None,
-            "check_date": (cache.get(str(p["id"])) or {}).get("_fetched"), "source": "eon-map",
+            "check_date": (cache.get(str(p["id"])) or {}).get("_fetched"), "source": "eon-map", "cc": d.get("country"),
         })
-    log(f"eon_map: {len(pins)} pins, {len(cand)} DC near CZ, {fetched} details fetched, {len(out)} CZ DC stations")
+    log(f"eon_map: {len(pins)} pins, {len(cand)} DC near CZ/SK, {fetched} details fetched, {len(out)} CZ DC stations")
     return out
 
 
@@ -102,7 +109,8 @@ def tesla(log=print):
     data = json.loads(_get("https://supercharge.info/service/supercharge/allSites", timeout=120))
     out = []
     for s in data:
-        if (s.get("address") or {}).get("country") not in ("Czech Republic", "Czechia") or s.get("status") != "OPEN":
+        country = (s.get("address") or {}).get("country")
+        if country not in TESLA_CC or s.get("status") != "OPEN":
             continue
         g = s.get("gps") or {}
         out.append({
@@ -112,7 +120,7 @@ def tesla(log=print):
             "has_dc": 1, "dc_kw": float(s["powerKilowatt"]) if s.get("powerKilowatt") else None,
             "ccs_count": s.get("stallCount"), "chademo_count": 0, "ac_kw": None, "capacity": s.get("stallCount"),
             "opening_hours": None, "evse_ref": None, "fee": None, "check_date": s.get("dateModified", "")[:10] or None,
-            "source": "supercharge.info",
+            "source": "supercharge.info", "cc": TESLA_CC[country],
         })
-    log(f"tesla: {len(out)} open CZ sites")
+    log(f"tesla: {len(out)} open sites CZ/SK/PL/AT/DE")
     return out

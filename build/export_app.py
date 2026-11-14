@@ -40,6 +40,8 @@ FLAT = lambda p, lab="jedna cena": _t((9999, p, p, lab))  # noqa: E731
 EON_REG = _t((100, 9.5, 8.0, "pásmo do 100 kW"), (200, 13.0, 10.0, "pásmo 101–200 kW"), (400, 16.9, 12.0, "pásmo 201–400 kW"))
 EON_ADHOC = _t((100, 10.5, 8.5, "pásmo do 100 kW"), (200, 14.5, 11.0, "pásmo 101–200 kW"), (400, 20.0, 14.0, "pásmo 201–400 kW"))
 # PRE customers on other operators' stations in CZ (PRE ceník platný od 1. 7. 2026), blocking fees not included
+# PRE customers abroad (same price list): Slovakia ZSE, GreenWay (SK/PL), Shell abroad
+PRE_ABROAD = {"ZSE Drive": DC_UFC(15, 15), "GreenWay": FLAT(25), "Shell": FLAT(23)}
 PRE_ROAM = {"E.ON": DC_UFC(18, 21), "ČEZ": DC_UFC(19, 26), "IONITY": FLAT(25), "Teplárny Brno": DC_UFC(17, 18),
             "Lidl": FLAT(13.2, "DC"), "Shell": FLAT(17), "ORLEN": FLAT(13), "Chargee": DC_UFC(25, 27)}
 
@@ -53,11 +55,11 @@ CARDS = [
     {"id": "cez-adhoc", "group": "ČEZ", "name": "ČEZ bez registrace", "fee": 0, "own": {"ČEZ": DC_UFC(16.9, 22.9)}},
     {"id": "eon", "group": "E.ON", "name": "E.ON Drive (registrace)", "fee": 0, "own": {"E.ON": EON_REG}},
     {"id": "eon-adhoc", "group": "E.ON", "name": "E.ON bez registrace (QR/terminál)", "fee": 0, "own": {"E.ON": EON_ADHOC}},
-    {"id": "pre-start", "group": "PRE", "name": "PRE Start", "fee": 0, "own": {"PRE": DC_UFC(12, 14)}, "roam": PRE_ROAM},
+    {"id": "pre-start", "group": "PRE", "name": "PRE Start", "fee": 0, "own": {"PRE": DC_UFC(12, 14)}, "roam": PRE_ROAM, "abroad": PRE_ABROAD},
     {"id": "pre-silver", "group": "PRE", "name": "PRE Silver", "fee": 150, "note": "0 Kč pro zákazníky PRE",
-     "own": {"PRE": DC_UFC(11, 13)}, "roam": PRE_ROAM},
-    {"id": "pre-gold", "group": "PRE", "name": "PRE Gold (jen zákazníci PRE)", "fee": 150, "own": {"PRE": DC_UFC(10, 12)}, "roam": PRE_ROAM},
-    {"id": "pre-platinum", "group": "PRE", "name": "PRE Platinum", "fee": 300, "own": {"PRE": DC_UFC(10, 11)}, "roam": PRE_ROAM},
+     "own": {"PRE": DC_UFC(11, 13)}, "roam": PRE_ROAM, "abroad": PRE_ABROAD},
+    {"id": "pre-gold", "group": "PRE", "name": "PRE Gold (jen zákazníci PRE)", "fee": 150, "own": {"PRE": DC_UFC(10, 12)}, "roam": PRE_ROAM, "abroad": PRE_ABROAD},
+    {"id": "pre-platinum", "group": "PRE", "name": "PRE Platinum", "fee": 300, "own": {"PRE": DC_UFC(10, 11)}, "roam": PRE_ROAM, "abroad": PRE_ABROAD},
     {"id": "pre-adhoc", "group": "PRE", "name": "PRE bez registrace", "fee": 0, "own": {"PRE": DC_UFC(13, 15)}},
     {"id": "mol", "group": "MOL", "name": "MOL Plugee (registrace)", "fee": 0, "own": {"MOL": DC_UFC(13, 14)}},
     {"id": "mol-adhoc", "group": "MOL", "name": "MOL bez registrace", "fee": 0, "own": {"MOL": DC_UFC(14.5, 15.5)}},
@@ -140,14 +142,16 @@ def main():
     con = sqlite3.connect(a.db)
     con.row_factory = sqlite3.Row
     meta = dict(con.execute("SELECT key, value FROM meta").fetchall())
-    cols = ["lat", "lon", "op", "name", "kw", "ccs", "fuel", "fd", "use", "place", "src"]
+    cols = ["lat", "lon", "op", "name", "kw", "ccs", "fuel", "fd", "use", "place", "src", "cc"]
     rows = []
     for r in con.execute("SELECT * FROM stations WHERE has_dc = '1' OR has_dc = 1"):
+        if (r["cc"] or "CZ") not in ("CZ", "SK") and not (r["dc_kw"] and r["dc_kw"] >= 100):
+            continue  # abroad (PL/AT/DE): only fast DC with known power, keeps stations.json small
         place = ", ".join(x for x in (r["address"], r["city"]) if x) or None
         rows.append([round(r["lat"], 5), round(r["lon"], 5), r["operator"], r["name"],
                      round(r["dc_kw"]) if r["dc_kw"] else None, int(r["ccs_count"] or 0) or None,
                      fuel_brand(r["fuel_brand"]), int(r["fuel_dist_m"]) if r["fuel_dist_m"] is not None else None,
-                     r["usable_cla"], place, r["source"]])
+                     r["usable_cla"], place, r["source"], r["cc"] or "CZ"])
     with open(os.path.join(APP_DATA, "stations.json"), "w", encoding="utf-8") as f:
         json.dump({"cols": cols, "rows": rows}, f, ensure_ascii=False, separators=(",", ":"))
 
