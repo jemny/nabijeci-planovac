@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_EXTRA_MIN = 10, FAV_EXTRA_KM = 15, FAV_DETOUR_KM = 3;  // a favourite pump may be this far outside the window / off the route
-  const APP_VERSION = '2026-11-15';
+  const APP_VERSION = '2026-11-15b';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -592,7 +592,7 @@
     return (x) => {
       const arrive = Math.max(o.reserve, o.soc0 - pct(x));
       const need = Math.min(MAX_TARGET, pct(Math.min(stepKm, Math.max(0, endX - x))) + o.reserve);
-      return { arrive, add: need - arrive > 2 ? Math.max(8, need - arrive) : 0 };
+      return { arrive, add: need - arrive > 2 ? Math.max(need, Math.min(80, arrive + 8)) - arrive : 0 };
     };
   }
   const tripKm = (c, leg, rt) => (leg === 'A' ? c.n.d / 1000 : 2 * rt.distance / 1000 - c.n.d / 1000);
@@ -757,7 +757,8 @@
       st.short = st.need > MAX_TARGET;
       st.target = Math.round(Math.max(st.arrive, Math.min(st.need, MAX_TARGET)));
       if (st.target - st.arrive <= 2) st.target = st.arrive;   // a 1–2 % top-up isn't worth plugging in: coffee only
-      else if (st.target - st.arrive < 8) st.target = Math.min(MAX_TARGET, Math.round(st.arrive + 8));  // if plugging in, take at least 8 %
+      // if plugging in, take at least 8 % – but never push past 80 % just for that: above 80 % it charges at ~60–80 kW
+      else if (st.target - st.arrive < 8) st.target = Math.min(MAX_TARGET, Math.max(st.target, Math.min(80, Math.round(st.arrive + 8))));
       const kw = st.c.s.kw || 100;
       st.chargeMin = st.target > st.arrive ? chargeMinutes(Math.max(0, st.arrive), st.target, kw) : 0;
       st.kwh = Math.max(0, st.target - st.arrive) * (CAL.kwh_per_pct || 0.98);
