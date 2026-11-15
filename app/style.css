@@ -1,19 +1,19 @@
-/* Mobile-first single column. Same palette family as the charging calculator. */
+/* Mobile-first single column. Palette 1H "grafit a ocelově modrá" (light, fits the Mercedes app); dark mode derived from it. */
 :root{
-  --bg:#F2F5F4; --surface:#FFFFFF; --ink:#13201E; --muted:#596A67; --line:#D8E0DE;
-  --ev:#0A7F6C; --ev-ink:#FFFFFF; --ev-soft:#DCEFEA; --warn:#A9680B; --warn-soft:#F5E8D2; --bad:#B3261E;
+  --bg:#EEF1F4; --surface:#FFFFFF; --ink:#1B1F24; --muted:#59636E; --line:#D3D9DF;
+  --ev:#005EA8; --ev-ink:#FFFFFF; --ev-soft:#DCE8F4; --warn:#A9680B; --warn-soft:#F5E8D2; --bad:#B3261E;
   --font-display:'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   --font-body:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --surface-2:#EEF3F2; --base:#B9DDD5; --dim:#9AA7A5;
+  --surface-2:#E9EDF1; --base:#C5DDF2; --dim:#9AA4AE;
   --font-mono:'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --radius:14px;
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){
   :root{
-    --bg:#0D1413; --surface:#141D1C; --ink:#E3ECEA; --muted:#93A4A0; --line:#273432;
-    --ev:#41C4AC; --ev-ink:#06201B; --ev-soft:#12322D; --warn:#E3A646; --warn-soft:#372A13; --bad:#F2867E;
-    --surface-2:#1A2524; --base:#245A50; --dim:#4A5A57;
+    --bg:#14171B; --surface:#1C2026; --ink:#E8EBEF; --muted:#A1A9B3; --line:#2F3640;
+    --ev:#6AA9E0; --ev-ink:#0B1622; --ev-soft:#1A2A3A; --warn:#E3A646; --warn-soft:#372A13; --bad:#F2867E;
+    --surface-2:#232830; --base:#2A4A6A; --dim:#5A636E;
     color-scheme:dark;
   }
 }
@@ -139,7 +139,7 @@ details.more[open] > :not(summary){margin-top:10px}
 .card-opt small{display:block;color:var(--muted);font-size:.78rem;font-weight:400}
 .export{display:flex;flex-direction:column;gap:8px}
 .cand-actions.multi a,.cand-actions.multi button{flex:1 1 45%}
-.cand-actions a.waze{background:#33CCFF22;border-color:#33CCFF}
+.cand-actions a.waze{background:var(--ev-soft);border-color:var(--ev)}
 .linkish{min-height:46px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-weight:600;cursor:pointer;padding:0 10px}
 details.more-export summary{cursor:pointer;color:var(--ev);font-weight:600;font-size:.9rem;min-height:36px;display:flex;align-items:center}
 details.more-export[open] > :not(summary){margin-top:8px}

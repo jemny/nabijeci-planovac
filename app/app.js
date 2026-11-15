@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_EXTRA_MIN = 10, FAV_EXTRA_KM = 15, FAV_DETOUR_KM = 3;  // a favourite pump may be this far outside the window / off the route
-  const APP_VERSION = '2026-11-15e';
+  const APP_VERSION = '2026-11-15f';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -1589,8 +1589,8 @@
     }
     if (layer) layer.remove();
     layer = L.layerGroup().addTo(map);
-    const line = L.polyline(lastRun.rt.line.map((p) => [p.lat, p.lon]), { color: '#0A7F6C', weight: 5, opacity: 0.8 }).addTo(layer);
-    lastRun.pts.forEach((p, i) => L.circleMarker([p.lat, p.lon], { radius: 7, color: '#13201E', fillColor: i === lastRun.pts.length - 1 ? '#0A7F6C' : '#fff', fillOpacity: 1 })
+    const line = L.polyline(lastRun.rt.line.map((p) => [p.lat, p.lon]), { color: '#005EA8', weight: 5, opacity: 0.85 }).addTo(layer);
+    lastRun.pts.forEach((p, i) => L.circleMarker([p.lat, p.lon], { radius: 7, color: '#1B1F24', fillColor: i === lastRun.pts.length - 1 ? '#005EA8' : '#fff', fillOpacity: 1 })
       .bindTooltip(p.label || '').addTo(layer));
     let k = 0;
     lastRun.plan.stops.forEach((st) => {
