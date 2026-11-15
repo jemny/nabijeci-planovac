@@ -13,10 +13,10 @@ Každý požadavek tady má aspoň jeden test se štítkem `[Rn]` a každý test
 Odkud, Přes (víc míst za sebou, přidat, odebrat, posunout) a Kam. Místo jde najít vyhledáním (našeptávač), vzít z GPS (◎), napsat jako souřadnice nebo vzít uložený Domov (⌂). Bez Odkud nebo Kam appka řekne, co chybí. Po hledání se formulář sbalí do řádku s cestou a „Upravit“ ho otevře.
 
 ### R2 — Okno zastávek je závazné
-Zastavovat se po čase jízdy (např. 1:00 ± 15 min) nebo po km (např. 100 ± 20 km), opakovaně po celé trase. Každé další okno se počítá od předchozí zastávky, na cestě zpět od odjezdu z cíle. Když je cíl blíž než interval + tolerance, další zastávka se neplánuje. **Zastávku appka sama vybere jen uvnitř okna a jen v nastavené objížďce** (uživatel 15. 11. 2026: „zadal jsem 100 ± 20 km a nabídneš 136 km, to je v přímém rozporu“).
+Zastavovat se po čase jízdy (např. 1:00 ± 15 min) nebo po km (např. 100 ± 20 km), opakovaně po celé trase. Každé další okno se počítá od předchozí zastávky, na cestě zpět od odjezdu z cíle. Když je cíl blíž než interval + tolerance, další zastávka se neplánuje. **Zastávku appka sama vybere jen uvnitř okna a jen v nastavené objížďce** (uživatel 15. 11. 2026: „zadal jsem 100 ± 20 km a nabídneš 136 km, to je v přímém rozporu“). **Když zastávku změníš** (rozšíření okna, Vybrat mimo okno, jiná možnost v okně, oblíbená mimo okno), všechna další okna na té cestě se přepočítají od nové zastávky (uživatel 15. 11. 2026: „musí se tím pádem přepočítat i vše potom… budeme zastavovat buď dřív, nebo později“).
 
 ### R3 — Prázdné okno
-Když v okně nic nevyhovuje, appka tam zastávku nevybere, řekne to a nabídne nejbližší možnosti mimo okno (před ním, za ním, dál od trasy) s tlačítkem Vybrat. Vybraná je označená „mimo okno, vybral jsi“. Viz rozhodnutí D1.
+Když v okně nic nevyhovuje, appka tam zastávku nevybere a řekne to. Nabídne tlačítko **Rozšířit tohle okno** tak, aby nejbližší stanice padla dovnitř: rozšíří se jen tohle okno, nastavení zůstane. K tomu nabídne nejbližší možnosti mimo okno (před ním, za ním, dál od trasy) s tlačítkem Vybrat. Vybraná je označená „mimo okno, vybral jsi“, rozšířené okno „okno rozšířené tvým klepnutím“. Viz rozhodnutí D1 a D5.
 
 ### R4 — Jen na pumpách
 Zastávky jen u čerpacích stanic (káva, párek, záchod), výchozí zapnuto.
@@ -109,10 +109,12 @@ DC stanice v CZ, SK, PL, AT a DE z OSM, OCM, mapy E.ON a Tesly, s aktualizací k
 
 Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 
-- **D1 (15. 11. 2026):** prázdné okno nabízí nejbližší stanici před ním i za ním, ať je jakkoli daleko. Dřív jen do 15 min / 20 km, pak nenabídlo nic. Navrhl Claude. Uživatel chce, aby to appka u prázdného okna vždy řekla (R24).
+- **D1 (15. 11. 2026, uživatel vybral C):** „prázdné okno nabídne tlačítko na rozšíření okna a nejbližší stanice“. Tlačítko okno roztáhne tak, aby nejbližší stanice padla dovnitř, a plán přepočítá. Pod ním zůstanou nejbližší stanice před oknem a za ním (i daleko) s Vybrat. Varianty byly nakreslené: A jen nabídka, B jen kousek mimo okno, C nabídka + rozšíření.
 - **D2 (15. 11. 2026):** oblíbená pumpa mimo okno se jen nabízí, nikdy se nevybere sama (R2, R5). Nahradilo dřívější „oblíbená vyhraje i kousek mimo okno“.
 - **D3 (15. 11. 2026):** spotřeba pro plán se počítá z poklesu baterie, ne z palubního počítače, který ukazuje méně.
 - **D4 (15. 11. 2026):** živé čtení baterie z auta v telefonu (varianta C) zatím ne. Data z auta jdou přes noční sběrač.
+
+- **D5 (15. 11. 2026, uživatel vybral A):** rozšíří se jen to jedno prázdné okno, tvoje nastavení (např. 100 ± 20 km) zůstane. „Musí se tím pádem přepočítat i vše potom.“ Další okna navazují na novou zastávku. Platí pro každou změnu zastávky (R2). Starší test `[R3] … po Vybrat … „mimo okno, vybral jsi“` čekal, že ubude právě jedno prázdné okno. Podle D5 je upravený: kontroluje, že vybrané okno má tvou stanici (uživatel: „to rozhodnutí už bylo udělané dřív“).
 
 ## Otevřené rozpory
 

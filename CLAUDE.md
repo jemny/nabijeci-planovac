@@ -7,11 +7,14 @@ Uživatel tento postup odsouhlasil 15. 11. 2026. Platí pro každou změnu, i dr
 - **`tests/`**: testy jsou závazné. Každý test má v názvu číslo požadavku `[Rn]`.
   - **Na testy se nesahá:** nemění se, nevypínají, neoslabují ani neobcházejí, aby kód prošel. Mění je jen nové zadání od uživatele.
   - Když se test zdá špatně, neopravuj ho. Řekni to uživateli a zeptej se, jestli se má změnit funkce.
+  - **Výjimka (uživatel 15. 11. 2026):** když starý test odporuje novému výslovnému rozhodnutí uživatele, upraví se jako součást toho rozhodnutí. Nesahá se na to, co test hlídá jinak. Napiš uživateli, který test a proč, a zapiš to k rozhodnutí. Znovu se neptej.
+- **Konzistence:** co už je rozhodnuté (požadavky, „Rozhodnutí“), znovu k rozhodnutí nedávej. Před každou otázkou zkontroluj REQUIREMENTS.md a použij, co už platí (uživatel: „nedávej mi rozhodovat něco, co už jsme rozhodli“).
 
 ## Postup u každé změny
 1. **Zadání → požadavky.** Přepiš zadání na očíslované požadavky v REQUIREMENTS.md (nové číslo, nebo upravený existující). Ukaž je uživateli. U větší změny přidej krátký plán.
 2. **Kontrola dopadu před kódem.** Projdi REQUIREMENTS.md a testy, kterých se změna dotkne.
-   - Když nový požadavek narazí na existující požadavek nebo rozhodnutí, **zastav se**. Dej uživateli varianty (AskUserQuestion) a nic nedělej, dokud nerozhodne.
+   - Když nový požadavek narazí na existující požadavek nebo rozhodnutí, **zastav se** a nic nedělej, dokud uživatel nerozhodne.
+   - **Varianty vždy nakreslené:** každá varianta jako malý obrázek toho, co uživatel uvidí. Pod ní 1–2 věty, co se změní, jedna je označená „doporučuju“ a u každé je tlačítko „Chci A“. V Claude appce je to inline widget se `sendPrompt("D1: chci variantu A")`. Nikdy jen text (uživatel 15. 11. 2026, stejně jako v projektu Todays Roll).
    - Rozhodnutí zapiš do „Rozhodnutí“, nevyřešené do „Otevřené rozpory“.
 3. **TDD.** Nejdřív testy se štítkem požadavku. Musí selhat ze správného důvodu. Teprve pak kód. Pak musí projít **celá** sada (`cd tests && npm test`).
 4. **Nahlášená chyba** dostane nejdřív test, který ji zopakuje. Až potom oprava.

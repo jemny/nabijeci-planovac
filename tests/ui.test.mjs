@@ -27,10 +27,14 @@ test('[R3] prázdné okno: appka nic nevybere sama, ukáže nabídku s tlačítk
 
 test('[R3] prázdné okno: po Vybrat je ze stanice zastávka označená „mimo okno, vybral jsi“', async () => {
   const { d } = await search({ favs: ['MOL', 'ORLEN'], stopBy: 'km', intKm: 100, tolKm: 5, detour: 0.5, 'round-trip': false });
-  const before = d.querySelectorAll('.tl.empty').length;
+  // D5 (uživatel 15. 11. 2026): po změně zastávky se další okna přepočítají, počet prázdných oken se tedy může změnit.
+  // Vybrané okno ale prázdné není: na jeho místě v časové ose je teď vybraná stanice.
+  const rows = () => [...d.querySelectorAll('#results .timeline > .tl')];
   const empty = d.querySelector('.tl.empty');
+  const pos = rows().indexOf(empty);
   [...empty.querySelectorAll('button')].find((b) => /Vybrat/.test(b.textContent)).click();
-  assert.equal(d.querySelectorAll('.tl.empty').length, before - 1, 'vybrané okno už není prázdné');
+  const now = rows()[pos];
+  assert.ok(now && now.classList.contains('stop') && /vybral jsi/.test(text(now)), 'vybrané okno už není prázdné');
   const picked = [...d.querySelectorAll('.stop-card')].find((c) => /vybral jsi/.test(text(c)));
   assert.ok(picked, 'zastávka vybraná mimo okno je tak označená');
 });

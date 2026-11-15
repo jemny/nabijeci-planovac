@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-15l';
+  const APP_VERSION = '2026-11-15m';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -540,11 +540,12 @@
   }
   // OSRM is ~7 % slower than Google at ~130 km/h → scale its times by the chosen tempo
   const withTempo = (raw, tempo) => ({ ...raw, cumT: raw.cumT.map((t) => t * tempo), duration: raw.duration * tempo });
-  function runPlan(raw, pts, o, fixed) {
+  function runPlan(raw, pts, o, fixed, overrides = []) {
     const rt = withTempo(raw, o.tempo);
     const cands = candidates(rt, o);
-    const plan = fixed && fixed.length ? planFromStops(rt, cands, o, fixed) : makePlan(rt, cands, o);
-    lastRun = { raw, rt, pts, o, cands, plan,
+    const isFixed = !!(fixed && fixed.length);
+    const plan = isFixed ? planFromStops(rt, cands, o, fixed) : makePlan(rt, cands, o, overrides);
+    lastRun = { raw, rt, pts, o, cands, plan, fixed: isFixed, overrides: isFixed ? [] : overrides,
       excluded: { hidden: cands.hiddenNear || 0, wrongSide: cands.filter((c) => !sideOk(c, 'A')).length } };
     if (curTrip && !(fixed && fixed.length)) { curTrip.stops = tripStops(plan); if (curTrip.saved) persistTrip(true); }
     render();
@@ -558,7 +559,8 @@
     // a saved trip (or one being driven) keeps its stations; only prices, times and battery are recomputed
     const fixed = curTrip && (curTrip.saved || hasActuals(curTrip)) && !forceAuto ? curTrip.stops : null;
     forceAuto = false;
-    runPlan(lastRun.raw, lastRun.pts, { ...lastRun.o, onlyFav: f.onlyFav, myCards: f.myCards, unknownKw: f.unknownKw, minKw: f.minKw, cons: f.cons, tempo: f.tempo, carLimit: f.carLimit }, fixed);
+    runPlan(lastRun.raw, lastRun.pts, { ...lastRun.o, onlyFav: f.onlyFav, myCards: f.myCards, unknownKw: f.unknownKw, minKw: f.minKw, cons: f.cons, tempo: f.tempo, carLimit: f.carLimit },
+      fixed, lastRun.overrides || []);
   }
   let forceAuto = false;
 
@@ -704,26 +706,45 @@
      Nothing there → the window stays empty and the nearest options before/after it (or a bit further off the
      route) are only offered for the user to pick. A favourite pump just outside the window is offered the same
      way next to the chosen stop. (User, 2026-11-15: "zadal jsem 100 ± 20 km a nabídneš 136 km – přímý rozpor".) */
-  function pickStops(leg, rt, cands, o, soc) {
+  /* overrides: the user's choices per window on this leg ({leg, win, key, note, why} = this station,
+     {leg, win, tol} = only this window widened). Every later window follows from the stop actually used (R2, D5). */
+  function pickStops(leg, rt, cands, o, soc, overrides = []) {
     const legEnd = o.byKm ? rt.distance / 1000 : rt.duration / 60;
     const tightM = o.detourKm * 1000;
     const own = cands.filter((c) => sideOk(c, leg));
     const stops = [];
+    const f = (v) => (o.byKm ? `${fmt(v)} km` : hm(v));
     let prev = 0;
-    for (let guard = 0; guard < 40; guard++) {
+    for (let win = 0; win < 40; win++) {
       if (legEnd - prev <= o.interval + o.tol) break;            // destination is within reach of this interval
       const center = prev + o.interval;
-      const lo = center - o.tol, hi = center + o.tol;
+      const ov = overrides.find((x) => x.leg === leg && x.win === win) || null;
+      const tol = ov && ov.tol != null ? ov.tol : o.tol;
+      const lo = center - tol, hi = center + tol;
+      if (ov && ov.key) {                                         // the user picked this station for this window
+        const c = cands.find((x) => stationKey(x.s) === ov.key);
+        if (c) {
+          stops.push({ leg, win, c, alts: [], note: ov.note || null, lo, hi, pickWhy: ov.why || null });
+          prev = measure(c, leg, rt, o);
+          continue;
+        }
+      }
       const pool = own.filter((c) => { const m = measure(c, leg, rt, o); return c.n.dist <= tightM && m >= lo && m <= hi && m > prev + 1; })
         .map((c) => ({ c, tier: favs.has(c.s.fuel) ? 0 : 2 }));
       if (!pool.length) {
-        stops.push({ leg, empty: true, lo, hi, suggest: outsideOptions(own, leg, rt, o, lo, hi, prev, false) });
+        const suggest = outsideOptions(own, leg, rt, o, lo, hi, prev, false);
+        // D1 = C: offer to widen just this window so that the nearest station before/after it falls inside
+        const nearest = suggest.filter((x) => x.why !== 'detour').sort((a, b) => a.off - b.off)[0];
+        const widen = nearest ? Math.ceil((tol + nearest.off) / 5 + 1e-9) * 5 : null;
+        stops.push({ leg, win, empty: true, lo, hi, center, suggest, widen });
         prev = center; continue;
       }
       rankWindow(pool, leg, rt, o, center, soc);
       const best = pool[0];
       const favNear = best.tier === 0 ? null : (outsideOptions(own, leg, rt, o, lo, hi, prev, true)[0] || null);
-      stops.push({ leg, c: best.c, alts: pool.slice(1, 6).map((p) => p.c), note: null, lo, hi, favNear, pickWhy: best.why });
+      const widened = ov && ov.tol != null;
+      stops.push({ leg, win, c: best.c, alts: pool.slice(1, 6).map((p) => p.c), note: widened ? 'okno rozšířeno' : null, lo, hi, favNear,
+        pickWhy: widened ? `Okno jsi rozšířil na ${f(lo)}–${f(hi)} (± ${o.byKm ? `${fmt(tol)} km` : `${fmt(tol)} min`}), ostatní okna drží ± ${o.byKm ? `${fmt(o.tol)} km` : `${fmt(o.tol)} min`}. ${best.why}` : best.why });
       prev = measure(best.c, leg, rt, o);
     }
     return stops;
@@ -760,11 +781,11 @@
     return rt.cumD[hi] / 1000;
   }
 
-  function makePlan(rt, cands, o) {
+  function makePlan(rt, cands, o, overrides = []) {
     const D = rt.distance / 1000;
     const soc = socModel(rt, o);
-    const stops = pickStops('A', rt, cands, o, soc);
-    if (o.roundTrip) stops.push(...pickStops('B', rt, cands, o, soc));
+    const stops = pickStops('A', rt, cands, o, soc, overrides);
+    if (o.roundTrip) stops.push(...pickStops('B', rt, cands, o, soc, overrides));
     stops.forEach((st) => {
       if (!st.empty) return;
       const k = o.byKm ? (st.lo + st.hi) / 2 : kmAtMinutes(rt, (st.lo + st.hi) / 2);
@@ -1002,20 +1023,36 @@
       el('p', { text: `${st.leg === 'B' ? 'Zpět: ' : ''}v okně ${f(st.lo)}–${f(st.hi)} není nabíječka podle tvých filtrů, takže tu appka zastávku nevybrala.` +
         (sug.length ? ' Nabízím nejbližší stanice před oknem a za ním, i když jsou daleko. Vyber si, nebo uprav interval či toleranci:'
           : ' Zkus delší toleranci, větší objížďku, nebo vypnout „Jen na pumpách“.') }),
+      st.widen ? el('button', { type: 'button', class: 'linkish strong widen-btn', onclick: () => widenWindow(idx),
+        text: `Rozšířit tohle okno na ${f(st.center - st.widen)}–${f(st.center + st.widen)} (± ${o.byKm ? `${fmt(st.widen)} km` : `${fmt(st.widen)} min`})` }) : null,
       sug.length ? el('div', { class: 'alts' }, sug.map((opt) => el('div', { class: 'alt' },
         el('div', {}, el('b', { text: `${favs.has(opt.c.s.fuel) ? '★ ' : ''}${optName(opt.c)}` }), el('small', { class: 'muted', text: offText(opt, o) })),
         el('button', { type: 'button', class: 'linkish', text: 'Vybrat', onclick: () => pickOutside(idx, opt.c) })))) : null);
   }
-  // the user picked a station outside the window (or further off the route): use it, marked as their choice
-  function pickOutside(idx, c) {
+  /* The user changed a stop (widened its window, picked another station). Remember it for that window, forget the
+     user's choices in later windows of the same leg and plan everything after again (D5: "přepočítat i vše potom").
+     A saved trip (fixed stations) first turns its stations into choices, so what comes before stays as saved. */
+  function changeStop(st, ov) {
     const { rt, o, plan } = lastRun;
-    const st = plan.stops[idx];
-    plan.stops[idx] = { leg: st.leg, c, alts: st.empty ? [] : [st.c, ...(st.alts || [])].slice(0, 5), note: 'vybráno mimo okno', lo: st.lo, hi: st.hi };
-    plan.stops.sort((a, b) => tripX(a, rt) - tripX(b, rt));
-    lastRun.plan = energize(rt, plan.stops, o);
+    let base = lastRun.overrides || [];
+    if (lastRun.fixed) {
+      base = plan.stops.filter((x) => !x.empty && x.win != null && (x.leg !== st.leg || x.win < st.win))
+        .map((x) => ({ leg: x.leg, win: x.win, key: stationKey(x.c.s), note: x.note, why: x.pickWhy }));
+    }
+    const overrides = base.filter((x) => !(x.leg === st.leg && x.win >= st.win)).concat({ leg: st.leg, win: st.win, ...ov });
+    lastRun.overrides = overrides; lastRun.fixed = false;
+    lastRun.plan = makePlan(rt, lastRun.cands, o, overrides);
     if (curTrip) { curTrip.stops = tripStops(lastRun.plan); if (curTrip.saved) persistTrip(true); }
     render();
     if (!$('map-wrap').hidden) drawMap();
+  }
+  // the user picked a station outside the window (or further off the route): use it, marked as their choice
+  function pickOutside(idx, c) {
+    changeStop(lastRun.plan.stops[idx], { key: stationKey(c.s), note: 'vybráno mimo okno' });
+  }
+  function widenWindow(idx) {
+    const st = lastRun.plan.stops[idx];
+    changeStop(st, { tol: st.widen });
   }
   function batteryBar(from, to) {
     const a = Math.max(0, Math.min(100, from)), b = Math.max(a, Math.min(100, to));
@@ -1036,6 +1073,7 @@
       st.note === 'objížďka' ? 'jen s objížďkou' : null,
       st.note === 'kvůli dojezdu' ? 'mimo okno: jinak by baterie nestačila' : null,
       st.note === 'vybráno mimo okno' ? 'mimo okno, vybral jsi' : null,
+      st.note === 'okno rozšířeno' ? 'okno rozšířené tvým klepnutím' : null,
       st.note === 'oblíbená mimo okno' ? 'kousek mimo okno' : null,
       st.note === 'oblíbená objížďka' ? 'malá objížďka' : null,
       s.fuel ? null : 'bez pumpy',
@@ -1092,6 +1130,7 @@
   function swapStop(idx, alt) {
     const { rt, o, plan } = lastRun;
     const st = plan.stops[idx];
+    if (st.win != null) { changeStop(st, { key: stationKey(alt.s), why: 'Tuhle stanici jsi vybral ze seznamu v okně.' }); return; }
     st.alts = [st.c, ...st.alts.filter((a) => a !== alt)];
     st.c = alt; st.note = null; st.pickWhy = 'Tuhle stanici jsi vybral ze seznamu v okně.';
     plan.stops.sort((a, b) => tripX(a, rt) - tripX(b, rt));
@@ -1307,6 +1346,8 @@
       return { leg: f.leg === 'B' && o.roundTrip ? 'B' : 'A', c, alts: [], note: null, pickWhy: 'Stanice z uložené cesty.' };
     });
     stops.sort((a, b) => tripX(a, rt) - tripX(b, rt));
+    const nWin = { A: 0, B: 0 };
+    stops.forEach((st) => { st.win = nWin[st.leg]++; });
     try {
       const auto = makePlan(rt, cands, o).stops.filter((s) => !s.empty);
       stops.forEach((st) => {
