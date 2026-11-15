@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_EXTRA_MIN = 10, FAV_EXTRA_KM = 15, FAV_DETOUR_KM = 3;  // a favourite pump may be this far outside the window / off the route
-  const APP_VERSION = '2026-11-15d';
+  const APP_VERSION = '2026-11-15e';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -62,6 +62,7 @@
   if (!Array.isArray(trips)) trips = [];
   trips = trips.filter((t) => t && typeof t === 'object' && t.id && t.input && Array.isArray(t.input.places) && t.input.places.length >= 2);
   let curTrip = null;              // the trip shown in the results (saved or not)
+  let reroute = null;              // "Jedu jinudy": re-planning the rest of curTrip from a new point
   const hiddenList = () => (prefs.hidden || []).map((h) => {
     if (Number.isFinite(h.lat)) return h;
     const [lat, lon] = h.k.split(',').map(Number); return { ...h, lat, lon };
@@ -581,7 +582,14 @@
     }
     $('btn-go').disabled = false;
     setStatus('');
-    curTrip = { id: newTripId(), saved: false, status: 'plan', input: tripInput(o, pts), stops: [], actual: {} };
+    if (reroute && curTrip && curTrip.id === reroute.tripId) {
+      archivePart(reroute.old, pts[0]);
+      curTrip.input = tripInput(o, pts); curTrip.stops = []; curTrip.actual = {}; curTrip.status = 'plan'; delete curTrip.finish;
+      endReroute();
+    } else {
+      endReroute();
+      curTrip = { id: newTripId(), saved: false, status: 'plan', input: tripInput(o, pts), stops: [], actual: {} };
+    }
     runPlan(raw, pts, o);
     setFormCollapsed(true);
     $('summary').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -778,6 +786,7 @@
   function energize(rt, stops, o) {
     const CAP = CAL.battery_kwh || 85, D = rt.distance / 1000, T = rt.duration / 60, KPP = CAL.kwh_per_pct || 0.98;
     const acts = (curTrip && curTrip.actual) || {};
+    const histStops = curTrip && Array.isArray(curTrip.history) ? curTrip.history.reduce((a, h) => a + (h.stops || []).length, 0) : 0;
     let consF = 1, baseUsed = 0, realUsed = 0;
     const pctBase = (km) => km * o.cons / CAP;
     const pct = (km) => pctBase(km) * consF;
@@ -821,7 +830,7 @@
         st.nextArrive = null;
       }
       // user rule: first stop of the day = coffee + párek + toilet (10 min), every further stop = toilet (5 min)
-      st.breakMin = i === 0 ? BREAK_FIRST : BREAK_NEXT;
+      st.breakMin = i === 0 && !histStops ? BREAK_FIRST : BREAK_NEXT;
       st.stopMin = Math.max(st.breakMin, st.chargeMin > 0 ? st.chargeMin + (st.done ? 0 : 2) : 0);
       const tDrive = measureT(st.c, st.leg, rt);
       if (st.leg === 'A') { st.at = new Date(o.depart.getTime() + (tDrive + clockA) * 60000); clockA += st.stopMin + st.c.detourMin; }
@@ -1129,7 +1138,10 @@
     if (!curTrip) return;
     curTrip.saved = true; curTrip.updated = new Date().toISOString();
     curTrip.name = curTrip.name || tripName(curTrip.input);
-    if (lastRun && lastRun.plan) curTrip.sum = { czk: Math.round(lastRun.plan.totalCzk), min: Math.round(lastRun.plan.totalMin) };
+    if (lastRun && lastRun.plan) {
+      const h = histTotals(curTrip);
+      curTrip.sum = { czk: Math.round(lastRun.plan.totalCzk + h.czk), min: Math.round(lastRun.plan.totalMin + h.min) };
+    }
     const i = trips.findIndex((t) => t.id === curTrip.id);
     if (i >= 0) trips[i] = curTrip; else trips.unshift(curTrip);
     trips = trips.slice(0, 80);
@@ -1276,11 +1288,22 @@
     const t = curTrip;
     const status = !t.saved ? 'Neuložená cesta' : t.status === 'done' ? 'Dokončená cesta' : hasActuals(t) ? 'Probíhající cesta' : 'Uloženo v Moje cesty';
     const sendBox = el('div', { class: 'send-box', hidden: true });
+    const hist = Array.isArray(t.history) ? t.history : [];
     return el('section', { class: 'card trip' },
       el('div', {}, el('p', { class: 'eyebrow', text: status }), el('h2', { text: t.name || tripName(t.input) })),
+      hist.length ? el('div', { class: 'trip-hist' },
+        el('p', { class: 'lbl', text: 'Už odjeto' }),
+        hist.map((h) => {
+          const czk = h.stops.reduce((a, x) => a + (x.czk || 0), 0), nCh = h.stops.filter((x) => x.kwh > 0).length;
+          return el('p', { class: 'small' }, el('b', { text: `${h.from} → ${h.to}` }),
+            ` · ${fmt(h.km)} km · ${nCh} ${nCh === 1 ? 'nabíjení' : 'nabíjení'} · ${fmt(czk)} Kč` +
+            (h.stops.length ? ` (${h.stops.map((x) => `${x.name}${x.kwh > 0 ? ` ${x.socFrom}→${x.socTo} %` : ''}${x.logged ? '' : ' plán'}`).join(', ')})` : ''));
+        }),
+        el('p', { class: 'small muted', text: 'Níž je přeplánovaný zbytek cesty. Srovnání na konci počítá celou cestu.' })) : null,
       el('div', { class: 'cand-actions multi' },
         t.saved ? null : el('button', { type: 'button', class: 'linkish strong', text: 'Uložit cestu', onclick: () => { persistTrip(); render(); setStatus('Uloženo. Najdeš ji v ☰ → Moje cesty i nahoře na hlavní obrazovce.'); } }),
-        el('button', { type: 'button', class: 'linkish', text: 'Poslat do mobilu', onclick: () => showSend(sendBox) })),
+        el('button', { type: 'button', class: 'linkish', text: 'Poslat do mobilu', onclick: () => showSend(sendBox) }),
+        t.status === 'done' ? null : el('button', { type: 'button', class: 'linkish', text: 'Jedu jinudy / přidat zastávku', onclick: startReroute })),
       sendBox);
   }
 
@@ -1400,6 +1423,56 @@
     return el('p', { class: `advice logged${warn ? ' warn' : ''}`, text: `Skutečnost: ${parts.join(', ')}.${check}` });
   }
 
+  // ---- "Jedu jinudy": the rest of the trip is re-planned from a new point; the part already driven is kept
+  function histTotals(t) {
+    const hist = t && Array.isArray(t.history) ? t.history : [];
+    const stops = hist.flatMap((x) => x.stops || []);
+    return { km: hist.reduce((a, x) => a + (x.km || 0), 0), driveMin: hist.reduce((a, x) => a + (x.driveMin || 0), 0),
+      czk: stops.reduce((a, x) => a + (x.czk || 0), 0), min: stops.reduce((a, x) => a + (x.min || 0), 0),
+      pct: stops.reduce((a, x) => a + Math.max(0, (x.socTo || 0) - (x.socFrom || 0)), 0),
+      stopMins: stops.map((x) => x.min || 0), soc0: hist.length ? hist[0].soc0 : null };
+  }
+  function archivePart(old, p) {
+    const { rt, o, plan, pts } = old;
+    const D = rt.distance / 1000;
+    const n = nearestOnRoute(rt, p);
+    const nearDest = hav(p, pts[pts.length - 1]) < 3000;
+    let x;                                   // trip km already driven when re-planning
+    if (nearDest) x = D;
+    else if (n.dist > 20000) x = new Date() >= plan.arriveDest ? D : n.d / 1000;   // far off the old route: best guess
+    else x = o.roundTrip && new Date() >= plan.arriveDest ? 2 * D - n.d / 1000 : n.d / 1000;
+    const stops = plan.stops.filter((s) => !s.empty && tripX(s, rt) <= x + 1).map((s) => ({
+      name: `${s.c.s.fuel || 'Stanice'} ${townOf(s.c.s)}`.trim(), op: s.c.s.op || null, kw: s.c.s.kw || null, at: s.at.toISOString(),
+      logged: !!s.actual, socFrom: Math.round(s.arrive), socTo: Math.round(s.target), kwh: +s.kwh.toFixed(2), min: +s.chargeMin.toFixed(1),
+      czk: s.cost != null ? Math.round(s.cost) : 0 }));
+    curTrip.history = (curTrip.history || []).concat({ at: new Date().toISOString(), from: shortName(pts[0].label, 'Start'),
+      to: shortName(p.label, 'sem'), km: Math.round(x), driveMin: Math.round(x * (rt.duration / 60) / D), soc0: o.soc0, stops });
+  }
+  const socLabel = () => $('soc0').closest('label').querySelector('span');
+  function startReroute() {
+    if (!curTrip || !lastRun) return;
+    if (!curTrip.saved) persistTrip(true);
+    const { o, plan, pts, rt } = lastRun;
+    const start = pts[0], dest = pts[pts.length - 1];
+    const atDest = o.roundTrip;              // the usual case: in the destination deciding how to get home
+    places = [
+      atDest ? { role: 'from', label: dest.label, lat: dest.lat, lon: dest.lon } : { role: 'from' },
+      { role: 'via' },
+      { role: 'to', label: (o.roundTrip ? start : dest).label, lat: (o.roundTrip ? start : dest).lat, lon: (o.roundTrip ? start : dest).lon }];
+    renderPlaces();
+    $('depart').value = nowLocal();
+    $('soc0').value = String(Math.max(0, Math.round(atDest ? plan.socDest : o.soc0)));
+    socLabel().textContent = 'Baterie teď';
+    $('round-trip').checked = false; syncStopUi();
+    reroute = { tripId: curTrip.id, old: { rt, o, plan, pts } };
+    setFormCollapsed(false);
+    const st = $('status'); st.textContent = ''; st.classList.remove('err');
+    st.append('Přeplánuj zbytek cesty. Zkontroluj, odkud jedeš (◎ = kde jsi teď), přidej místo, kudy pojedeš nebo kde se zastavíte, a baterii teď. Už odjetá část zůstane uložená v cestě. ',
+      el('button', { type: 'button', class: 'link-btn', text: 'Zrušit', onclick: () => { applyInput(curTrip.input); endReroute(); setFormCollapsed(true); setStatus(''); } }));
+    st.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function endReroute() { reroute = null; socLabel().textContent = 'Baterie na startu'; }
+
   // ---- finish the trip + comparison with fuel cars (same method as the ev-trip-cost skill)
   const CMP_DEFAULT = { home: 6.61, loss: 0.10, diesel: 47.99, petrol: 42.35,
     cars: [{ name: 'Volvo diesel', fuel: 'diesel', l: 5.0 }, { name: 'Renault Talisman diesel', fuel: 'diesel', l: 6.5 }, { name: 'Benzínové auto', fuel: 'petrol', l: 8.0 }] };
@@ -1433,17 +1506,19 @@
   function comparison(o, plan) {
     const c = cmpPrefs(), CAP = CAL.battery_kwh || 85;
     const fin = curTrip && curTrip.status === 'done' && curTrip.finish ? curTrip.finish : null;
-    const km = fin && Number.isFinite(fin.km) ? fin.km : (o.roundTrip ? 2 : 1) * plan.D;
+    const h = histTotals(curTrip);
+    const km = fin && Number.isFinite(fin.km) ? fin.km : h.km + (o.roundTrip ? 2 : 1) * plan.D;
     const socEnd = fin && Number.isFinite(fin.socEnd) ? fin.socEnd : (o.roundTrip ? plan.socEnd : plan.socDest);
     const real = plan.stops.filter((s) => !s.empty);
-    const pubCzk = real.reduce((a, s) => a + (s.cost || 0), 0);
-    const pubPct = real.reduce((a, s) => a + Math.max(0, s.target - s.arrive), 0);
-    const homeCzk = Math.max(0, o.soc0 - socEnd) / 100 * CAP / (1 - c.loss) * c.home;
+    const pubCzk = h.czk + real.reduce((a, s) => a + (s.cost || 0), 0);
+    const pubPct = h.pct + real.reduce((a, s) => a + Math.max(0, s.target - s.arrive), 0);
+    const soc0 = h.soc0 != null ? h.soc0 : o.soc0;                  // battery when the whole trip started
+    const homeCzk = Math.max(0, soc0 - socEnd) / 100 * CAP / (1 - c.loss) * c.home;
     const ev = pubCzk + homeCzk;
-    const allHome = Math.max(0, o.soc0 - socEnd + pubPct) / 100 * CAP / (1 - c.loss) * c.home;
-    const driveMin = (o.roundTrip ? 2 : 1) * plan.T;
+    const allHome = Math.max(0, soc0 - socEnd + pubPct) / 100 * CAP / (1 - c.loss) * c.home;
+    const driveMin = h.driveMin + (o.roundTrip ? 2 : 1) * plan.T;
     let evStops = 0, iceStops = 0;
-    real.forEach((s, i) => { const brk = i === 0 ? BREAK_FIRST : BREAK_NEXT; iceStops += brk; evStops += Math.max(brk, s.chargeMin || 0); });
+    [...h.stopMins, ...real.map((s) => s.chargeMin || 0)].forEach((m, i) => { const brk = i === 0 ? BREAK_FIRST : BREAK_NEXT; iceStops += brk; evStops += Math.max(brk, m); });
     const cars = c.cars.map((car) => { const litres = km * car.l / 100; return { ...car, litres, czk: litres * (car.fuel === 'diesel' ? c.diesel : c.petrol) }; });
     return { fin, km, socEnd, pubCzk, homeCzk, ev, allHome, evTotal: driveMin + evStops, iceTotal: driveMin + iceStops, wait: evStops - iceStops, cars, c };
   }
@@ -1467,7 +1542,7 @@
   }
   function finishCard(o, plan) {
     const t = curTrip, fin = t.status === 'done' ? t.finish || {} : null;
-    const planEnd = o.roundTrip ? plan.socEnd : plan.socDest, planKm = (o.roundTrip ? 2 : 1) * plan.D;
+    const planEnd = o.roundTrip ? plan.socEnd : plan.socDest, planKm = histTotals(t).km + (o.roundTrip ? 2 : 1) * plan.D;
     const socIn = el('input', { type: 'text', inputmode: 'numeric', value: fin && Number.isFinite(fin.socEnd) ? String(fin.socEnd) : '', placeholder: `plán ${fmt(planEnd)}` });
     const kmIn = el('input', { type: 'text', inputmode: 'numeric', value: fin && Number.isFinite(fin.km) ? String(fin.km) : '', placeholder: `plán ${fmt(planKm)}` });
     const note = el('p', { class: 'small muted', 'aria-live': 'polite' });

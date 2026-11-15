@@ -301,3 +301,5 @@ a.btn.primary{color:var(--ev-ink)}
 .stop-more .lbl{font-size:.8rem;font-weight:600;margin:0}
 .stop-more .facts{font-size:.86rem}
 .stop-card h3 .op{white-space:nowrap;font-weight:500;color:var(--muted)}
+.trip-hist{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:10px;background:var(--surface-2)}
+.trip-hist .lbl{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0}
