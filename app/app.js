@@ -6,12 +6,12 @@
   // ------------------------------------------------------------------ constants & prefs
   const OSRM = 'https://router.project-osrm.org/route/v1/driving/';
   const PHOTON = 'https://photon.komoot.io/api/';
-  const STOP_MIN = 12;           // coffee + párek + toilet (user rule)
+  const BREAK_FIRST = 10, BREAK_NEXT = 5;   // user rule: first stop of the day coffee + párek + toilet, then toilet only
   const RESERVE_DEFAULT = 10;    // arrive home / at destination with at least this (user can change)
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_EXTRA_MIN = 10, FAV_EXTRA_KM = 15, FAV_DETOUR_KM = 3;  // a favourite pump may be this far outside the window / off the route
-  const APP_VERSION = '2026-11-15b';
+  const APP_VERSION = '2026-11-15c';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -54,6 +54,14 @@
     if (!persistAsked && navigator.storage && navigator.storage.persist) { persistAsked = true; navigator.storage.persist().then(renderStorageInfo, () => {}); }
   };
   const stationKey = (s) => `${(+s.lat).toFixed(5)},${(+s.lon).toFixed(5)}`;
+  const stopKey = (st) => `${st.leg}:${stationKey(st.c.s)}`;
+  // Moje cesty: saved plans (with logged real charging) live in their own key, so a big history never touches prefs
+  const TRIPS_KEY = 'np.trips.v1';
+  let trips = [];
+  try { trips = JSON.parse(localStorage.getItem(TRIPS_KEY) || '[]'); } catch (e) { trips = []; }
+  if (!Array.isArray(trips)) trips = [];
+  trips = trips.filter((t) => t && typeof t === 'object' && t.id && t.input && Array.isArray(t.input.places) && t.input.places.length >= 2);
+  let curTrip = null;              // the trip shown in the results (saved or not)
   const hiddenList = () => (prefs.hidden || []).map((h) => {
     if (Number.isFinite(h.lat)) return h;
     const [lat, lon] = h.k.split(',').map(Number); return { ...h, lat, lon };
@@ -374,6 +382,7 @@
     const k = stationKey(s);
     prefs.hidden = (prefs.hidden || []).filter((h) => h.k !== k);
     prefs.hidden.push({ k, lat: +s.lat, lon: +s.lon, name: [s.fuel, s.op, s.kw ? `${s.kw} kW` : null].filter(Boolean).join(' · '), place: s.place || s.name || '' });
+    forceAuto = true;
     savePrefs(); renderHidden(); replan();
     const name = prefs.hidden[prefs.hidden.length - 1].name;
     const st = $('status'); st.textContent = ''; st.classList.remove('err');
@@ -407,7 +416,7 @@
     $('storage-info').textContent = txt;
   }
   $('btn-export').addEventListener('click', async () => {
-    const data = JSON.stringify({ app: 'nabijeci-planovac', version: 1, saved: new Date().toISOString(), prefs }, null, 1);
+    const data = JSON.stringify({ app: 'nabijeci-planovac', version: 2, saved: new Date().toISOString(), prefs, trips }, null, 1);
     const name = 'nabijeci-planovac-nastaveni.json';
     const file = new File([data], name, { type: 'application/json' });
     const done = () => { prefs.lastBackup = new Date().toISOString(); savePrefs(); renderStorageInfo(); };
@@ -422,13 +431,16 @@
   $('import-file').addEventListener('change', async (e) => {
     const f = e.target.files && e.target.files[0]; e.target.value = '';
     if (!f) return;
-    let p;
+    let p, j;
     try {
-      const j = JSON.parse(await f.text());
+      j = JSON.parse(await f.text());
       if (!j || j.app !== 'nabijeci-planovac' || !j.prefs || typeof j.prefs !== 'object' || Array.isArray(j.prefs)) throw new Error('format');
       p = sanitizePrefs(j.prefs);
     } catch (err) { setMenu(false); setStatus('Tohle není záloha z Nabíjecího plánovače.', true); return; }
-    try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch (err) { setMenu(false); setStatus('Zálohu se nepodařilo uložit (soukromé okno nebo plné úložiště?).', true); return; }
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify(p));
+      if (Array.isArray(j.trips)) localStorage.setItem(TRIPS_KEY, JSON.stringify(j.trips.filter((t) => t && t.id && t.input)));
+    } catch (err) { setMenu(false); setStatus('Zálohu se nepodařilo uložit (soukromé okno nebo plné úložiště?).', true); return; }
     location.reload();
   });
   $('app-version').textContent = APP_VERSION;
@@ -510,10 +522,12 @@
   }
   // OSRM is ~7 % slower than Google at ~130 km/h → scale its times by the chosen tempo
   const withTempo = (raw, tempo) => ({ ...raw, cumT: raw.cumT.map((t) => t * tempo), duration: raw.duration * tempo });
-  function runPlan(raw, pts, o) {
+  function runPlan(raw, pts, o, fixed) {
     const rt = withTempo(raw, o.tempo);
     const cands = candidates(rt, o);
-    lastRun = { raw, rt, pts, o, cands, plan: makePlan(rt, cands, o) };
+    const plan = fixed && fixed.length ? planFromStops(rt, cands, o, fixed) : makePlan(rt, cands, o);
+    lastRun = { raw, rt, pts, o, cands, plan };
+    if (curTrip && !(fixed && fixed.length)) { curTrip.stops = tripStops(plan); if (curTrip.saved) persistTrip(true); }
     render();
     $('btn-map').disabled = false;
     if (!$('map-wrap').hidden) drawMap();
@@ -522,8 +536,12 @@
   function replan() {
     if (!lastRun || !STATIONS.length) return;
     const f = readOptions();
-    runPlan(lastRun.raw, lastRun.pts, { ...lastRun.o, onlyFav: f.onlyFav, myCards: f.myCards, unknownKw: f.unknownKw, minKw: f.minKw, cons: f.cons, tempo: f.tempo });
+    // a saved trip (or one being driven) keeps its stations; only prices, times and battery are recomputed
+    const fixed = curTrip && (curTrip.saved || hasActuals(curTrip)) && !forceAuto ? curTrip.stops : null;
+    forceAuto = false;
+    runPlan(lastRun.raw, lastRun.pts, { ...lastRun.o, onlyFav: f.onlyFav, myCards: f.myCards, unknownKw: f.unknownKw, minKw: f.minKw, cons: f.cons, tempo: f.tempo }, fixed);
   }
+  let forceAuto = false;
 
   $('form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -548,6 +566,7 @@
     }
     $('btn-go').disabled = false;
     setStatus('');
+    curTrip = { id: newTripId(), saved: false, status: 'plan', input: tripInput(o, pts), stops: [], actual: {} };
     runPlan(raw, pts, o);
     $('summary').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
@@ -737,51 +756,77 @@
   }
 
   /* Walk the trip (there + back) and charge at each stop only what is needed to reach the NEXT stop
-     (or home / destination) with the reserve. Charging is fastest at low SoC, so this keeps stops short. */
+     (or home / destination) with the reserve. Charging is fastest at low SoC, so this keeps stops short.
+     Logged real charging (curTrip.actual) replaces the plan at that stop, and the battery % really used so far
+     re-scales the consumption for the rest of the trip – so the remaining plan shows whether it still works. */
   function energize(rt, stops, o) {
-    const CAP = CAL.battery_kwh || 85, D = rt.distance / 1000, T = rt.duration / 60;
-    const pct = (km) => km * o.cons / CAP;
+    const CAP = CAL.battery_kwh || 85, D = rt.distance / 1000, T = rt.duration / 60, KPP = CAL.kwh_per_pct || 0.98;
+    const acts = (curTrip && curTrip.actual) || {};
+    let consF = 1, baseUsed = 0, realUsed = 0;
+    const pctBase = (km) => km * o.cons / CAP;
+    const pct = (km) => pctBase(km) * consF;
     const xOf = (st) => (st.leg === 'A' ? st.c.n.d / 1000 : D + (D - st.c.n.d / 1000));
     const endX = o.roundTrip ? 2 * D : D;
     const real = stops.filter((st) => !st.empty);
     let soc = o.soc0, prevX = 0, clockA = 0, clockB = 0, socDest = null, retDepart = null;
-    // the way back can't start before you get there (+ the planned coffee break at the destination)
-    const backAt = () => { if (!retDepart) retDepart = new Date(Math.max(o.retDepart.getTime(), o.depart.getTime() + (T + clockA + STOP_MIN) * 60000)); return retDepart; };
-    let totalMin = 0, totalCzk = 0, totalKwh = 0, priceUnknown = false, short = false;
+    // the way back can't start before you get there (+ a break at the destination)
+    const backAt = () => { if (!retDepart) retDepart = new Date(Math.max(o.retDepart.getTime(), o.depart.getTime() + (T + clockA + BREAK_FIRST) * 60000)); return retDepart; };
+    let totalMin = 0, totalCzk = 0, totalKwh = 0, priceUnknown = false, short = false, logged = 0;
     for (let i = 0; i < real.length; i++) {
       const st = real[i], x = xOf(st), next = real[i + 1];
+      const act = acts[stopKey(st)] || null;
+      st.actual = act;
       if (st.leg === 'B' && socDest == null) socDest = soc - pct(D - prevX);
-      st.arrive = soc - pct(x - prevX) - pct(st.c.detourKm / 2);
+      st.planArrive = soc - pct(x - prevX) - pct(st.c.detourKm / 2);
+      if (act && Number.isFinite(act.socFrom)) {
+        const base = pctBase(x - prevX + st.c.detourKm / 2), used = soc - act.socFrom;
+        if (base > 3) { baseUsed += base; realUsed += used; consF = Math.min(1.6, Math.max(0.6, realUsed / baseUsed)); }
+        st.arrive = act.socFrom;
+      } else st.arrive = st.planArrive;
       const nextX = next ? xOf(next) : endX;
       st.need = pct(nextX - x) + pct(st.c.detourKm / 2) + o.reserve + (next ? pct(next.c.detourKm / 2) : 0);
-      st.short = st.need > MAX_TARGET;
-      st.target = Math.round(Math.max(st.arrive, Math.min(st.need, MAX_TARGET)));
-      if (st.target - st.arrive <= 2) st.target = st.arrive;   // a 1–2 % top-up isn't worth plugging in: coffee only
-      // if plugging in, take at least 8 % – but never push past 80 % just for that: above 80 % it charges at ~60–80 kW
-      else if (st.target - st.arrive < 8) st.target = Math.min(MAX_TARGET, Math.max(st.target, Math.min(80, Math.round(st.arrive + 8))));
-      const kw = st.c.s.kw || 100;
-      st.chargeMin = st.target > st.arrive ? chargeMinutes(Math.max(0, st.arrive), st.target, kw) : 0;
-      st.kwh = Math.max(0, st.target - st.arrive) * (CAL.kwh_per_pct || 0.98);
-      st.stopMin = Math.max(STOP_MIN, st.chargeMin > 0 ? st.chargeMin + 2 : 0);
+      st.done = !!(act && Number.isFinite(act.socTo));
+      if (st.done) {
+        st.target = act.socTo;
+        st.kwh = Number.isFinite(act.kwh) ? act.kwh : Math.max(0, st.target - st.arrive) * KPP;
+        st.chargeMin = Number.isFinite(act.min) ? act.min : (st.target > st.arrive ? chargeMinutes(Math.max(0, st.arrive), st.target, st.c.s.kw || 100) : 0);
+        st.short = false;
+        st.nextArrive = st.target - (st.need - o.reserve);            // what the logged charge leaves for the next leg
+        logged += 1;
+      } else {
+        st.short = st.need > MAX_TARGET;
+        st.target = Math.round(Math.max(st.arrive, Math.min(st.need, MAX_TARGET)));
+        if (st.target - st.arrive <= 2) st.target = st.arrive;   // a 1–2 % top-up isn't worth plugging in: coffee only
+        // if plugging in, take at least 8 % – but never push past 80 % just for that: above 80 % it charges at ~60–80 kW
+        else if (st.target - st.arrive < 8) st.target = Math.min(MAX_TARGET, Math.max(st.target, Math.min(80, Math.round(st.arrive + 8))));
+        const kw = st.c.s.kw || 100;
+        st.chargeMin = st.target > st.arrive ? chargeMinutes(Math.max(0, st.arrive), st.target, kw) : 0;
+        st.kwh = Math.max(0, st.target - st.arrive) * KPP;
+        st.nextArrive = null;
+      }
+      // user rule: first stop of the day = coffee + párek + toilet (10 min), every further stop = toilet (5 min)
+      st.breakMin = i === 0 ? BREAK_FIRST : BREAK_NEXT;
+      st.stopMin = Math.max(st.breakMin, st.chargeMin > 0 ? st.chargeMin + (st.done ? 0 : 2) : 0);
       const tDrive = measureT(st.c, st.leg, rt);
       if (st.leg === 'A') { st.at = new Date(o.depart.getTime() + (tDrive + clockA) * 60000); clockA += st.stopMin + st.c.detourMin; }
       else { st.at = new Date(backAt().getTime() + (tDrive + clockB) * 60000); clockB += st.stopMin + st.c.detourMin; }
       st.tDrive = tDrive;
       st.km = st.leg === 'A' ? st.c.n.d / 1000 : D - st.c.n.d / 1000;
       st.pr = price(st.c.s, st.at);
-      st.cost = st.pr && st.pr.czk != null ? st.kwh * st.pr.czk : null;
+      st.cost = st.done && Number.isFinite(act.czk) ? act.czk : st.pr && st.pr.czk != null ? st.kwh * st.pr.czk : null;
       if (st.kwh > 0 && st.cost == null) priceUnknown = true;
-      st.alt = altStand(st);
+      st.alt = st.done ? null : altStand(st);
       totalMin += st.chargeMin; totalCzk += st.cost || 0; totalKwh += st.kwh; short = short || st.short;
       soc = st.target; prevX = x;
     }
     if (socDest == null) socDest = soc - pct(D - prevX);
     const socEnd = soc - pct(endX - prevX);
+    real.forEach((st, i) => { if (st.done) st.nextArrive = real[i + 1] ? real[i + 1].arrive : (o.roundTrip ? socEnd : socDest); });
     const arriveDest = new Date(o.depart.getTime() + (T + clockA) * 60000);
     const arriveHome = o.roundTrip ? new Date(backAt().getTime() + (T + clockB) * 60000) : null;
     return { stops, D, T, socDest, socEnd, arriveDest, arriveHome, totalMin, totalCzk, totalKwh, priceUnknown, short,
       retDepart: o.roundTrip ? backAt() : null, retLate: o.roundTrip && backAt().getTime() > o.retDepart.getTime() + 60000,
-      noChargeEnd: o.soc0 - pct(endX) };
+      noChargeEnd: o.soc0 - pctBase(endX), logged, consReal: baseUsed > 3 ? o.cons * consF : null };
   }
 
   function altStand(st) {
@@ -819,12 +864,14 @@
           : `Celkem potřebuješ cestou dobít asi ${fmt(o.reserve - plan.noChargeEnd)} % baterie (~${fmt((o.reserve - plan.noChargeEnd) * (CAL.battery_kwh || 85) / 100)} kWh). `) +
         `Na každé zastávce se dobije jen tolik, abys na další přijel s alespoň ${fmt(o.reserve)} %.` +
         (plan.short ? ' Pozor: některý úsek je na jedno nabití moc dlouhý, zkrať interval.' : '') +
+        (plan.consReal ? ` Podle zapsaných nabíjení jezdíš za ~${fmt(plan.consReal, 1)} kWh/100 km (plán ${fmt(o.cons, 1)}), zbytek plánu je podle toho přepočítaný.` : '') +
         (plan.retLate ? ` Zpátky v ${clock(o.retDepart)} nestihneš, do cíle dojedeš až v ${clock(plan.arriveDest)}. Počítám s odjezdem ${clock(plan.retDepart)}.` : '') }),
     );
   }
 
   function renderPlan(o, plan) {
     const box = $('results'); box.textContent = '';
+    if (curTrip) box.append(tripCard());
     box.append(planExport());
     const pts = lastRun.pts;
     box.append(stepRow('start', `Start · ${clock(o.depart)}`, pts[0].label || 'Start', `baterie ${fmt(o.soc0)} %`));
@@ -837,6 +884,8 @@
     });
     if (!box.querySelector('.step.dest')) box.append(destRow(o, plan));
     if (o.roundTrip) box.append(stepRow('home', `Domů · ${clock(plan.arriveHome)}`, pts[0].label || 'Start', `dojedeš s ~${fmt(plan.socEnd)} %`));
+    if (curTrip) box.append(finishCard(o, plan));
+    box.append(compareCard(o, plan));
   }
   function destRow(o, plan) {
     return stepRow('dest', `Cíl · ${clock(plan.arriveDest)}`, lastRun.pts[lastRun.pts.length - 1].label || 'Cíl',
@@ -865,15 +914,16 @@
       s.ccs ? el('span', { class: 'badge', text: `${s.ccs}× CCS` }) : null,
       warn800(s) ? el('span', { class: 'badge warn', text: warn800(s) }) : null);
     const facts = el('dl', { class: 'facts' },
-      el('dt', { text: 'Baterie' }), el('dd', { text: st.kwh > 0 ? `přijedeš s ~${fmt(st.arrive)} % → nabij na ${fmt(st.target)} %` : `přijedeš s ~${fmt(st.arrive)} %, nabíjet nemusíš (jen káva)` }),
+      el('dt', { text: 'Baterie' }), el('dd', { text: st.done ? `přijel jsi s ${fmt(st.arrive)} % → nabito na ${fmt(st.target)} %`
+        : st.kwh > 0 ? `přijedeš s ~${fmt(st.arrive)} % → nabij na ${fmt(st.target)} %` : `přijedeš s ~${fmt(st.arrive)} %, nabíjet nemusíš (jen káva)` }),
       st.kwh > 0 ? el('dt', { text: 'Nabíjení' }) : null,
-      st.kwh > 0 ? el('dd', { text: `~${fmt(st.chargeMin)} min · ${fmt(st.kwh, 1)} kWh` }) : null,
+      st.kwh > 0 ? el('dd', { text: `${st.done ? '' : '~'}${fmt(st.chargeMin)} min · ${fmt(st.kwh, 1)} kWh` }) : null,
       el('dt', { text: 'Cena' }), el('dd', { text: priceText(st) }),
       st.pr && st.pr.others.length ? el('dt', { text: 'Jiné karty' }) : null,
       st.pr && st.pr.others.length ? el('dd', { class: 'small', text: st.pr.others.slice(0, 3)
         .map((p) => `${p.card} ${p.czk != null ? fmt(p.czk, 2) + ' Kč' : '(cena v appce)'}`).join(' · ') }) : null,
       el('dt', { text: 'Zastávka' }), el('dd', { text: `${fmt(st.stopMin)} min` }));
-    const adv = advice(st);
+    const adv = st.done ? null : advice(st);
     const alts = st.alts && st.alts.length ? el('details', { class: 'more-export' },
       el('summary', { text: `Jiné možnosti v tomhle okně (${st.alts.length})` }),
       el('div', { class: 'alts' }, st.alts.map((a) => {
@@ -891,6 +941,8 @@
         el('div', { class: 'when' }, clock(st.at), el('small', { text: `po ${hm(st.tDrive)} jízdy · ${fmt(st.km)} km` }))),
       badges, facts,
       adv ? el('p', { class: `advice${adv.warn ? ' warn' : ''}`, text: adv.text }) : null,
+      loggedNote(st, o),
+      curTrip ? actualBox(st) : null,
       el('div', { class: 'cand-actions' },
         el('a', { class: 'waze', href: wazeUrl(s), target: '_blank', rel: 'noopener', text: 'Waze → sem' }),
         el('a', { href: gPlace(s), target: '_blank', rel: 'noopener', text: 'Google Mapy → sem' })),
@@ -905,6 +957,7 @@
     st.c = alt; st.note = null;
     plan.stops.sort((a, b) => tripX(a, rt) - tripX(b, rt));
     lastRun.plan = energize(rt, plan.stops, o);
+    if (curTrip) { curTrip.stops = tripStops(lastRun.plan); if (curTrip.saved) persistTrip(true); }
     render();
     if (!$('map-wrap').hidden) drawMap();
   }
@@ -1014,6 +1067,389 @@
     try { await navigator.share({ title: 'Trasa s nabíjením', text: lines.join('\n'), url: gDir(pts[0], pts[pts.length - 1], there.map((x) => x.p)) }); } catch (e) { /* cancelled */ }
   }
 
+  // ------------------------------------------------------------------ Moje cesty: plan at home, open on the phone, log real charging, finish + compare
+  const newTripId = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const hasActuals = (t) => !!(t && t.actual && Object.keys(t.actual).length);
+  const r5 = (v) => Math.round(+v * 1e5) / 1e5;
+  function tripInput(o, pts) {
+    return { places: pts.map((p) => ({ label: String(p.label || '').slice(0, 60), lat: r5(p.lat), lon: r5(p.lon) })),
+      depart: $('depart').value, soc0: o.soc0, reserve: o.reserve, stopBy: o.byKm ? 'km' : 'time',
+      intTime: +intTime.value, tolTime: +tolTime.value, intKm: +$('int-km').value, tolKm: +$('tol-km').value,
+      detour: o.detourKm, atPump: o.atPump, roundTrip: o.roundTrip, retTime: $('ret-time').value };
+  }
+  const tripStops = (plan) => plan.stops.filter((s) => !s.empty).map((s) => ({ leg: s.leg, lat: r5(s.c.s.lat), lon: r5(s.c.s.lon),
+    op: s.c.s.op, kw: s.c.s.kw, fuel: s.c.s.fuel, name: s.c.s.name, place: s.c.s.place, cc: s.c.s.cc, ccs: s.c.s.ccs, fd: s.c.s.fd }));
+  function tripName(inp) {
+    const a = (inp.places[0].label || 'Start').split(',')[0], b = (inp.places[inp.places.length - 1].label || 'Cíl').split(',')[0];
+    const d = inp.depart ? new Date(inp.depart) : null;
+    return `${a} → ${b}${inp.roundTrip ? ' a zpět' : ''}${d && !isNaN(d) ? ` · ${d.getDate()}. ${d.getMonth() + 1}.` : ''}`;
+  }
+  function persistTrip(quiet) {
+    if (!curTrip) return;
+    curTrip.saved = true; curTrip.updated = new Date().toISOString();
+    curTrip.name = curTrip.name || tripName(curTrip.input);
+    if (lastRun && lastRun.plan) curTrip.sum = { czk: Math.round(lastRun.plan.totalCzk), min: Math.round(lastRun.plan.totalMin) };
+    const i = trips.findIndex((t) => t.id === curTrip.id);
+    if (i >= 0) trips[i] = curTrip; else trips.unshift(curTrip);
+    trips = trips.slice(0, 80);
+    try { localStorage.setItem(TRIPS_KEY, JSON.stringify(trips)); } catch (e) { if (!quiet) setStatus('Cestu se nepodařilo uložit (plné úložiště?).', true); }
+    renderTrips();
+  }
+  function deleteTrip(t) {
+    if (!confirm(`Smazat cestu „${t.name || tripName(t.input)}“ i se zapsaným nabíjením?`)) return;
+    trips = trips.filter((x) => x.id !== t.id);
+    try { localStorage.setItem(TRIPS_KEY, JSON.stringify(trips)); } catch (e) { /* ignore */ }
+    if (curTrip && curTrip.id === t.id) { curTrip.saved = false; if (lastRun) render(); }
+    renderTrips();
+  }
+  function tripMeta(t) {
+    const st = t.status === 'done' ? 'dokončeno' : hasActuals(t) ? 'probíhá' : 'plán';
+    const czk = t.finish && Number.isFinite(t.finish.czk) ? t.finish.czk : t.sum ? t.sum.czk : null;
+    return [st, czk != null ? `${fmt(czk)} Kč` : null, t.stops ? `${t.stops.length} zastáv${t.stops.length === 1 ? 'ka' : t.stops.length < 5 ? 'ky' : 'ek'}` : null].filter(Boolean).join(' · ');
+  }
+  function renderTrips() {
+    const ul = $('trips-list'); ul.textContent = '';
+    $('trips-empty').hidden = trips.length > 0;
+    $('trips-count').textContent = trips.length ? `${trips.length}` : '';
+    trips.forEach((t) => ul.append(el('li', {},
+      el('button', { type: 'button', class: 'trip-open', onclick: () => openTrip(t) },
+        el('b', { text: t.name || tripName(t.input) }), el('small', { class: 'muted', text: tripMeta(t) })),
+      el('button', { type: 'button', class: 'linkish', text: 'Smazat', 'aria-label': `Smazat ${t.name || ''}`, onclick: () => deleteTrip(t) }))));
+    const up = trips.filter((t) => t.status !== 'done').slice(0, 4);
+    const strip = $('trips-strip'); strip.textContent = ''; strip.hidden = !up.length;
+    if (up.length) strip.append(el('span', { class: 'lbl', text: 'Moje cesty' }),
+      el('div', { class: 'chips' }, up.map((t) => el('button', { type: 'button', class: 'chip', text: t.name || tripName(t.input), onclick: () => openTrip(t) }))));
+  }
+  function applyInput(inp) {
+    places = inp.places.map((p, i) => ({ role: i === 0 ? 'from' : i === inp.places.length - 1 ? 'to' : 'via', label: p.label, lat: p.lat, lon: p.lon }));
+    renderPlaces();
+    if (inp.depart) $('depart').value = inp.depart;
+    if (Number.isFinite(+inp.soc0)) $('soc0').value = String(inp.soc0);
+    if (Number.isFinite(+inp.reserve)) $('reserve').value = String(inp.reserve);
+    $(inp.stopBy === 'km' ? 'by-km' : 'by-time').checked = true;
+    intTime.value = String(inp.intTime || 60); if (!intTime.value) intTime.value = '60';
+    tolTime.value = String(inp.tolTime != null ? inp.tolTime : 15); if (!tolTime.value) tolTime.value = '15';
+    $('int-km').value = String(inp.intKm || 130); $('tol-km').value = String(inp.tolKm != null ? inp.tolKm : 20);
+    $('detour').value = String(inp.detour || 1.5); if (!$('detour').value) $('detour').value = '1.5';
+    $('at-pump').checked = inp.atPump !== false; $('round-trip').checked = !!inp.roundTrip;
+    $('ret-time').value = inp.retTime || '16:00';
+    syncStopUi();
+  }
+  async function openTrip(t, fromLink) {
+    await dataReady;
+    if (!STATIONS.length) return;
+    curTrip = t;
+    applyInput(t.input);
+    setMenu(false);
+    setStatus('Počítám trasu…');
+    const pts = places.filter((p) => p.lat != null);
+    let raw;
+    try { raw = await route(pts); } catch (err) { setStatus(`Trasu se nepodařilo spočítat (${err.message}). Zkus to za chvíli.`, true); return; }
+    setStatus(fromLink ? 'Cesta z odkazu. Ulož si ji tlačítkem „Uložit cestu“, ať ji máš v telefonu i bez odkazu.' : '');
+    runPlan(raw, pts, readOptions(), t.stops);
+    $('summary').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  // rebuild a saved plan: same stations, recomputed battery/time/price; alternatives come from a fresh search
+  function planFromStops(rt, cands, o, fixed) {
+    const stops = fixed.map((f) => {
+      let c = cands.find((x) => Math.abs(x.s.lat - f.lat) < 0.003 && hav(x.s, f) < 150);
+      if (!c) {
+        const s = { lat: f.lat, lon: f.lon, op: f.op || null, name: f.name || 'Stanice', kw: f.kw || null, fuel: f.fuel || null,
+          place: f.place || null, cc: f.cc || 'CZ', ccs: f.ccs || null, fd: f.fd || null };
+        const n = nearestOnRoute(rt, s);
+        c = { s, n, detourMin: (2 * n.dist / 1000) / 40 * 60, detourKm: 2 * n.dist / 1000 };
+      }
+      return { leg: f.leg === 'B' && o.roundTrip ? 'B' : 'A', c, alts: [], note: null };
+    });
+    stops.sort((a, b) => tripX(a, rt) - tripX(b, rt));
+    try {
+      const auto = makePlan(rt, cands, o).stops.filter((s) => !s.empty);
+      stops.forEach((st) => {
+        const near = auto.filter((a) => a.leg === st.leg).sort((a, b) => Math.abs(tripX(a, rt) - tripX(st, rt)) - Math.abs(tripX(b, rt) - tripX(st, rt)))[0];
+        if (near) st.alts = [near.c, ...near.alts].filter((c) => stationKey(c.s) !== stationKey(st.c.s)).slice(0, 5);
+      });
+    } catch (e) { /* alternatives are optional */ }
+    return energize(rt, stops, o);
+  }
+
+  // link for the phone: the trip inputs + chosen stations in the URL fragment (never sent to the server)
+  const b64u = {
+    enc: (str) => { let bin = ''; new TextEncoder().encode(str).forEach((b) => { bin += String.fromCharCode(b); }); return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); },
+    dec: (s) => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0))),
+  };
+  function tripLink(t) {
+    const data = { v: 1, i: t.input, s: (t.stops || []).map((s) => [s.leg, s.lat, s.lon]) };
+    return `${location.origin}${location.pathname}#cesta=${b64u.enc(JSON.stringify(data))}`;
+  }
+  function tripFromHash() {
+    const m = location.hash.match(/^#cesta=([A-Za-z0-9_-]+)$/);
+    if (!m) return null;
+    try {
+      const d = JSON.parse(b64u.dec(m[1]));
+      if (!d || d.v !== 1 || !d.i || !Array.isArray(d.i.places)) return null;
+      const pl = d.i.places.filter((p) => p && Number.isFinite(p.lat) && Number.isFinite(p.lon) && Math.abs(p.lat) <= 90 && Math.abs(p.lon) <= 180)
+        .map((p) => ({ label: String(p.label || '').slice(0, 60), lat: p.lat, lon: p.lon }));
+      if (pl.length < 2) return null;
+      const i = d.i;
+      const input = { places: pl, depart: typeof i.depart === 'string' ? i.depart.slice(0, 16) : '', soc0: +i.soc0 || 100, reserve: Number.isFinite(+i.reserve) ? +i.reserve : 10,
+        stopBy: i.stopBy === 'km' ? 'km' : 'time', intTime: +i.intTime || 60, tolTime: Number.isFinite(+i.tolTime) ? +i.tolTime : 15,
+        intKm: +i.intKm || 130, tolKm: Number.isFinite(+i.tolKm) ? +i.tolKm : 20, detour: +i.detour || 1.5,
+        atPump: i.atPump !== false, roundTrip: !!i.roundTrip, retTime: /^\d{2}:\d{2}$/.test(i.retTime) ? i.retTime : '16:00' };
+      const stops = (Array.isArray(d.s) ? d.s : []).filter((s) => Array.isArray(s) && (s[0] === 'A' || s[0] === 'B') && Number.isFinite(s[1]) && Number.isFinite(s[2]))
+        .slice(0, 30).map(([leg, lat, lon]) => ({ leg, lat, lon }));
+      return { id: newTripId(), saved: false, status: 'plan', input, stops, actual: {} };
+    } catch (e) { return null; }
+  }
+  let qrLoading = null;
+  function loadQr() {
+    if (window.qrcode) return Promise.resolve();
+    if (!qrLoading) qrLoading = new Promise((resolve, reject) => {
+      const s = el('script', { src: 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js' });
+      s.onload = resolve; s.onerror = () => { qrLoading = null; reject(new Error('qr')); };
+      document.head.append(s);
+    });
+    return qrLoading;
+  }
+  async function showSend(box) {
+    if (!box.hidden) { box.hidden = true; return; }
+    box.hidden = false; box.textContent = '';
+    const url = tripLink(curTrip);
+    const input = el('input', { type: 'text', readonly: true, value: url, 'aria-label': 'Odkaz na cestu' });
+    const qrBox = el('div', { class: 'qr', 'aria-label': 'QR kód odkazu', role: 'img' });
+    box.append(
+      el('p', { class: 'small muted', text: 'Naskenuj QR kód mobilem, nebo si odkaz pošli. V mobilu pak dej „Uložit cestu“. Odkaz obsahuje místa trasy, posílej ho jen sobě.' }),
+      qrBox, input,
+      el('div', { class: 'cand-actions multi' },
+        el('button', { type: 'button', class: 'linkish', text: 'Kopírovat odkaz', onclick: async (e) => {
+          try { await navigator.clipboard.writeText(url); e.currentTarget.textContent = 'Zkopírováno ✓'; } catch (err) { input.select(); }
+        } }),
+        navigator.share ? el('button', { type: 'button', class: 'linkish', text: 'Sdílet…', onclick: () => navigator.share({ title: curTrip.name || tripName(curTrip.input), url }).catch(() => {}) }) : null));
+    try {
+      await loadQr();
+      const qr = window.qrcode(0, 'L'); qr.addData(url); qr.make();
+      qrBox.innerHTML = qr.createSvgTag({ cellSize: 3, margin: 2, scalable: true });
+    } catch (e) { qrBox.textContent = 'QR kód se nepodařilo vytvořit, použij odkaz.'; }
+  }
+  function tripCard() {
+    const t = curTrip;
+    const status = !t.saved ? 'Neuložená cesta' : t.status === 'done' ? 'Dokončená cesta' : hasActuals(t) ? 'Probíhající cesta' : 'Uloženo v Moje cesty';
+    const sendBox = el('div', { class: 'send-box', hidden: true });
+    return el('section', { class: 'card trip' },
+      el('div', {}, el('p', { class: 'eyebrow', text: status }), el('h2', { text: t.name || tripName(t.input) })),
+      el('div', { class: 'cand-actions multi' },
+        t.saved ? null : el('button', { type: 'button', class: 'linkish strong', text: 'Uložit cestu', onclick: () => { persistTrip(); render(); setStatus('Uloženo. Najdeš ji v ☰ → Moje cesty i nahoře na hlavní obrazovce.'); } }),
+        el('button', { type: 'button', class: 'linkish', text: 'Poslat do mobilu', onclick: () => showSend(sendBox) })),
+      sendBox);
+  }
+
+  // ---- logged real charging: text from the charging app or a screenshot → numbers → the rest of the plan is recomputed
+  function parseChargeText(text) {
+    const s = String(text).replace(/ /g, ' ');
+    const num = (x) => parseFloat(String(x).replace(/\s/g, '').replace(',', '.'));
+    const out = {};
+    const kwh = [...s.matchAll(/(\d+(?:[.,]\d+)?)\s*kWh/gi)].map((m) => num(m[1])).filter((v) => v > 0 && v < 120);
+    if (kwh.length) out.kwh = Math.max(...kwh);
+    const czk = [...s.matchAll(/(\d{1,3}(?: \d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)\s*(?:Kč|CZK|,-)(?!\s*\/)/gi)]
+      .map((m) => num(m[1])).filter((v) => v > 0 && v < 20000);
+    if (czk.length) out.czk = Math.max(...czk);
+    let m;
+    if ((m = s.match(/\b(\d{1,2}):(\d{2}):(\d{2})\b/))) out.min = +m[1] * 60 + +m[2] + +m[3] / 60;
+    else if ((m = s.match(/(\d+)\s*h(?:od)?\.?\s*(\d+)\s*min/i))) out.min = +m[1] * 60 + +m[2];
+    else if ((m = s.match(/(\d+)\s*min(?:ut)?\.?\s*(\d+)\s*s/i))) out.min = +m[1] + +m[2] / 60;
+    else if ((m = s.match(/\b(\d{1,3}):(\d{2})\s*min/i))) out.min = +m[1] + +m[2] / 60;
+    else if ((m = s.match(/(\d+(?:[.,]\d+)?)\s*min/i))) out.min = num(m[1]);
+    else if ((m = s.match(/\b(\d{1,2}):(\d{2})\s*[–-]\s*(\d{1,2}):(\d{2})\b/))) {
+      const d = (+m[3] * 60 + +m[4]) - (+m[1] * 60 + +m[2]); if (d > 0 && d < 300) out.min = d;
+    }
+    const pcts = [...s.matchAll(/(\d{1,3})\s*%/g)].filter((x) => !/DPH|VAT/i.test(s.slice(Math.max(0, x.index - 10), x.index)))
+      .map((x) => +x[1]).filter((v) => v >= 0 && v <= 100);
+    if (pcts.length >= 2) { out.socFrom = Math.min(pcts[0], pcts[1]); out.socTo = Math.max(pcts[0], pcts[1]); }
+    else if (pcts.length === 1) out.socTo = pcts[0];
+    return out;
+  }
+  let tessLoading = null;
+  function loadTesseract() {
+    if (window.Tesseract) return Promise.resolve();
+    if (!tessLoading) tessLoading = new Promise((resolve, reject) => {
+      const s = el('script', { src: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js' });
+      s.onload = resolve; s.onerror = () => { tessLoading = null; reject(new Error('ocr')); };
+      document.head.append(s);
+    });
+    return tessLoading;
+  }
+  // OCR runs in this browser; the screenshot never leaves the phone (only the OCR engine is downloaded, ~4 MB once)
+  async function ocrImage(file, onStatus) {
+    onStatus('Načítám čtečku textu (poprvé ~4 MB)…');
+    await loadTesseract();
+    const worker = await window.Tesseract.createWorker('ces', 1, { logger: (m) => {
+      if (m.status === 'recognizing text') onStatus(`Čtu screenshot… ${Math.round(m.progress * 100)} %`);
+    } });
+    try { const { data } = await worker.recognize(file); return data.text || ''; } finally { worker.terminate(); }
+  }
+  function actualBox(st) {
+    const a = st.actual || {};
+    const KPP = CAL.kwh_per_pct || 0.98;
+    const fields = {};
+    const field = (k, label, val, plan, suffix) => {
+      fields[k] = el('input', { type: 'text', inputmode: 'decimal', value: val != null ? String(val).replace('.', ',') : '', placeholder: plan != null ? `plán ${plan}` : '' });
+      return el('label', { class: 'field' }, el('span', { text: label }), el('span', { class: 'suffix' }, fields[k], el('i', { text: suffix })));
+    };
+    const ta = el('textarea', { rows: 3, placeholder: 'Vlož text z aplikace nebo e-mailu, např. „40,8 kWh · 00:18:12 · 814 Kč · 29 % → 71 %“' });
+    const note = el('p', { class: 'small muted', 'aria-live': 'polite' });
+    const fill = (p) => {
+      const found = [];
+      if (p.socFrom != null) { fields.socFrom.value = String(p.socFrom); found.push(`${p.socFrom} %`); }
+      if (p.socTo != null) { fields.socTo.value = String(p.socTo); found.push(`→ ${p.socTo} %`); }
+      if (p.kwh != null) { fields.kwh.value = fmt(p.kwh, 2); found.push(`${fmt(p.kwh, 2)} kWh`); }
+      if (p.min != null) { fields.min.value = fmt(p.min, 1); found.push(`${fmt(p.min, 1)} min`); }
+      if (p.czk != null) { fields.czk.value = fmt(p.czk, 2).replace(/\s/g, ''); found.push(`${fmt(p.czk, 2)} Kč`); }
+      note.textContent = found.length ? `Našel jsem: ${found.join(', ')}. Zkontroluj a ulož.` : 'Žádná čísla jsem nenašel, vyplň je ručně.';
+    };
+    const fileIn = el('input', { type: 'file', accept: 'image/*', class: 'sr', onchange: async (e) => {
+      const f = e.target.files && e.target.files[0]; e.target.value = '';
+      if (!f) return;
+      try { const text = await ocrImage(f, (m) => { note.textContent = m; }); ta.value = text.trim(); fill(parseChargeText(text)); }
+      catch (err) { note.textContent = 'Screenshot se nepodařilo přečíst (bez internetu se čtečka nenačte). Vyplň čísla ručně.'; }
+    } });
+    const num = (k) => { const v = parseFloat(String(fields[k].value).replace(/\s/g, '').replace(',', '.')); return Number.isFinite(v) ? v : undefined; };
+    const save = () => {
+      const r = { socFrom: num('socFrom'), socTo: num('socTo'), kwh: num('kwh'), min: num('min'), czk: num('czk'), at: new Date().toISOString() };
+      for (const k of ['socFrom', 'socTo']) if (r[k] != null && (r[k] < 0 || r[k] > 100)) { note.textContent = 'Baterie musí být 0–100 %.'; return; }
+      if (r.socTo == null && r.kwh != null) r.socTo = Math.min(100, Math.round((r.socFrom != null ? r.socFrom : st.planArrive) + r.kwh / KPP));
+      if (r.socFrom == null && r.socTo == null) { note.textContent = 'Vyplň aspoň baterii při příjezdu nebo po nabití.'; return; }
+      Object.keys(r).forEach((k) => r[k] === undefined && delete r[k]);
+      curTrip.actual = curTrip.actual || {};
+      curTrip.actual[stopKey(st)] = r;
+      persistTrip(true);
+      replan();
+      setStatus('Zapsáno. Zbytek plánu je přepočítaný podle skutečnosti.');
+    };
+    return el('details', { class: 'more-export actual-box' },
+      el('summary', { text: st.done || st.actual ? 'Upravit zápis z nabíjení' : 'Zapsat, jak to dopadlo' }),
+      el('div', { class: 'actual-form' },
+        ta,
+        el('div', { class: 'cand-actions multi' },
+          el('button', { type: 'button', class: 'linkish', text: 'Načíst z textu', onclick: () => fill(parseChargeText(ta.value)) }),
+          el('button', { type: 'button', class: 'linkish', text: 'Ze screenshotu…', onclick: () => fileIn.click() }), fileIn),
+        note,
+        el('div', { class: 'grid2 even' },
+          field('socFrom', 'Baterie při příjezdu', a.socFrom, Math.round(st.planArrive), '%'),
+          field('socTo', 'Nabito na', a.socTo, st.kwh > 0 && !st.done ? st.target : null, '%'),
+          field('kwh', 'Nabito', a.kwh, st.kwh > 0 && !st.done ? fmt(st.kwh, 1) : null, 'kWh'),
+          field('min', 'Doba', a.min, st.chargeMin > 0 && !st.done ? fmt(st.chargeMin) : null, 'min'),
+          field('czk', 'Cena', a.czk, st.cost && !st.done ? fmt(st.cost) : null, 'Kč')),
+        el('div', { class: 'cand-actions multi' },
+          el('button', { type: 'button', class: 'linkish strong', text: 'Uložit a přepočítat', onclick: save }),
+          st.actual ? el('button', { type: 'button', class: 'linkish', text: 'Smazat zápis', onclick: () => {
+            delete curTrip.actual[stopKey(st)]; persistTrip(true); replan(); setStatus('Zápis smazán.');
+          } }) : null)));
+  }
+  function loggedNote(st, o) {
+    const a = st.actual;
+    if (!a) return null;
+    const parts = [];
+    if (Number.isFinite(a.socFrom)) parts.push(`přijel jsi s ${fmt(a.socFrom)} % (plán ${fmt(st.planArrive)} %)`);
+    if (st.done) parts.push(`nabito na ${fmt(st.target)} %${Number.isFinite(a.kwh) ? `, ${fmt(a.kwh, 1)} kWh` : ''}${Number.isFinite(a.min) ? `, ${fmt(a.min)} min` : ''}${Number.isFinite(a.czk) ? `, ${fmt(a.czk)} Kč` : ''}`);
+    let check = '', warn = false;
+    if (st.done && st.nextArrive != null) {
+      if (st.nextArrive < o.reserve - 1) { check = ` Na další úsek to nestačí: přijedeš jen s ~${fmt(st.nextArrive)} %. Nabij ještě na ~${fmt(Math.min(MAX_TARGET, st.need))} %, nebo zastav dřív.`; warn = true; }
+      else check = ` Plán platí, na další zastávku přijedeš s ~${fmt(st.nextArrive)} %.`;
+    }
+    return el('p', { class: `advice logged${warn ? ' warn' : ''}`, text: `Skutečnost: ${parts.join(', ')}.${check}` });
+  }
+
+  // ---- finish the trip + comparison with fuel cars (same method as the ev-trip-cost skill)
+  const CMP_DEFAULT = { home: 6.61, loss: 0.10, diesel: 47.99, petrol: 42.35,
+    cars: [{ name: 'Volvo diesel', fuel: 'diesel', l: 5.0 }, { name: 'Renault Talisman diesel', fuel: 'diesel', l: 6.5 }, { name: 'Benzínové auto', fuel: 'petrol', l: 8.0 }] };
+  function cmpPrefs() {
+    const c = { ...CMP_DEFAULT, ...(prefs.cmp && typeof prefs.cmp === 'object' ? prefs.cmp : {}) };
+    if (!Array.isArray(c.cars) || !c.cars.length) c.cars = CMP_DEFAULT.cars;
+    return c;
+  }
+  function renderCmpPrefs() {
+    const c = cmpPrefs(), box = $('cmp-box'); box.textContent = '';
+    const numIn = (val, onv, label, suffix) => el('label', { class: 'field' }, el('span', { text: label }),
+      el('span', { class: 'suffix' }, el('input', { type: 'text', inputmode: 'decimal', value: String(val).replace('.', ','), onchange: (e) => {
+        const v = parseFloat(String(e.target.value).replace(',', '.')); if (Number.isFinite(v) && v > 0) { onv(v); savePrefs(); if (lastRun) render(); }
+      } }), el('i', { text: suffix })));
+    const set = (k) => (v) => { prefs.cmp = { ...cmpPrefs(), [k]: v }; };
+    box.append(el('div', { class: 'grid2 even' },
+      numIn(c.diesel, set('diesel'), 'Nafta', 'Kč/l'), numIn(c.petrol, set('petrol'), 'Benzín', 'Kč/l'),
+      numIn(c.home, set('home'), 'Elektřina doma', 'Kč/kWh')));
+    c.cars.forEach((car, i) => box.append(el('div', { class: 'cmp-car' },
+      el('input', { type: 'text', value: car.name, 'aria-label': `Auto ${i + 1}`, onchange: (e) => {
+        const cars = cmpPrefs().cars.map((x) => ({ ...x })); cars[i].name = e.target.value.slice(0, 40) || `Auto ${i + 1}`; prefs.cmp = { ...cmpPrefs(), cars }; savePrefs(); if (lastRun) render();
+      } }),
+      el('select', { 'aria-label': `Palivo auta ${i + 1}`, onchange: (e) => {
+        const cars = cmpPrefs().cars.map((x) => ({ ...x })); cars[i].fuel = e.target.value; prefs.cmp = { ...cmpPrefs(), cars }; savePrefs(); if (lastRun) render();
+      } }, el('option', { value: 'diesel', text: 'nafta', selected: car.fuel === 'diesel' }), el('option', { value: 'petrol', text: 'benzín', selected: car.fuel === 'petrol' })),
+      el('span', { class: 'suffix' }, el('input', { type: 'text', inputmode: 'decimal', value: String(car.l).replace('.', ','), 'aria-label': `Spotřeba auta ${i + 1}`, onchange: (e) => {
+        const v = parseFloat(String(e.target.value).replace(',', '.')); if (!(v > 0)) return;
+        const cars = cmpPrefs().cars.map((x) => ({ ...x })); cars[i].l = v; prefs.cmp = { ...cmpPrefs(), cars }; savePrefs(); if (lastRun) render();
+      } }), el('i', { text: 'l/100' })))));
+  }
+  function comparison(o, plan) {
+    const c = cmpPrefs(), CAP = CAL.battery_kwh || 85;
+    const fin = curTrip && curTrip.status === 'done' && curTrip.finish ? curTrip.finish : null;
+    const km = fin && Number.isFinite(fin.km) ? fin.km : (o.roundTrip ? 2 : 1) * plan.D;
+    const socEnd = fin && Number.isFinite(fin.socEnd) ? fin.socEnd : (o.roundTrip ? plan.socEnd : plan.socDest);
+    const real = plan.stops.filter((s) => !s.empty);
+    const pubCzk = real.reduce((a, s) => a + (s.cost || 0), 0);
+    const pubPct = real.reduce((a, s) => a + Math.max(0, s.target - s.arrive), 0);
+    const homeCzk = Math.max(0, o.soc0 - socEnd) / 100 * CAP / (1 - c.loss) * c.home;
+    const ev = pubCzk + homeCzk;
+    const allHome = Math.max(0, o.soc0 - socEnd + pubPct) / 100 * CAP / (1 - c.loss) * c.home;
+    const driveMin = (o.roundTrip ? 2 : 1) * plan.T;
+    let evStops = 0, iceStops = 0;
+    real.forEach((s, i) => { const brk = i === 0 ? BREAK_FIRST : BREAK_NEXT; iceStops += brk; evStops += Math.max(brk, s.chargeMin || 0); });
+    const cars = c.cars.map((car) => { const litres = km * car.l / 100; return { ...car, litres, czk: litres * (car.fuel === 'diesel' ? c.diesel : c.petrol) }; });
+    return { fin, km, socEnd, pubCzk, homeCzk, ev, allHome, evTotal: driveMin + evStops, iceTotal: driveMin + iceStops, wait: evStops - iceStops, cars, c };
+  }
+  function compareCard(o, plan) {
+    const r = comparison(o, plan);
+    const row = (name, sub, czk, min, cls) => el('tr', { class: cls || '' },
+      el('th', { scope: 'row' }, el('b', { text: name }), sub ? el('small', { class: 'muted', text: sub }) : null),
+      el('td', { text: `${fmt(czk)} Kč` }), el('td', { text: fmt(czk / r.km, 2) }), el('td', { text: hm(min) }));
+    const cheaper = r.cars.map((x) => x.czk - r.ev);
+    return el('section', { class: 'card compare' },
+      el('h2', { text: `Srovnání s auty na palivo${r.fin ? '' : ' (podle plánu)'}` }),
+      el('p', { class: 'small muted', text: `${fmt(r.km)} km · baterie na konci ${fmt(r.socEnd)} % · zastávky: první ${BREAK_FIRST} min, další ${BREAK_NEXT} min, stejně pro všechna auta` }),
+      el('div', { class: 'table-wrap' }, el('table', { class: 'cmp' },
+        el('thead', {}, el('tr', {}, el('th', { scope: 'col', text: 'Auto' }), el('th', { scope: 'col', text: 'Cena' }), el('th', { scope: 'col', text: 'Kč/km' }), el('th', { scope: 'col', text: 'Na cestě' }))),
+        el('tbody', {},
+          row('Elektro', `veřejně ${fmt(r.pubCzk)} Kč + doma ${fmt(r.homeCzk)} Kč`, r.ev, r.evTotal, 'ev'),
+          r.cars.map((x) => row(x.name, `${fmt(x.l, 1)} l/100 km · ${fmt(x.litres, 1)} l`, x.czk, r.iceTotal))))),
+      el('p', { class: 'small', text: `Elektro vychází o ${cheaper.map((d, i) => `${fmt(Math.abs(d))} Kč ${d >= 0 ? 'levněji' : 'dráž'} než ${r.cars[i].name}`).join(', ')}. ` +
+        `Čekáním na nabíječce navíc ${fmt(Math.max(0, r.wait))} min. Kdyby se všechno nabilo doma: ${fmt(r.allHome)} Kč.` }),
+      el('p', { class: 'small muted', text: `Doma ${fmt(r.c.home, 2)} Kč/kWh + ${fmt(r.c.loss * 100)} % ztráty, nafta ${fmt(r.c.diesel, 2)}, benzín ${fmt(r.c.petrol, 2)} Kč/l. Změníš v ☰ → Srovnání s palivem.` }));
+  }
+  function finishCard(o, plan) {
+    const t = curTrip, fin = t.status === 'done' ? t.finish || {} : null;
+    const planEnd = o.roundTrip ? plan.socEnd : plan.socDest, planKm = (o.roundTrip ? 2 : 1) * plan.D;
+    const socIn = el('input', { type: 'text', inputmode: 'numeric', value: fin && Number.isFinite(fin.socEnd) ? String(fin.socEnd) : '', placeholder: `plán ${fmt(planEnd)}` });
+    const kmIn = el('input', { type: 'text', inputmode: 'numeric', value: fin && Number.isFinite(fin.km) ? String(fin.km) : '', placeholder: `plán ${fmt(planKm)}` });
+    const note = el('p', { class: 'small muted', 'aria-live': 'polite' });
+    const save = () => {
+      const soc = parseFloat(String(socIn.value).replace(',', '.')), km = parseFloat(String(kmIn.value).replace(',', '.'));
+      if (!(soc >= 0 && soc <= 100)) { note.textContent = 'Vyplň baterii na konci (0–100 %).'; return; }
+      t.status = 'done';
+      t.finish = { socEnd: soc, km: km > 0 ? km : Math.round(planKm), at: new Date().toISOString() };
+      persistTrip(true);
+      t.finish.czk = Math.round(comparison(o, plan).ev);
+      persistTrip(true);
+      render();
+      setStatus('Cesta je dokončená a uložená v ☰ → Moje cesty.');
+    };
+    return el('section', { class: 'card finish' },
+      el('h2', { text: fin ? `Dokončeno ${new Date(fin.at || Date.now()).toLocaleDateString('cs-CZ')}` : 'Dokončit cestu' }),
+      el('p', { class: 'small muted', text: fin ? 'Čísla níž počítají se skutečností. Můžeš je opravit.' : 'Až dojedeš, zapiš baterii a km. Cesta se uloží i se srovnáním.' }),
+      el('div', { class: 'grid2 even' },
+        el('label', { class: 'field' }, el('span', { text: o.roundTrip ? 'Baterie doma' : 'Baterie v cíli' }), el('span', { class: 'suffix' }, socIn, el('i', { text: '%' }))),
+        el('label', { class: 'field' }, el('span', { text: 'Najeto' }), el('span', { class: 'suffix' }, kmIn, el('i', { text: 'km' })))),
+      note,
+      el('button', { type: 'button', class: 'linkish strong', text: fin ? 'Uložit opravu' : 'Dokončit a uložit', onclick: save }));
+  }
+
   // ------------------------------------------------------------------ map (lazy Leaflet)
   let map = null, layer = null, leafletLoading = null;
   function loadLeaflet() {
@@ -1056,8 +1492,10 @@
   });
 
   // ------------------------------------------------------------------ boot
-  renderPlaces(); renderHidden(); renderStorageInfo();
-  if (freshInstall) {
+  renderPlaces(); renderHidden(); renderStorageInfo(); renderTrips(); renderCmpPrefs();
+  const linked = tripFromHash();
+  if (linked) { history.replaceState(null, '', location.pathname + location.search); openTrip(linked, true); }
+  else if (freshInstall) {
     const st = $('status'); st.textContent = '';
     st.append('Máš uloženou zálohu nastavení z jiného telefonu nebo ze Safari? ',
       el('button', { type: 'button', class: 'link-btn', text: 'Načíst zálohu', onclick: () => $('import-file').click() }));

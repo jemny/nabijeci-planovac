@@ -35,6 +35,8 @@
     <button type="button" class="link-btn" id="btn-reload">Načíst</button>
   </div>
 
+  <div class="trips-strip" id="trips-strip" hidden></div>
+
   <form id="form" class="card form" novalidate autocomplete="off">
     <div class="places" id="places">
       <!-- place rows are rendered by app.js: Odkud, Přes…, Kam -->
@@ -105,6 +107,12 @@
   <p class="small muted">Ukládá se v tomhle zařízení a hned se to projeví ve výsledcích.</p>
 
   <section class="pref-sec">
+    <h3>Moje cesty <small class="muted" id="trips-count"></small></h3>
+    <p class="small muted" id="trips-empty">Zatím žádné. Po hledání zastávek dej „Uložit cestu“. Doma si ji připravíš, do mobilu pošleš odkazem nebo QR kódem a v autě ji tady otevřeš.</p>
+    <ul class="hidden-list trips-list" id="trips-list"></ul>
+  </section>
+
+  <section class="pref-sec">
     <h3>Oblíbené pumpy <small class="muted">mají přednost</small></h3>
     <div class="chips" id="brands" role="group" aria-label="Oblíbené pumpy"></div>
     <p class="small muted">Oblíbená pumpa vyhraje i kousek mimo okno (do 10 min nebo 15 km) a s objížďkou do 3 km.</p>
@@ -150,6 +158,12 @@
   </section>
 
   <section class="pref-sec">
+    <h3>Srovnání s palivem</h3>
+    <div class="cmp-box" id="cmp-box"></div>
+    <p class="small muted">Ceny paliv: průměr CCS 14. 11. 2026. Elektřina doma: sazba D02d, +10 % ztráty při nabíjení. Ceny i auta si přepiš.</p>
+  </section>
+
+  <section class="pref-sec">
     <h3>Záloha nastavení</h3>
     <p class="small muted" id="storage-info">Nastavení zůstává v tomhle zařízení i po restartu telefonu.</p>
     <div class="cand-actions multi">
@@ -157,7 +171,7 @@
       <button type="button" class="linkish" id="btn-import">Načíst ze souboru</button>
     </div>
     <input type="file" id="import-file" accept="application/json,.json" hidden>
-    <p class="small muted">Soubor se hodí pro nový telefon a na iPhonu i pro appku z plochy, která má vlastní úložiště oddělené od Safari.</p>
+    <p class="small muted">Záloha obsahuje i Moje cesty. Soubor se hodí pro nový telefon a na iPhonu i pro appku z plochy, která má vlastní úložiště oddělené od Safari.</p>
   </section>
 
   <section class="pref-sec">

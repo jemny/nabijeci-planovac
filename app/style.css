@@ -210,3 +210,33 @@ details.more-export[open] > :not(summary){margin-top:8px}
 .stat.warn{border-color:var(--warn);background:var(--warn-soft)}
 .hide-btn{align-self:flex-start;color:var(--muted);font-weight:500;font-size:.85rem}
 .status.update{display:flex;justify-content:space-between;align-items:center;gap:10px}
+
+/* Moje cesty */
+.trips-strip{display:flex;flex-direction:column;gap:6px}
+.trips-strip .lbl{font-size:.82rem;font-weight:600}
+.trips-list .trip-open{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;text-align:left;background:none;border:0;padding:4px 0;cursor:pointer;color:var(--ink)}
+.trips-list .trip-open b{font-size:.95rem}
+.trip h2{font-size:1.1rem}
+.linkish.strong{background:var(--ev);border-color:var(--ev);color:var(--ev-ink)}
+.send-box{display:flex;flex-direction:column;gap:8px}
+.send-box input{width:100%;min-height:42px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:.8rem}
+.qr{align-self:center;width:min(240px,70vw);background:#fff;padding:8px;border-radius:12px;line-height:0}
+.qr svg{width:100%;height:auto;display:block}
+.actual-form{display:flex;flex-direction:column;gap:10px}
+.actual-form textarea{width:100%;min-height:72px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font:inherit;font-size:.9rem;color:inherit;resize:vertical}
+.actual-form input[type=text]{min-height:44px}
+.advice.logged{background:var(--bg);border:1px solid var(--ev)}
+.advice.logged.warn{background:var(--warn-soft);border-color:var(--warn)}
+.compare h2,.finish h2{font-size:1.05rem}
+.table-wrap{overflow-x:auto}
+.cmp{width:100%;border-collapse:collapse;font-size:.9rem;font-variant-numeric:tabular-nums}
+.cmp th,.cmp td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:right;vertical-align:top}
+.cmp th:first-child{text-align:left}
+.cmp thead th{font-size:.75rem;color:var(--muted);font-weight:600}
+.cmp tbody th{font-weight:400}
+.cmp tbody th small{display:block;font-size:.75rem}
+.cmp tr.ev th b,.cmp tr.ev td{color:var(--ev);font-weight:700}
+.cmp-box{display:flex;flex-direction:column;gap:8px}
+.cmp-car{display:grid;grid-template-columns:1fr 90px 100px;gap:6px}
+.cmp-car input,.cmp-car select{min-height:42px}
+.cmp-car .suffix input{padding-right:46px}
