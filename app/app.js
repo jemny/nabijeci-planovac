@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_EXTRA_MIN = 10, FAV_EXTRA_KM = 15, FAV_DETOUR_KM = 3;  // a favourite pump may be this far outside the window / off the route
-  const APP_VERSION = '2026-11-15f';
+  const APP_VERSION = '2026-11-15g';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -296,6 +296,9 @@
   if (prefs.detour) $('detour').value = String(prefs.detour);
   if (prefs.minKw) $('min-kw').value = String(prefs.minKw);
   if (prefs.cons) $('cons').value = String(prefs.cons);
+  const carLimit = () => Math.max(50, Math.min(100, +$('car-limit').value || 80));
+  if (prefs.carLimit) $('car-limit').value = String(prefs.carLimit);
+  $('soc0').value = String(carLimit());           // at home it charges up to the car's limit
   if (prefs.tempo) $('tempo').value = String(prefs.tempo);
   $('reserve').value = String(prefs.reserve != null ? prefs.reserve : RESERVE_DEFAULT);
   let favs = new Set(prefs.favs || DEFAULT_FAVS);
@@ -361,9 +364,10 @@
   }
 
   // panel inputs take effect immediately
-  ['only-fav', 'my-cards', 'unknown-kw', 'min-kw', 'cons', 'tempo'].forEach((id) => $(id).addEventListener('change', () => {
+  ['only-fav', 'my-cards', 'unknown-kw', 'min-kw', 'cons', 'tempo', 'car-limit'].forEach((id) => $(id).addEventListener('change', () => {
     const v = $(id).type === 'checkbox' ? $(id).checked : $(id).value;
     if (id === 'min-kw') prefs.minKw = +v;
+    else if (id === 'car-limit') { prefs.carLimit = carLimit(); $('car-limit').value = String(prefs.carLimit); if (!lastRun) $('soc0').value = String(prefs.carLimit); }
     else if (id === 'cons') { prefs.cons = Math.min(35, Math.max(12, parseFloat(String(v).replace(',', '.')) || 23.8)); $('cons').value = String(prefs.cons); }
     else if (id === 'tempo') prefs.tempo = parseFloat(v) || 0.93; else prefs[id] = v;
     savePrefs(); renderPeek(); replan();
@@ -515,7 +519,7 @@
       atPump: $('at-pump').checked, roundTrip: $('round-trip').checked,
       onlyFav: $('only-fav').checked, myCards: $('my-cards').checked, unknownKw: $('unknown-kw').checked,
       minKw: +$('min-kw').value, cons: Math.min(35, Math.max(12, parseFloat(String($('cons').value).replace(',', '.')) || 23.8)),
-      tempo: parseFloat($('tempo').value) || 0.93,
+      tempo: parseFloat($('tempo').value) || 0.93, carLimit: carLimit(),
       reserve: Math.max(0, Math.min(80, parseFloat($('reserve').value))),
     };
     if (!Number.isFinite(o.reserve)) o.reserve = RESERVE_DEFAULT;
@@ -540,7 +544,7 @@
     // a saved trip (or one being driven) keeps its stations; only prices, times and battery are recomputed
     const fixed = curTrip && (curTrip.saved || hasActuals(curTrip)) && !forceAuto ? curTrip.stops : null;
     forceAuto = false;
-    runPlan(lastRun.raw, lastRun.pts, { ...lastRun.o, onlyFav: f.onlyFav, myCards: f.myCards, unknownKw: f.unknownKw, minKw: f.minKw, cons: f.cons, tempo: f.tempo }, fixed);
+    runPlan(lastRun.raw, lastRun.pts, { ...lastRun.o, onlyFav: f.onlyFav, myCards: f.myCards, unknownKw: f.unknownKw, minKw: f.minKw, cons: f.cons, tempo: f.tempo, carLimit: f.carLimit }, fixed);
   }
   let forceAuto = false;
 
@@ -823,7 +827,7 @@
         st.target = Math.round(Math.max(st.arrive, Math.min(st.need, MAX_TARGET)));
         if (st.target - st.arrive <= 2) st.target = st.arrive;   // a 1–2 % top-up isn't worth plugging in: coffee only
         // if plugging in, take at least 8 % – but never push past 80 % just for that: above 80 % it charges at ~60–80 kW
-        else if (st.target - st.arrive < 8) st.target = Math.min(MAX_TARGET, Math.max(st.target, Math.min(80, Math.round(st.arrive + 8))));
+        else if (st.target - st.arrive < 8) st.target = Math.min(MAX_TARGET, Math.max(st.target, Math.min(80, o.carLimit || 80, Math.round(st.arrive + 8))));
         const kw = st.c.s.kw || 100;
         st.chargeMin = st.target > st.arrive ? chargeMinutes(Math.max(0, st.arrive), st.target, kw) : 0;
         st.kwh = Math.max(0, st.target - st.arrive) * KPP;
@@ -899,6 +903,8 @@
         (plan.noChargeEnd >= o.reserve ? `Bez nabíjení bys ${o.roundTrip ? 'domů' : 'do cíle'} dojel s ~${fmt(plan.noChargeEnd)} %, takže zastávky jsou hlavně na kávu. `
           : `Cestou potřebuješ dobít asi ${fmt(o.reserve - plan.noChargeEnd)} % (~${fmt((o.reserve - plan.noChargeEnd) * (CAL.battery_kwh || 85) / 100)} kWh), na každé zastávce jen na další úsek. `) +
         (plan.short ? 'Pozor: některý úsek je na jedno nabití moc dlouhý, zkrať interval. ' : '') +
+        (() => { const n = plan.stops.filter((s) => !s.empty && !s.done && s.kwh > 0 && s.target > (o.carLimit || 100)).length;
+          return n ? `Na ${n} ${n === 1 ? 'zastávce' : 'zastávkách'} nabíjíš nad limit v autě ${fmt(o.carLimit)} %, před nabíjením ho zvedni. ` : ''; })() +
         (plan.consReal ? `Podle zapsaných nabíjení jezdíš za ~${fmt(plan.consReal, 1)} kWh/100 km (plán ${fmt(o.cons, 1)}), zbytek plánu je podle toho přepočítaný. ` : '') +
         (plan.retLate ? `Zpátky v ${clock(o.retDepart)} nestihneš, do cíle dojedeš až v ${clock(plan.arriveDest)}. Počítám s odjezdem ${clock(plan.retDepart)}.` : '') }),
     );
@@ -1031,6 +1037,8 @@
     const parts = [];
     let warn = false;
     if (st.short) { parts.push(`Další úsek je na jedno nabití moc dlouhý (potřeba ~${fmt(st.need)} %). Nabij na ${fmt(st.target)} % a zkrať interval zastávek.`); warn = true; }
+    const lim = lastRun && lastRun.o.carLimit;
+    if (lim && st.kwh > 0 && st.target > lim) { parts.push(`Nabíjíš na ${fmt(st.target)} %, ale limit v autě je ${fmt(lim)} %. Před nabíjením ho zvedni (v autě Nabíjení → max. nabití, nebo v aplikaci Mercedes), jinak nabíjení skončí na ${fmt(lim)} %.`); warn = true; }
     if (st.arrive < 5) { parts.push('Sem dojedeš skoro na nulu, zkrať interval nebo zastav dřív.'); warn = true; }
     if (st.kwh > 0) {
       if (st.arrive >= 50) parts.push('Přijedeš nad 50 %, auto tu vezme nejvýš ~110–140 kW. Stačí 150kW stojan.');

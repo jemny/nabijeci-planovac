@@ -159,7 +159,10 @@
     <label class="field"><span>Časy jízdy</span>
       <select id="tempo"><option value="0.93" selected>Moje tempo, dálnice ~130 km/h (jako Google)</option><option value="1">Klidnější jízda (časy OSRM)</option></select></label>
     <label class="check inline"><input type="checkbox" id="unknown-kw"><span>Ukázat i stanice bez známého výkonu</span></label>
-    <p class="small muted">Spotřeba 23,8 kWh/100 km je horší případ v zimě při 130 km/h. Reálně naměřeno v listopadu: 22,4.</p>
+    <p class="small muted" id="cons-hint">Spotřeba 23,8 kWh/100 km je horší případ v zimě při 130 km/h. Reálně naměřeno v listopadu: 22,4.</p>
+    <label class="field"><span>Limit nabití v autě</span>
+      <span class="suffix"><input type="number" id="car-limit" min="50" max="100" step="5" inputmode="numeric" value="80"><i>%</i></span></label>
+    <p class="small muted">Max. nabití nastavené v autě (teď 80 %). Doma nabíjíš na něj, takže je to i výchozí baterie na startu. Když zastávka potřebuje víc, appka připomene limit v autě zvednout.</p>
   </section>
 
   <section class="pref-sec">
