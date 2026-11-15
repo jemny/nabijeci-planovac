@@ -16,7 +16,7 @@ async function search(prefs) {
 }
 const text = (el) => (el ? el.textContent.replace(/\s+/g, ' ') : '');
 
-test('prázdné okno: appka nic nevybere sama, ukáže nabídku s tlačítkem Vybrat', async () => {
+test('[R3] prázdné okno: appka nic nevybere sama, ukáže nabídku s tlačítkem Vybrat', async () => {
   const { d } = await search({ favs: ['MOL', 'ORLEN'], stopBy: 'km', intKm: 100, tolKm: 5, detour: 0.5, 'round-trip': false });
   const empty = d.querySelector('.tl.empty');
   assert.ok(empty, 'při úzkém okně (100 ± 5 km, objížďka 0,5 km) je aspoň jedno okno prázdné');
@@ -25,7 +25,7 @@ test('prázdné okno: appka nic nevybere sama, ukáže nabídku s tlačítkem Vy
   assert.ok(pick, 'prázdné okno nabízí možnosti mimo okno s tlačítkem Vybrat');
 });
 
-test('prázdné okno: po Vybrat je ze stanice zastávka označená „mimo okno, vybral jsi“', async () => {
+test('[R3] prázdné okno: po Vybrat je ze stanice zastávka označená „mimo okno, vybral jsi“', async () => {
   const { d } = await search({ favs: ['MOL', 'ORLEN'], stopBy: 'km', intKm: 100, tolKm: 5, detour: 0.5, 'round-trip': false });
   const before = d.querySelectorAll('.tl.empty').length;
   const empty = d.querySelector('.tl.empty');
@@ -35,7 +35,7 @@ test('prázdné okno: po Vybrat je ze stanice zastávka označená „mimo okno,
   assert.ok(picked, 'zastávka vybraná mimo okno je tak označená');
 });
 
-test('oblíbená pumpa kousek za oknem: jen se nabídne u zastávky, po Vybrat se použije', async () => {
+test('[R5] oblíbená pumpa kousek za oknem: jen se nabídne u zastávky, po Vybrat se použije', async () => {
   // MOL Vyškov (oblíbená) je pár minut za oknem 0:45–1:15; v okně je jiná stanice
   const { d } = await search({ favs: ['MOL'], stopBy: 'time', intTime: 60, tolTime: 15, detour: 1.5, 'round-trip': false });
   const first = d.querySelector('.stop-card');

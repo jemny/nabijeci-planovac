@@ -27,7 +27,7 @@ function cand(kw, op, fuel, tMin) {
 }
 const rtSyn = { distance: 300000, duration: 3 * 3600 };
 
-test('stojan: přijedeš s ≥ 50 % → stačí 150 kW, vyhraje levnější pásmo (E.ON 101–200 kW)', async () => {
+test('[R9] stojan: přijedeš s ≥ 50 % → stačí 150 kW, vyhraje levnější pásmo (E.ON 101–200 kW)', async () => {
   const { api } = await loadApp();
   api.setFavs([]);
   const o = options({ depart: new Date('2026-11-16T10:00:00') });
@@ -36,7 +36,7 @@ test('stojan: přijedeš s ≥ 50 % → stačí 150 kW, vyhraje levnější pás
   assert.equal(pool[0].c.s.kw, 150);
 });
 
-test('stojan: přijedeš pod 50 % → nejrychlejší, když ušetří víc než 2 min', async () => {
+test('[R9] stojan: přijedeš pod 50 % → nejrychlejší, když ušetří víc než 2 min', async () => {
   const { api } = await loadApp();
   api.setFavs([]);
   const o = options({ depart: new Date('2026-11-16T10:00:00') });
@@ -45,7 +45,7 @@ test('stojan: přijedeš pod 50 % → nejrychlejší, když ušetří víc než 
   assert.equal(pool[0].c.s.kw, 400);
 });
 
-test('stojan: pod 50 %, rozdíl do 2 min → rozhodne cena', async () => {
+test('[R9] stojan: pod 50 %, rozdíl do 2 min → rozhodne cena', async () => {
   const { api } = await loadApp();
   api.setFavs([]);
   const o = options({ depart: new Date('2026-11-16T10:00:00') });
@@ -54,7 +54,7 @@ test('stojan: pod 50 %, rozdíl do 2 min → rozhodne cena', async () => {
   assert.equal(pool[0].c.s.kw, 200);
 });
 
-test('oblíbená pumpa v okně má přednost před neoblíbenou', async () => {
+test('[R5] oblíbená pumpa v okně má přednost před neoblíbenou', async () => {
   const { api } = await loadApp();
   api.setFavs(['MOL']);
   const o = options({ depart: new Date('2026-11-16T10:00:00') });
@@ -74,25 +74,25 @@ async function charge(xKm, D) {          // cons 8,5 kWh/100 km on 85 kWh = 1 % 
   return api.energize({ distance: D * 1000, duration: 36000 }, [stopAt(xKm, D)], o).stops[0];
 }
 
-test('nabíjení: když už nabíjíš, tak aspoň o 8 % (30 % → 38 %, potřeba 34 %)', async () => {
+test('[R13] nabíjení: když už nabíjíš, tak aspoň o 8 % (30 % → 38 %, potřeba 34 %)', async () => {
   const st = await charge(700, 940);
   assert.equal(Math.round(st.arrive), 30); assert.equal(st.target, 38);
 });
-test('nabíjení: minimum 8 % nikdy nad 80 % (72 % → 80 %, ne 82 %)', async () => {
+test('[R13] nabíjení: minimum 8 % nikdy nad 80 % (72 % → 80 %, ne 82 %)', async () => {
   const st = await charge(280, 960);
   assert.equal(Math.round(st.arrive), 72); assert.equal(st.target, 80);
 });
-test('nabíjení: chybí ≤ 2 % → jen káva, nenabíjí se (85 %, potřeba 87 %)', async () => {
+test('[R13] nabíjení: chybí ≤ 2 % → jen káva, nenabíjí se (85 %, potřeba 87 %)', async () => {
   const st = await charge(150, 920);
   assert.equal(st.target, st.arrive); assert.equal(st.kwh, 0);
 });
-test('nabíjení: nad 80 % jen když to další úsek opravdu potřebuje (74 % → 86 %)', async () => {
+test('[R13] nabíjení: nad 80 % jen když to další úsek opravdu potřebuje (74 % → 86 %)', async () => {
   const st = await charge(260, 1020);
   assert.equal(Math.round(st.arrive), 74); assert.equal(st.target, 86);
 });
 
 // ---------------------------------------------------------------- stops in time
-test('přestávky: první zastávka dne 10 min, každá další 5 min', async () => {
+test('[R17] přestávky: první zastávka dne 10 min, každá další 5 min', async () => {
   const { api } = await loadApp();
   api.setFavs(['MOL', 'ORLEN']);
   const { plan: p } = await plan(api, 'ostrava-praha', options({ roundTrip: true }));
@@ -103,7 +103,7 @@ test('přestávky: první zastávka dne 10 min, každá další 5 min', async ()
   for (const s of real) assert.ok(s.stopMin >= s.breakMin);
 });
 
-test('cesta zpět nezačne dřív, než dojedeš do cíle (a appka to řekne)', async () => {
+test('[R10] cesta zpět nezačne dřív, než dojedeš do cíle (a appka to řekne)', async () => {
   const { api } = await loadApp();
   const o = options({ roundTrip: true, depart: new Date('2026-11-16T08:00:00'), retDepart: new Date('2026-11-16T09:00:00') });
   const { plan: p } = await plan(api, 'ostrava-praha', o);
@@ -113,7 +113,7 @@ test('cesta zpět nezačne dřív, než dojedeš do cíle (a appka to řekne)', 
 });
 
 // ---------------------------------------------------------------- filters
-test('filtry: jen u pumpy, min. výkon, jen sítě s mými kartami', async () => {
+test('[R4][R6][R7] filtry: jen u pumpy, min. výkon, jen sítě s mými kartami', async () => {
   const { api } = await loadApp();
   const o = options({ atPump: true, minKw: 150, myCards: true });
   const { cands } = await plan(api, 'ostrava-praha', o);
@@ -125,7 +125,7 @@ test('filtry: jen u pumpy, min. výkon, jen sítě s mými kartami', async () =>
 });
 
 // ---------------------------------------------------------------- "Tuhle nechci"
-test('Tuhle nechci: stanice (i její dvojče do 150 m) se už nenabídne a pamatuje se', async () => {
+test('[R8] Tuhle nechci: stanice (i její dvojče do 150 m) se už nenabídne a pamatuje se', async () => {
   const { w, d, api } = await search({ stopBy: 'time', intTime: 60, tolTime: 15, 'round-trip': false });
   const first = d.querySelector('.stop-card');
   const s0 = api.lastRun().plan.stops.find((s) => !s.empty).c.s;
@@ -138,28 +138,28 @@ test('Tuhle nechci: stanice (i její dvojče do 150 m) se už nenabídne a pamat
 });
 
 // ---------------------------------------------------------------- car charge limit
-test('limit v autě: vyjíždíš pod limitem a zastávka nabíjí nad něj → připomene zvednout limit', async () => {
+test('[R7] limit v autě: vyjíždíš pod limitem a zastávka nabíjí nad něj → připomene zvednout limit', async () => {
   const { d } = await search({ carLimit: 50, stopBy: 'time', intTime: 120, tolTime: 15, 'round-trip': true }, { soc0: 50 });
   assert.ok([...d.querySelectorAll('.stop-card .advice')].some((a) => /limit v autě je 50 %/.test(text(a))));
 });
-test('limit v autě: vyjíždíš se 100 % (limit jsi zvedl) → nepřipomíná', async () => {
+test('[R7] limit v autě: vyjíždíš se 100 % (limit jsi zvedl) → nepřipomíná', async () => {
   const { d } = await search({ carLimit: 50, stopBy: 'time', intTime: 120, tolTime: 15, 'round-trip': true }, { soc0: 100 });
   assert.ok(![...d.querySelectorAll('.stop-card .advice')].some((a) => /limit v autě/.test(text(a))));
 });
-test('baterie na startu je výchozí 100 % (před dlouhou cestou nabíjíš na 100)', async () => {
+test('[R19] baterie na startu je výchozí 100 % (před dlouhou cestou nabíjíš na 100)', async () => {
   const { d } = await loadApp({ prefs: { carLimit: 80 } }).then(({ w }) => ({ d: w.document }));
   assert.equal(d.getElementById('soc0').value, '100');
 });
 
 // ---------------------------------------------------------------- summary
-test('souhrn: baterie podle plánu „v cíli → doma“ u cesty tam a zpět', async () => {
+test('[R25] souhrn: baterie podle plánu „v cíli → doma“ u cesty tam a zpět', async () => {
   const { d } = await search({ 'round-trip': true });
   const s = text(d.querySelector('.battery-strip'));
   assert.match(s, /→/); assert.match(s, /doma/);
 });
 
 // ---------------------------------------------------------------- Moje cesty
-test('uložit cestu: je v Moje cesty i v telefonu (localStorage)', async () => {
+test('[R11] uložit cestu: je v Moje cesty i v telefonu (localStorage)', async () => {
   const { w, d } = await search({ 'round-trip': true });
   button(d.querySelector('.card.trip'), /Uložit cestu/).click();
   const trips = JSON.parse(w.localStorage.getItem('np.trips.v1'));
@@ -168,7 +168,7 @@ test('uložit cestu: je v Moje cesty i v telefonu (localStorage)', async () => {
   assert.match(text(d.getElementById('trips-list')), /Ostrava → Praha/);
 });
 
-test('poslat do mobilu: odkaz otevře stejnou cestu se stejnými zastávkami', async () => {
+test('[R12] poslat do mobilu: odkaz otevře stejnou cestu se stejnými zastávkami', async () => {
   const { api } = await search({ 'round-trip': true });
   const t = api.curTrip();
   const url = api.tripLink(t).replace(/^.*#/, 'https://planovac.test/#');
@@ -181,7 +181,7 @@ test('poslat do mobilu: odkaz otevře stejnou cestu se stejnými zastávkami', a
   assert.equal(JSON.stringify(t2.stops.map((s) => [s.leg, s.lat, s.lon])), JSON.stringify(t.stops.map((s) => [s.leg, s.lat, s.lon])));
 });
 
-test('zápis nabíjení: skutečnost se uloží a zbytek plánu se přepočítá', async () => {
+test('[R15] zápis nabíjení: skutečnost se uloží a zbytek plánu se přepočítá', async () => {
   const { w, d, api } = await search({ stopBy: 'time', intTime: 60, tolTime: 15, 'round-trip': true });
   const p0 = api.lastRun().plan.stops.filter((s) => !s.empty);
   const i = p0.findIndex((s) => s.kwh > 0 && p0[p0.indexOf(s) + 1]);
@@ -198,7 +198,7 @@ test('zápis nabíjení: skutečnost se uloží a zbytek plánu se přepočítá
   assert.ok(Object.keys(JSON.parse(w.localStorage.getItem('np.trips.v1'))[0].actual).length === 1, 'zápis je uložený v cestě');
 });
 
-test('dokončit cestu + srovnání: elektro = veřejné nabíjení + dobití doma, auta = km × spotřeba × cena', async () => {
+test('[R14] dokončit cestu + srovnání: elektro = veřejné nabíjení + dobití doma, auta = km × spotřeba × cena', async () => {
   const { d, api } = await search({ 'round-trip': false });
   const fin = d.querySelector('.card.finish');
   const [soc, km] = fin.querySelectorAll('input');
@@ -215,7 +215,7 @@ test('dokončit cestu + srovnání: elektro = veřejné nabíjení + dobití dom
   assert.match(text(d.querySelector('.card.compare')), /400 km/);
 });
 
-test('jedu jinudy: zbytek se přeplánuje z cíle, odjetá část zůstane v cestě a ve srovnání', async () => {
+test('[R16] jedu jinudy: zbytek se přeplánuje z cíle, odjetá část zůstane v cestě a ve srovnání', async () => {
   const { w, d, api } = await search({ 'round-trip': true });
   button(d.querySelector('.card.trip'), /Uložit cestu/).click();
   button(d.querySelector('.card.trip'), /Jedu jinudy/).click();
@@ -235,13 +235,13 @@ test('jedu jinudy: zbytek se přeplánuje z cíle, odjetá část zůstane v ces
 });
 
 // ---------------------------------------------------------------- settings
-test('oblíbené pumpy: klepnutí v nastavení se uloží', async () => {
+test('[R5] oblíbené pumpy: klepnutí v nastavení se uloží', async () => {
   const { w } = await loadApp({ prefs: { favs: ['MOL'] } });
   const chip = [...w.document.querySelectorAll('#brands .chip')].find((c) => /^ORLEN/.test(c.textContent));
   chip.click();
   assert.ok(JSON.parse(w.localStorage.getItem('np.prefs.v1')).favs.includes('ORLEN'));
 });
-test('záloha: poškozené nastavení se při načtení vyčistí, appka nespadne', async () => {
+test('[R22] záloha: poškozené nastavení se při načtení vyčistí, appka nespadne', async () => {
   const { api } = await loadApp();
   const p = api.sanitizePrefs({ hidden: 'x', places: [1], favs: [1, 'MOL'], home: { lat: 'a' } });
   assert.deepEqual(p, { favs: ['MOL'] });

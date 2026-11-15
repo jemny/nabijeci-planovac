@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-15k';
+  const APP_VERSION = '2026-11-15l';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -544,7 +544,8 @@
     const rt = withTempo(raw, o.tempo);
     const cands = candidates(rt, o);
     const plan = fixed && fixed.length ? planFromStops(rt, cands, o, fixed) : makePlan(rt, cands, o);
-    lastRun = { raw, rt, pts, o, cands, plan };
+    lastRun = { raw, rt, pts, o, cands, plan,
+      excluded: { hidden: cands.hiddenNear || 0, wrongSide: cands.filter((c) => !sideOk(c, 'A')).length } };
     if (curTrip && !(fixed && fixed.length)) { curTrip.stops = tripStops(plan); if (curTrip.saved) persistTrip(true); }
     render();
     $('btn-map').disabled = false;
@@ -617,10 +618,11 @@
     const lats = rt.line.map((p) => p.lat), lons = rt.line.map((p) => p.lon);
     const pad = WIDE_KM / 100 + 0.02;
     const box = [Math.min(...lats) - pad, Math.max(...lats) + pad, Math.min(...lons) - pad * 1.5, Math.max(...lons) + pad * 1.5];
-    const out = [], hidden = hiddenList();
+    const out = [], hidden = hiddenList(), hiddenHit = new Set();
     for (const s of STATIONS) {
       if (s.lat < box[0] || s.lat > box[1] || s.lon < box[2] || s.lon > box[3]) continue;
-      if (hidden.length && hidden.some((h) => Math.abs(h.lat - s.lat) < 0.003 && hav(h, s) < 150)) continue;
+      const h = hidden.length ? hidden.find((x) => Math.abs(x.lat - s.lat) < 0.003 && hav(x, s) < 150) : null;
+      if (h) { if (!hiddenHit.has(h.k) && nearestOnRoute(rt, s).dist <= WIDE_KM * 1000) hiddenHit.add(h.k); continue; }
       if (o.atPump && !s.fuel) continue;
       if (o.onlyFav && !favs.has(s.fuel)) continue;
       if (o.myCards && !price(s, o.depart)) continue;
@@ -633,6 +635,7 @@
     out.sort((a, b) => (b.s.kw || 0) - (a.s.kw || 0));
     const kept = [];
     for (const c of out) if (!kept.some((k) => k.s.op === c.s.op && hav(k.s, c.s) < 150)) kept.push(c);
+    kept.hiddenNear = hiddenHit.size;
     return kept;
   }
 
@@ -683,7 +686,18 @@
       !charge ? 0 : slow ? (p.min > fastest + 2 ? p.min : 0) : ((p.c.s.kw || 0) >= 150 ? 0 : 1),
       charge ? p.czk : 0, p.off, p.c.n.dist];
     const cmp = (a, b) => { const A = key(a), B = key(b); for (let i = 0; i < A.length; i++) if (A[i] !== B[i]) return A[i] - B[i]; return 0; };
-    return pool.sort(cmp);
+    pool.sort(cmp);
+    // R24: say why this one won
+    const best = pool[0];
+    if (pool.length === 1) best.why = 'V okně je jediná vhodná stanice.';
+    else if (best.tier === 0 && pool.some((p) => p.tier > 0)) best.why = 'Oblíbená pumpa má v okně přednost.';
+    else if (!charge) best.why = 'Tady se nenabíjí, jen káva: vybraná je stanice nejblíž plánu.';
+    else if (!slow) best.why = (best.c.s.kw || 0) >= 150
+      ? `Přijedeš s ~${fmt(ref.arrive)} %: auto víc než ~145 kW nevezme, takže stačí 150 kW stojan a vybraný je levnější.`
+      : `Přijedeš s ~${fmt(ref.arrive)} %: rychlejší stojan by tu nepomohl, vybraný je levnější.`;
+    else if (pool.some((p) => p.min > best.min + 2)) best.why = `Přijedeš pod 50 % (~${fmt(ref.arrive)} %): vybraný je nejrychlejší stojan.`;
+    else best.why = 'Přijedeš pod 50 %: stojany jsou stejně rychlé (rozdíl do 2 min), vybraný je levnější.';
+    return pool;
   }
 
   /* Stops are picked ONLY inside the window the user set (interval ± tolerance) and within the detour setting.
@@ -709,7 +723,7 @@
       rankWindow(pool, leg, rt, o, center, soc);
       const best = pool[0];
       const favNear = best.tier === 0 ? null : (outsideOptions(own, leg, rt, o, lo, hi, prev, true)[0] || null);
-      stops.push({ leg, c: best.c, alts: pool.slice(1, 6).map((p) => p.c), note: null, lo, hi, favNear });
+      stops.push({ leg, c: best.c, alts: pool.slice(1, 6).map((p) => p.c), note: null, lo, hi, favNear, pickWhy: best.why });
       prev = measure(best.c, leg, rt, o);
     }
     return stops;
@@ -826,6 +840,10 @@
       const st = real[i], x = xOf(st), next = real[i + 1];
       const act = acts[stopKey(st)] || null;
       st.actual = act;
+      st.why = [];                                            // R24: every decision the app takes here, in words
+      if (st.pickWhy) st.why.push(st.pickWhy);
+      if (st.note === 'kvůli dojezdu') st.why.push('Zastávka navíc mimo tvé okno: bez ní by baterie nestačila.');
+      if (st.note === 'vybráno mimo okno') st.why.push('Tuhle stanici jsi vybral sám mimo okno.');
       if (st.leg === 'B' && socDest == null) socDest = soc - pct(D - prevX);
       st.planArrive = soc - pct(x - prevX) - pct(st.c.detourKm / 2);
       if (act && Number.isFinite(act.socFrom)) {
@@ -846,9 +864,18 @@
       } else {
         st.short = st.need > MAX_TARGET;
         st.target = Math.round(Math.max(st.arrive, Math.min(st.need, MAX_TARGET)));
-        if (st.target - st.arrive <= 2) st.target = st.arrive;   // a 1–2 % top-up isn't worth plugging in: coffee only
-        // if plugging in, take at least 8 % – but never push past 80 % just for that: above 80 % it charges at ~60–80 kW
-        else if (st.target - st.arrive < 8) st.target = Math.min(MAX_TARGET, Math.max(st.target, Math.min(80, o.carLimit || 80, Math.round(st.arrive + 8))));
+        const needR = st.target;
+        if (st.target - st.arrive <= 2) {                      // a 1–2 % top-up isn't worth plugging in: coffee only
+          if (st.need > st.arrive + 0.5) st.why.push(`Chybí jen ~${fmt(st.need - st.arrive)} %, nabíjení se nevyplatí: jen káva.`);
+          st.target = st.arrive;
+        } else if (st.target - st.arrive < 8) {
+          // if plugging in, take at least 8 % – but never push past 80 % just for that: above 80 % it charges at ~60–80 kW
+          const wanted = Math.round(st.arrive + 8), cap = Math.min(80, o.carLimit || 80);
+          st.target = Math.min(MAX_TARGET, Math.max(st.target, Math.min(cap, wanted)));
+          if (st.target > needR) st.why.push(wanted > cap && st.target === cap
+            ? `Minimum 8 % by šlo nad ${cap} %, kde se nabíjí pomalu: nabij jen na ${cap} % (potřeba je ${fmt(st.need)} %).`
+            : `Nabíjíš aspoň o 8 %, aby se zastávka vyplatila (potřeba je jen ${fmt(st.need)} %).`);
+        }
         const kw = st.c.s.kw || 100;
         st.chargeMin = st.target > st.arrive ? chargeMinutes(Math.max(0, st.arrive), st.target, kw) : 0;
         st.kwh = Math.max(0, st.target - st.arrive) * KPP;
@@ -927,6 +954,12 @@
         (() => { const n = plan.stops.filter((s) => !s.empty && !s.done && s.kwh > 0 && s.target > effLimit(o)).length;
           return n ? `Na ${n} ${n === 1 ? 'zastávce' : 'zastávkách'} nabíjíš nad limit v autě ${fmt(effLimit(o))} %, před nabíjením ho zvedni. ` : ''; })() +
         (plan.consReal ? `Podle zapsaných nabíjení jezdíš za ~${fmt(plan.consReal, 1)} kWh/100 km (plán ${fmt(o.cons, 1)}), zbytek plánu je podle toho přepočítaný. ` : '') +
+        (CAL.cons_recent && !prefs.consCustom && Math.abs(o.cons - CAL.cons_recent.kwh_100km) < 0.05
+          ? `Spotřebu ${fmt(o.cons, 1)} kWh/100 km beru naměřenou v autě (posledních ${CAL.cons_recent.days || 30} dní), změníš v ☰. ` : '') +
+        (() => { const n = (lastRun.excluded || {}).hidden || 0;
+          return n ? `${n} ${n === 1 ? 'skrytou stanici' : n < 5 ? 'skryté stanice' : 'skrytých stanic'} u trasy appka nenabízí (☰ → Skryté stanice). ` : ''; })() +
+        (() => { const n = (lastRun.excluded || {}).wrongSide || 0;
+          return n ? `${n} ${n === 1 ? 'odpočívadlo' : n < 5 ? 'odpočívadla' : 'odpočívadel'} přímo u dálnice je pro cestu tam v protisměru, appka ${n === 1 ? 'ho' : 'je'} tam nenabízí${o.roundTrip ? ' (na cestě zpět ano)' : ''}. ` : ''; })() +
         (plan.retLate ? `Zpátky v ${clock(o.retDepart)} nestihneš, do cíle dojedeš až v ${clock(plan.arriveDest)}. Počítám s odjezdem ${clock(plan.retDepart)}.` : '') }),
     );
   }
@@ -967,7 +1000,8 @@
     const sug = st.suggest || [];
     return el('div', { class: 'status err empty-window' },
       el('p', { text: `${st.leg === 'B' ? 'Zpět: ' : ''}v okně ${f(st.lo)}–${f(st.hi)} není nabíječka podle tvých filtrů, takže tu appka zastávku nevybrala.` +
-        (sug.length ? ' Nejbližší možnosti mimo okno, vyber si:' : ' Zkus delší toleranci, větší objížďku, nebo vypnout „Jen na pumpách“.') }),
+        (sug.length ? ' Nabízím nejbližší stanice před oknem a za ním, i když jsou daleko. Vyber si, nebo uprav interval či toleranci:'
+          : ' Zkus delší toleranci, větší objížďku, nebo vypnout „Jen na pumpách“.') }),
       sug.length ? el('div', { class: 'alts' }, sug.map((opt) => el('div', { class: 'alt' },
         el('div', {}, el('b', { text: `${favs.has(opt.c.s.fuel) ? '★ ' : ''}${optName(opt.c)}` }), el('small', { class: 'muted', text: offText(opt, o) })),
         el('button', { type: 'button', class: 'linkish', text: 'Vybrat', onclick: () => pickOutside(idx, opt.c) })))) : null);
@@ -1042,6 +1076,7 @@
       flags.length ? el('div', { class: 'badges' }, flags.map((f) => el('span', { class: 'badge warn', text: f }))) : null,
       charge ? batteryBar(st.arrive, st.target) : el('p', { class: 'stop-line', text: `Přijedeš s ~${fmt(st.arrive)} % · jen káva a párek, nabíjet nemusíš` }),
       tiles,
+      (st.why || []).length ? el('ul', { class: 'why' }, st.why.map((t) => el('li', { text: t }))) : null,
       adv ? el('p', { class: `advice${adv.warn ? ' warn' : ''}`, text: adv.text }) : null,
       loggedNote(st, o),
       st.favNear && !st.done ? el('div', { class: 'fav-near' },
@@ -1058,7 +1093,7 @@
     const { rt, o, plan } = lastRun;
     const st = plan.stops[idx];
     st.alts = [st.c, ...st.alts.filter((a) => a !== alt)];
-    st.c = alt; st.note = null;
+    st.c = alt; st.note = null; st.pickWhy = 'Tuhle stanici jsi vybral ze seznamu v okně.';
     plan.stops.sort((a, b) => tripX(a, rt) - tripX(b, rt));
     lastRun.plan = energize(rt, plan.stops, o);
     if (curTrip) { curTrip.stops = tripStops(lastRun.plan); if (curTrip.saved) persistTrip(true); }
@@ -1269,7 +1304,7 @@
         const n = nearestOnRoute(rt, s);
         c = { s, n, detourMin: (2 * n.dist / 1000) / 40 * 60, detourKm: 2 * n.dist / 1000 };
       }
-      return { leg: f.leg === 'B' && o.roundTrip ? 'B' : 'A', c, alts: [], note: null };
+      return { leg: f.leg === 'B' && o.roundTrip ? 'B' : 'A', c, alts: [], note: null, pickWhy: 'Stanice z uložené cesty.' };
     });
     stops.sort((a, b) => tripX(a, rt) - tripX(b, rt));
     try {

@@ -54,14 +54,14 @@ const scenarios = [
 ];
 
 for (const [label, route, over] of scenarios) {
-  test(`pravidla: ${label}`, async () => {
+  test(`[R2][R4][R5][R13][R18] pravidla: ${label}`, async () => {
     api.setFavs(favList);
     const o = options(over);
     checkRules(await plan(api, route, o), o, label);
   });
 }
 
-test('hlášená chyba: při 100 ± 20 km žádná zastávka, kterou appka vybere sama, není za 120 km', async () => {
+test('[R2] hlášená chyba: při 100 ± 20 km žádná zastávka, kterou appka vybere sama, není za 120 km', async () => {
   api.setFavs(favList);
   const o = options({ byKm: true, interval: 100, tol: 20, reserve: 20 });
   const { rt, plan: p } = await plan(api, 'ostrava-praha', o);
@@ -74,7 +74,7 @@ test('hlášená chyba: při 100 ± 20 km žádná zastávka, kterou appka vyber
   }
 });
 
-test('prázdné okno: možnosti mimo okno se jen nabídnou, nevyberou', async () => {
+test('[R3] prázdné okno: možnosti mimo okno se jen nabídnou, nevyberou', async () => {
   api.setFavs(favList);
   const o = options({ byKm: true, interval: 100, tol: 5, detourKm: 0.5 });   // tight on purpose: empty windows
   const { rt, plan: p } = await plan(api, 'ostrava-praha', o);
@@ -88,12 +88,12 @@ test('prázdné okno: možnosti mimo okno se jen nabídnou, nevyberou', async ()
   }
 });
 
-test('nabíjecí model: nad 80 % se nabíjí pomaleji než zespodu', () => {
+test('[R29] nabíjecí model: nad 80 % se nabíjí pomaleji než zespodu', () => {
   const low = api.chargeMinutes(10, 18, 300), high = api.chargeMinutes(80, 88, 300);
   assert.ok(high > 2 * low, `80→88 % ${high.toFixed(1)} min, 10→18 % ${low.toFixed(1)} min`);
 });
 
-test('čtení textu z aplikace: %, kWh, čas a cena, bez DPH', () => {
+test('[R15] čtení textu z aplikace: %, kWh, čas a cena, bez DPH', () => {
   const r = api.parseChargeText('Relace ukončena\nNabito 33,52 kWh\nDoba nabíjení 00:16:40\nCelkem 668,72 Kč\nCena 19,95 Kč/kWh\nDPH 21 %\nStav baterie 24 % → 58 %');
   assert.equal(r.kwh, 33.52); assert.equal(r.czk, 668.72);
   assert.ok(Math.abs(r.min - 16.667) < 0.01); assert.equal(r.socFrom, 24); assert.equal(r.socTo, 58);

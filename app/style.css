@@ -307,3 +307,4 @@ a.btn.primary{color:var(--ev-ink)}
 .empty-window .alts{margin-top:2px}
 .fav-near{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;border:1px dashed var(--ev);font-size:.84rem}
 .fav-near .linkish{min-height:38px;flex:none}
+.stop-card .why{margin:0;padding:0 0 0 18px;font-size:.84rem;color:var(--ink);display:flex;flex-direction:column;gap:2px}
