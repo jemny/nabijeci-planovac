@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_EXTRA_MIN = 10, FAV_EXTRA_KM = 15, FAV_DETOUR_KM = 3;  // a favourite pump may be this far outside the window / off the route
-  const APP_VERSION = '2026-11-15h';
+  const APP_VERSION = '2026-11-15i';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -80,7 +80,7 @@
       selCards = new Set((prefs.cards || CARDS.default).filter((id) => known.has(id)));
       renderDataInfo(); renderBrands(); renderCards();
       // measured in the car (Home Assistant → nightly collector → calibration.json): defaults unless set by hand
-      if (CAL.car_limit && !prefs.carLimit) { $('car-limit').value = String(CAL.car_limit); if (!lastRun) $('soc0').value = String(CAL.car_limit); }
+      if (CAL.car_limit && !prefs.carLimit) $('car-limit').value = String(CAL.car_limit);
       if (CAL.cons_recent && CAL.cons_recent.kwh_100km && !prefs.consCustom) $('cons').value = String(CAL.cons_recent.kwh_100km);
       renderConsHint(); renderPeek();
     })
@@ -302,7 +302,8 @@
   if (prefs.cons && prefs.consCustom) $('cons').value = String(prefs.cons);
   const carLimit = () => Math.max(50, Math.min(100, +$('car-limit').value || 80));
   if (prefs.carLimit) $('car-limit').value = String(prefs.carLimit);
-  $('soc0').value = String(carLimit());           // at home it charges up to the car's limit
+  // before a long trip the user charges to 100 % (start stays 100); leaving above the limit means it was raised
+  const effLimit = (o) => Math.max(o.carLimit || 100, o.soc0 || 0);
   if (prefs.tempo) $('tempo').value = String(prefs.tempo);
   $('reserve').value = String(prefs.reserve != null ? prefs.reserve : RESERVE_DEFAULT);
   let favs = new Set(prefs.favs || DEFAULT_FAVS);
@@ -379,7 +380,7 @@
   ['only-fav', 'my-cards', 'unknown-kw', 'min-kw', 'cons', 'tempo', 'car-limit'].forEach((id) => $(id).addEventListener('change', () => {
     const v = $(id).type === 'checkbox' ? $(id).checked : $(id).value;
     if (id === 'min-kw') prefs.minKw = +v;
-    else if (id === 'car-limit') { prefs.carLimit = carLimit(); $('car-limit').value = String(prefs.carLimit); if (!lastRun) $('soc0').value = String(prefs.carLimit); }
+    else if (id === 'car-limit') { prefs.carLimit = carLimit(); $('car-limit').value = String(prefs.carLimit); }
     else if (id === 'cons') { prefs.cons = Math.min(35, Math.max(12, parseFloat(String(v).replace(',', '.')) || 23.8)); prefs.consCustom = true; $('cons').value = String(prefs.cons); renderConsHint(); }
     else if (id === 'tempo') prefs.tempo = parseFloat(v) || 0.93; else prefs[id] = v;
     savePrefs(); renderPeek(); replan();
@@ -915,8 +916,8 @@
         (plan.noChargeEnd >= o.reserve ? `Bez nabíjení bys ${o.roundTrip ? 'domů' : 'do cíle'} dojel s ~${fmt(plan.noChargeEnd)} %, takže zastávky jsou hlavně na kávu. `
           : `Cestou potřebuješ dobít asi ${fmt(o.reserve - plan.noChargeEnd)} % (~${fmt((o.reserve - plan.noChargeEnd) * (CAL.battery_kwh || 85) / 100)} kWh), na každé zastávce jen na další úsek. `) +
         (plan.short ? 'Pozor: některý úsek je na jedno nabití moc dlouhý, zkrať interval. ' : '') +
-        (() => { const n = plan.stops.filter((s) => !s.empty && !s.done && s.kwh > 0 && s.target > (o.carLimit || 100)).length;
-          return n ? `Na ${n} ${n === 1 ? 'zastávce' : 'zastávkách'} nabíjíš nad limit v autě ${fmt(o.carLimit)} %, před nabíjením ho zvedni. ` : ''; })() +
+        (() => { const n = plan.stops.filter((s) => !s.empty && !s.done && s.kwh > 0 && s.target > effLimit(o)).length;
+          return n ? `Na ${n} ${n === 1 ? 'zastávce' : 'zastávkách'} nabíjíš nad limit v autě ${fmt(effLimit(o))} %, před nabíjením ho zvedni. ` : ''; })() +
         (plan.consReal ? `Podle zapsaných nabíjení jezdíš za ~${fmt(plan.consReal, 1)} kWh/100 km (plán ${fmt(o.cons, 1)}), zbytek plánu je podle toho přepočítaný. ` : '') +
         (plan.retLate ? `Zpátky v ${clock(o.retDepart)} nestihneš, do cíle dojedeš až v ${clock(plan.arriveDest)}. Počítám s odjezdem ${clock(plan.retDepart)}.` : '') }),
     );
@@ -1049,7 +1050,7 @@
     const parts = [];
     let warn = false;
     if (st.short) { parts.push(`Další úsek je na jedno nabití moc dlouhý (potřeba ~${fmt(st.need)} %). Nabij na ${fmt(st.target)} % a zkrať interval zastávek.`); warn = true; }
-    const lim = lastRun && lastRun.o.carLimit;
+    const lim = lastRun && effLimit(lastRun.o);
     if (lim && st.kwh > 0 && st.target > lim) { parts.push(`Nabíjíš na ${fmt(st.target)} %, ale limit v autě je ${fmt(lim)} %. Před nabíjením ho zvedni (v autě Nabíjení → max. nabití, nebo v aplikaci Mercedes), jinak nabíjení skončí na ${fmt(lim)} %.`); warn = true; }
     if (st.arrive < 5) { parts.push('Sem dojedeš skoro na nulu, zkrať interval nebo zastav dřív.'); warn = true; }
     if (st.kwh > 0) {
