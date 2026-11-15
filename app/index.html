@@ -20,33 +20,20 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<main class="wrap">
+<div class="layout">
+<main class="wrap" id="main">
   <header class="top">
     <div>
       <p class="eyebrow">CLA 350 4MATIC · 85 kWh · 800 V</p>
       <h1>Kde po cestě nabít</h1>
     </div>
-    <button type="button" class="icon-btn" id="btn-settings" aria-expanded="false" aria-controls="settings" title="Nastavení">⚙︎</button>
+    <button type="button" class="icon-btn menu-btn" id="btn-menu" aria-expanded="false" aria-controls="prefs" aria-label="Moje nastavení" title="Moje nastavení">☰</button>
   </header>
 
-  <section class="card settings" id="settings" hidden>
-    <h2>Nastavení</h2>
-    <div class="row-field">
-      <span>Domů</span>
-      <span class="muted" id="home-label">neuloženo</span>
-      <button type="button" class="link-btn" id="home-from-start">Uložit „Odkud“ jako Domů</button>
-    </div>
-    <div class="row-field">
-      <span>Data nabíječek</span>
-      <span class="muted" id="data-date">načítám…</span>
-      <a class="link-btn" id="update-link" href="https://github.com/jemny/nabijeci-planovac/actions/workflows/update-data.yml" target="_blank" rel="noopener">Aktualizovat teď</a>
-    </div>
-    <div class="row-field">
-      <span>Model nabíjení</span>
-      <span class="muted" id="model-info">–</span>
-    </div>
-    <p class="small muted">Adresa domova a oblíbené pumpy se ukládají jen v tomhle telefonu. Data se aktualizují samy každé pondělí ráno.</p>
-  </section>
+  <div class="status update" id="update-banner" hidden>
+    <span>Je tu nová verze appky.</span>
+    <button type="button" class="link-btn" id="btn-reload">Načíst</button>
+  </div>
 
   <form id="form" class="card form" novalidate autocomplete="off">
     <div class="places" id="places">
@@ -93,33 +80,11 @@
     </div>
     <label class="field" id="ret-field"><span>Zpátky vyrážím v</span><input type="time" id="ret-time" value="16:00"></label>
 
-    <div class="field" id="brands-field">
-      <span class="lbl">Oblíbené pumpy <small class="muted">jsou nahoře výsledků</small></span>
-      <div class="chips" id="brands" role="group" aria-label="Oblíbené pumpy"></div>
-      <label class="check inline"><input type="checkbox" id="only-fav"><span>Ukázat jen oblíbené pumpy</span></label>
-    </div>
-
-    <details class="more" id="cards-box">
-      <summary id="cards-summary">Moje karty a tarify</summary>
-      <p class="small muted">Zaškrtni, čím můžeš platit. U každé stanice appka vybere nejlevnější z nich. Ceny podle WattBoxu (11. 11. 2026), E.ON od 1. 4. 2026, roaming PRE od 1. 7. 2026.</p>
-      <div id="cards" class="cards"></div>
-      <button type="button" class="link-btn" id="cards-default">Vrátit moje karty</button>
-    </details>
-
-    <details class="more">
-      <summary>Další možnosti</summary>
-      <div class="grid2">
-        <label class="field"><span>Min. výkon</span>
-          <select id="min-kw"><option value="100" selected>100 kW</option><option value="150">150 kW</option><option value="50">50 kW</option></select></label>
-        <label class="field"><span>Spotřeba</span>
-          <span class="suffix"><input type="number" id="cons" min="12" max="35" step="0.1" inputmode="decimal" value="23.8"><i>kWh/100</i></span></label>
-      </div>
-      <label class="field"><span>Časy jízdy</span>
-        <select id="tempo"><option value="0.93" selected>Moje tempo, dálnice ~130 km/h (jako Google)</option><option value="1">Klidnější jízda (časy OSRM)</option></select></label>
-      <label class="check inline"><input type="checkbox" id="my-cards" checked><span>Jen stanice, kde zaplatím vybranou kartou</span></label>
-      <label class="check inline"><input type="checkbox" id="unknown-kw"><span>Ukázat i stanice bez známého výkonu</span></label>
-      <p class="small muted">Spotřeba 23,8 kWh/100 km je horší případ v zimě při 130 km/h. Reálně naměřeno v listopadu: 22,4.</p>
-    </details>
+    <button type="button" class="prefs-peek" id="prefs-peek" aria-controls="prefs">
+      <span class="peek-label">Moje nastavení</span>
+      <span class="peek-text" id="peek-text">načítám…</span>
+      <span class="peek-go" aria-hidden="true">☰</span>
+    </button>
   </form>
 
   <section id="status" class="status" aria-live="polite"></section>
@@ -131,6 +96,82 @@
     <p>Trasa: OSRM · hledání míst: Photon · data: OpenStreetMap, Open Charge Map, mapa E.ON Drive, supercharge.info. Ceny jsou orientační podle tvých karet, platí cena v aplikaci u stojanu. U Tesla a stanic pod 150 kW ověř, že umí 800 V.</p>
   </footer>
 </main>
+
+<aside class="prefs" id="prefs" aria-labelledby="prefs-title" tabindex="-1">
+  <div class="prefs-head">
+    <h2 id="prefs-title">Moje nastavení</h2>
+    <button type="button" class="icon-btn" id="btn-menu-close" aria-label="Zavřít">✕</button>
+  </div>
+  <p class="small muted">Ukládá se v tomhle zařízení a hned se to projeví ve výsledcích.</p>
+
+  <section class="pref-sec">
+    <h3>Oblíbené pumpy <small class="muted">mají přednost</small></h3>
+    <div class="chips" id="brands" role="group" aria-label="Oblíbené pumpy"></div>
+    <p class="small muted">Oblíbená pumpa vyhraje i kousek mimo okno (do 10 min nebo 15 km) a s objížďkou do 3 km.</p>
+    <label class="check inline"><input type="checkbox" id="only-fav"><span>Ukázat jen oblíbené pumpy</span></label>
+  </section>
+
+  <section class="pref-sec">
+    <h3>Moje karty <small class="muted" id="cards-count"></small></h3>
+    <p class="small" id="cards-names"></p>
+    <label class="check inline"><input type="checkbox" id="my-cards" checked><span>Jen stanice, kde zaplatím vybranou kartou</span></label>
+    <details class="more" id="cards-box">
+      <summary id="cards-summary">Upravit karty a tarify</summary>
+      <p class="small muted">U každé stanice appka vybere nejlevnější z nich. Ceny podle WattBoxu (11. 11. 2026), E.ON od 1. 4. 2026, roaming PRE od 1. 7. 2026.</p>
+      <div id="cards" class="cards"></div>
+      <button type="button" class="link-btn" id="cards-default">Vrátit moje karty</button>
+    </details>
+  </section>
+
+  <section class="pref-sec">
+    <h3>Skryté stanice <small class="muted" id="hidden-count"></small></h3>
+    <p class="small muted" id="hidden-empty">Zatím žádné. U zastávky klepni na „Tuhle nechci“ a appka ji už nenabídne.</p>
+    <ul class="hidden-list" id="hidden-list"></ul>
+  </section>
+
+  <section class="pref-sec">
+    <h3>Domů</h3>
+    <p class="small" id="home-label">neuloženo</p>
+    <button type="button" class="link-btn" id="home-from-start">Uložit „Odkud“ jako Domů</button>
+  </section>
+
+  <section class="pref-sec">
+    <h3>Auto a jízda</h3>
+    <div class="grid2">
+      <label class="field"><span>Min. výkon</span>
+        <select id="min-kw"><option value="100" selected>100 kW</option><option value="150">150 kW</option><option value="50">50 kW</option></select></label>
+      <label class="field"><span>Spotřeba</span>
+        <span class="suffix"><input type="number" id="cons" min="12" max="35" step="0.1" inputmode="decimal" value="23.8"><i>kWh/100</i></span></label>
+    </div>
+    <label class="field"><span>Časy jízdy</span>
+      <select id="tempo"><option value="0.93" selected>Moje tempo, dálnice ~130 km/h (jako Google)</option><option value="1">Klidnější jízda (časy OSRM)</option></select></label>
+    <label class="check inline"><input type="checkbox" id="unknown-kw"><span>Ukázat i stanice bez známého výkonu</span></label>
+    <p class="small muted">Spotřeba 23,8 kWh/100 km je horší případ v zimě při 130 km/h. Reálně naměřeno v listopadu: 22,4.</p>
+  </section>
+
+  <section class="pref-sec">
+    <h3>Záloha nastavení</h3>
+    <p class="small muted" id="storage-info">Nastavení zůstává v tomhle zařízení i po restartu telefonu.</p>
+    <div class="cand-actions multi">
+      <button type="button" class="linkish" id="btn-export">Uložit do souboru</button>
+      <button type="button" class="linkish" id="btn-import">Načíst ze souboru</button>
+    </div>
+    <input type="file" id="import-file" accept="application/json,.json" hidden>
+    <p class="small muted">Soubor se hodí pro nový telefon a na iPhonu i pro appku z plochy, která má vlastní úložiště oddělené od Safari.</p>
+  </section>
+
+  <section class="pref-sec">
+    <h3>O appce</h3>
+    <dl class="facts small">
+      <dt>Data</dt><dd id="data-date">načítám…</dd>
+      <dt>Model</dt><dd id="model-info">–</dd>
+      <dt>Verze</dt><dd id="app-version">–</dd>
+    </dl>
+    <a class="link-btn" id="update-link" href="https://github.com/jemny/nabijeci-planovac/actions/workflows/update-data.yml" target="_blank" rel="noopener">Aktualizovat data teď</a>
+  </section>
+</aside>
+</div>
+<div class="scrim" id="scrim" hidden></div>
 
 <div class="actionbar">
   <button type="button" class="btn ghost" id="btn-map" disabled>Mapa</button>

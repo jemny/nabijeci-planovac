@@ -10,6 +10,8 @@
   const RESERVE_DEFAULT = 10;    // arrive home / at destination with at least this (user can change)
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
+  const FAV_EXTRA_MIN = 10, FAV_EXTRA_KM = 15, FAV_DETOUR_KM = 3;  // a favourite pump may be this far outside the window / off the route
+  const APP_VERSION = '2026-11-15';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -30,9 +32,32 @@
   const clock = (date) => date.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
   const ll = (p) => `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`;
 
-  let prefs = {};
-  try { prefs = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') || {}; } catch (e) { prefs = {}; }
-  const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) { /* private mode */ } };
+  function sanitizePrefs(p) {
+    if (!p || typeof p !== 'object' || Array.isArray(p)) return {};
+    for (const k of ['hidden', 'places', 'favs', 'cards']) if (k in p && !Array.isArray(p[k])) delete p[k];
+    if (p.places) { p.places = p.places.filter((x) => x && typeof x === 'object'); if (p.places.length < 2) delete p.places; }
+    if (p.hidden) p.hidden = p.hidden.filter((h) => h && typeof h.k === 'string');
+    if (p.favs) p.favs = p.favs.filter((f) => typeof f === 'string');
+    if (p.home && (typeof p.home !== 'object' || !Number.isFinite(p.home.lat) || !Number.isFinite(p.home.lon))) delete p.home;
+    return p;
+  }
+  let prefs = {}, freshInstall = false;
+  try {
+    const rawPrefs = localStorage.getItem(PREFS_KEY);
+    freshInstall = !rawPrefs;
+    prefs = sanitizePrefs(JSON.parse(rawPrefs || '{}'));
+  } catch (e) { prefs = {}; }
+  let persistAsked = false;
+  const savePrefs = () => {
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) { /* private mode */ }
+    // ask the browser not to evict our storage (granted silently for installed apps on Android; iOS home-screen apps keep it anyway)
+    if (!persistAsked && navigator.storage && navigator.storage.persist) { persistAsked = true; navigator.storage.persist().then(renderStorageInfo, () => {}); }
+  };
+  const stationKey = (s) => `${(+s.lat).toFixed(5)},${(+s.lon).toFixed(5)}`;
+  const hiddenList = () => (prefs.hidden || []).map((h) => {
+    if (Number.isFinite(h.lat)) return h;
+    const [lat, lon] = h.k.split(',').map(Number); return { ...h, lat, lon };
+  });
 
   // ------------------------------------------------------------------ data
   let STATIONS = [], CARDS = null, CAL = null, META = null;
@@ -98,7 +123,7 @@
       else if (card.roam && card.roam[op]) { tiers = card.roam[op]; how = 'roaming'; }
       else if ('anywhere' in card) { tiers = card.anywhere; how = 'roaming'; } else continue;
       if (!tiers) { opts.push({ czk: null, card: card.name, label: card.note || 'cena v aplikaci', how }); continue; }
-      const t = tiers.find((x) => (kw || 0) <= x.max) || tiers[tiers.length - 1];
+      const t = kw ? (tiers.find((x) => kw <= x.max) || tiers[tiers.length - 1]) : tiers[tiers.length - 1];
       opts.push({ czk: night ? t.night : t.day, card: card.name, label: t.label, how, unknownKw: !kw && tiers.length > 1,
         dayNight: t.day !== t.night });
     }
@@ -122,7 +147,7 @@
           return el('label', { class: 'check inline card-opt', for: id },
             el('input', { type: 'checkbox', id, checked: selCards.has(c.id), onchange: (e) => {
               if (e.target.checked) selCards.add(c.id); else selCards.delete(c.id);
-              prefs.cards = [...selCards]; savePrefs(); renderCardsSummary();
+              prefs.cards = [...selCards]; savePrefs(); renderCardsSummary(); replan();
             } }),
             el('span', {}, el('b', { text: c.name }), el('small', { text: [net, extra].filter(Boolean).join(' · ') })));
         })));
@@ -131,10 +156,12 @@
   }
   function renderCardsSummary() {
     const names = CARDS.cards.filter((c) => selCards.has(c.id)).map((c) => c.name);
-    $('cards-summary').textContent = `Moje karty a tarify (${names.length})`;
+    $('cards-count').textContent = `${names.length}`;
+    $('cards-names').textContent = names.length ? names.join(' · ') : 'Žádná karta není vybraná.';
+    renderPeek();
   }
   $('cards-default').addEventListener('click', () => {
-    selCards = new Set(CARDS.default); prefs.cards = [...selCards]; savePrefs(); renderCards();
+    selCards = new Set(CARDS.default); prefs.cards = [...selCards]; savePrefs(); renderCards(); replan();
   });
 
   // ------------------------------------------------------------------ places UI
@@ -288,21 +315,123 @@
       onclick: (e) => {
         if (favs.has(b)) favs.delete(b); else favs.add(b);
         e.currentTarget.setAttribute('aria-pressed', favs.has(b) ? 'true' : 'false');
-        prefs.favs = [...favs]; savePrefs();
+        prefs.favs = [...favs]; savePrefs(); renderPeek(); replan();
       },
     }, b, el('small', { text: counts[b] ? `${counts[b]}` : '' }))));
   }
 
-  $('btn-settings').addEventListener('click', (e) => {
-    const s = $('settings'); s.hidden = !s.hidden; e.currentTarget.setAttribute('aria-expanded', String(!s.hidden));
-  });
+  // ------------------------------------------------------------------ "Moje nastavení" panel: right column on wide screens, ☰ drawer on the phone
+  const drawerMq = window.matchMedia('(max-width: 1099px)');
+  let menuOpener = null;
+  function setMenu(open, opener) {
+    const p = $('prefs'), wasOpen = p.classList.contains('open');
+    if (!drawerMq.matches) open = false;               // wide screen: the panel is always visible
+    p.classList.toggle('open', open);
+    $('scrim').hidden = !open;
+    $('main').inert = open; document.querySelector('.actionbar').inert = open;
+    document.body.classList.toggle('menu-open', open);
+    $('btn-menu').setAttribute('aria-expanded', String(open));
+    if (open) { menuOpener = opener || $('btn-menu'); $('btn-menu-close').focus(); }
+    else if (wasOpen && menuOpener) { if (drawerMq.matches) menuOpener.focus(); menuOpener = null; }
+  }
+  const openMenu = (e) => { if (drawerMq.matches) setMenu(true, e && e.currentTarget); else $('prefs').focus(); };
+  $('btn-menu').addEventListener('click', openMenu);
+  $('prefs-peek').addEventListener('click', openMenu);
+  $('btn-menu-close').addEventListener('click', () => setMenu(false));
+  $('scrim').addEventListener('click', () => setMenu(false));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('prefs').classList.contains('open')) setMenu(false); });
+  drawerMq.addEventListener('change', () => setMenu(false));
+
+  function renderPeek() {
+    const parts = [favs.size ? `★ ${[...favs].join(', ')}` : 'bez oblíbených pump'];
+    if (CARDS) parts.push(`${selCards.size} ${selCards.size === 1 ? 'karta' : selCards.size < 5 ? 'karty' : 'karet'}`);
+    const nh = (prefs.hidden || []).length;
+    if (nh) parts.push(`${nh} skryt${nh === 1 ? 'á' : 'é'}`);
+    parts.push(`spotřeba ${fmt(parseFloat(String($('cons').value).replace(',', '.')) || 23.8, 1)}`);
+    $('peek-text').textContent = parts.join(' · ');
+  }
+
+  // panel inputs take effect immediately
+  ['only-fav', 'my-cards', 'unknown-kw', 'min-kw', 'cons', 'tempo'].forEach((id) => $(id).addEventListener('change', () => {
+    const v = $(id).type === 'checkbox' ? $(id).checked : $(id).value;
+    if (id === 'min-kw') prefs.minKw = +v;
+    else if (id === 'cons') { prefs.cons = Math.min(35, Math.max(12, parseFloat(String(v).replace(',', '.')) || 23.8)); $('cons').value = String(prefs.cons); }
+    else if (id === 'tempo') prefs.tempo = parseFloat(v) || 0.93; else prefs[id] = v;
+    savePrefs(); renderPeek(); replan();
+  }));
+
+  function renderHidden() {
+    const list = prefs.hidden || [];
+    $('hidden-count').textContent = list.length ? `${list.length}` : '';
+    $('hidden-empty').hidden = list.length > 0;
+    const ul = $('hidden-list'); ul.textContent = '';
+    list.forEach((h) => ul.append(el('li', {},
+      el('span', {}, el('b', { text: h.name || 'Stanice' }), h.place ? el('small', { class: 'muted', text: h.place }) : null),
+      el('button', { type: 'button', class: 'linkish', text: 'Vrátit', onclick: () => unhideStation(h.k) }))));
+    renderPeek();
+  }
+  function hideStation(s) {
+    const k = stationKey(s);
+    prefs.hidden = (prefs.hidden || []).filter((h) => h.k !== k);
+    prefs.hidden.push({ k, lat: +s.lat, lon: +s.lon, name: [s.fuel, s.op, s.kw ? `${s.kw} kW` : null].filter(Boolean).join(' · '), place: s.place || s.name || '' });
+    savePrefs(); renderHidden(); replan();
+    const name = prefs.hidden[prefs.hidden.length - 1].name;
+    const st = $('status'); st.textContent = ''; st.classList.remove('err');
+    st.append(`Skryto: ${name}. `, el('button', { type: 'button', class: 'link-btn', text: 'Vrátit zpět', onclick: () => { unhideStation(k); setStatus(''); } }));
+  }
+  function unhideStation(k) {
+    prefs.hidden = (prefs.hidden || []).filter((h) => h.k !== k);
+    savePrefs(); renderHidden(); replan();
+  }
+
   const renderHome = () => { $('home-label').textContent = prefs.home ? prefs.home.label : 'neuloženo'; };
   renderHome();
   $('home-from-start').addEventListener('click', () => {
     const p = places[0];
     if (!p.lat) { setStatus('Nejdřív vyber místo v poli Odkud.', true); return; }
-    prefs.home = { label: p.label, lat: p.lat, lon: p.lon }; savePrefs(); renderHome(); setStatus('Domů uloženo v tomhle telefonu.');
+    prefs.home = { label: p.label, lat: p.lat, lon: p.lon }; savePrefs(); renderHome(); setStatus('Domů uloženo v tomhle zařízení.');
   });
+
+  // backup: the whole prefs object as a small JSON file (new phone, or Safari → home-screen app on iPhone)
+  const isIOS = !/Android/.test(navigator.userAgent) && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+  async function renderStorageInfo() {
+    let persisted = null;
+    try { persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : null; } catch (e) { /* ignore */ }
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    let txt;
+    if (standalone) txt = 'Nastavení zůstává v téhle appce i po restartu telefonu. Smaže se, jen když appku odstraníš z plochy.';
+    else if (isIOS) txt = 'Pozor: v Safari se nastavení smaže, když stránku týden neotevřeš. Přidej appku na plochu (Sdílet → Přidat na plochu) nebo si ulož zálohu.';
+    else txt = `Nastavení zůstává v tomhle zařízení i po restartu${persisted ? ', prohlížeč ho nesmaže ani při nedostatku místa' : ''}. Smaže se jen s daty prohlížeče.`;
+    const lb = prefs.lastBackup ? Math.floor((Date.now() - new Date(prefs.lastBackup)) / 86400000) : null;
+    txt += ` Poslední záloha: ${lb == null ? 'žádná' : lb < 1 ? 'dnes' : lb === 1 ? 'včera' : `před ${lb} dny`}.`;
+    $('storage-info').textContent = txt;
+  }
+  $('btn-export').addEventListener('click', async () => {
+    const data = JSON.stringify({ app: 'nabijeci-planovac', version: 1, saved: new Date().toISOString(), prefs }, null, 1);
+    const name = 'nabijeci-planovac-nastaveni.json';
+    const file = new File([data], name, { type: 'application/json' });
+    const done = () => { prefs.lastBackup = new Date().toISOString(); savePrefs(); renderStorageInfo(); };
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: name }); done(); return; } catch (e) { if (e.name === 'AbortError') return; }
+    }
+    const a = el('a', { href: URL.createObjectURL(file), download: name });
+    document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    done();
+  });
+  $('btn-import').addEventListener('click', () => $('import-file').click());
+  $('import-file').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    let p;
+    try {
+      const j = JSON.parse(await f.text());
+      if (!j || j.app !== 'nabijeci-planovac' || !j.prefs || typeof j.prefs !== 'object' || Array.isArray(j.prefs)) throw new Error('format');
+      p = sanitizePrefs(j.prefs);
+    } catch (err) { setMenu(false); setStatus('Tohle není záloha z Nabíjecího plánovače.', true); return; }
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch (err) { setMenu(false); setStatus('Zálohu se nepodařilo uložit (soukromé okno nebo plné úložiště?).', true); return; }
+    location.reload();
+  });
+  $('app-version').textContent = APP_VERSION;
 
   function setStatus(msg, err) { const s = $('status'); s.textContent = msg; s.classList.toggle('err', !!err); }
 
@@ -347,19 +476,19 @@
       const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
       const u = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
       const cx = ax + u * dx, cy = ay + u * dy, dist = Math.hypot(cx, cy);
-      if (dist < best.dist) best = { dist, t: rt.cumT[i] + u * (rt.cumT[i + 1] - rt.cumT[i]), d: rt.cumD[i] + u * (rt.cumD[i + 1] - rt.cumD[i]) };
+      if (dist < best.dist) {
+        best = { dist, t: rt.cumT[i] + u * (rt.cumT[i + 1] - rt.cumT[i]), d: rt.cumD[i] + u * (rt.cumD[i + 1] - rt.cumD[i]),
+          // which side of the direction of travel (A → B) the station is on, and whether this is a motorway-speed segment
+          right: dy * ax - dx * ay < 0,
+          fast: (rt.cumD[i + 1] - rt.cumD[i]) / Math.max(1e-3, rt.cumT[i + 1] - rt.cumT[i]) > 22 };
+      }
     }
     return best;
   }
 
   // ------------------------------------------------------------------ search → plan
   let lastRun = null;
-  $('form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    await dataReady;
-    if (!STATIONS.length) return;
-    const pts = places.filter((p) => p.lat != null);
-    if (!places[0].lat || !places[places.length - 1].lat) { setStatus('Vyber místo v poli Odkud i Kam (ze seznamu, polohou nebo souřadnicemi).', true); return; }
+  function readOptions() {
     const byKm = stopBy() === 'km';
     const depart = $('depart').value ? new Date($('depart').value) : new Date();
     const [rh, rm] = ($('ret-time').value || '16:00').split(':').map(Number);
@@ -372,34 +501,54 @@
       detourKm: parseFloat($('detour').value) || 1.5,
       atPump: $('at-pump').checked, roundTrip: $('round-trip').checked,
       onlyFav: $('only-fav').checked, myCards: $('my-cards').checked, unknownKw: $('unknown-kw').checked,
-      minKw: +$('min-kw').value, cons: parseFloat(String($('cons').value).replace(',', '.')) || 23.8,
+      minKw: +$('min-kw').value, cons: Math.min(35, Math.max(12, parseFloat(String($('cons').value).replace(',', '.')) || 23.8)),
       tempo: parseFloat($('tempo').value) || 0.93,
       reserve: Math.max(0, Math.min(80, parseFloat($('reserve').value))),
     };
     if (!Number.isFinite(o.reserve)) o.reserve = RESERVE_DEFAULT;
-    Object.assign(prefs, { places, stopBy: byKm ? 'km' : 'time', intTime: +intTime.value, tolTime: +tolTime.value,
+    return o;
+  }
+  // OSRM is ~7 % slower than Google at ~130 km/h → scale its times by the chosen tempo
+  const withTempo = (raw, tempo) => ({ ...raw, cumT: raw.cumT.map((t) => t * tempo), duration: raw.duration * tempo });
+  function runPlan(raw, pts, o) {
+    const rt = withTempo(raw, o.tempo);
+    const cands = candidates(rt, o);
+    lastRun = { raw, rt, pts, o, cands, plan: makePlan(rt, cands, o) };
+    render();
+    $('btn-map').disabled = false;
+    if (!$('map-wrap').hidden) drawMap();
+  }
+  // settings changed in the panel → recompute the plan for the same route (no new routing request)
+  function replan() {
+    if (!lastRun || !STATIONS.length) return;
+    const f = readOptions();
+    runPlan(lastRun.raw, lastRun.pts, { ...lastRun.o, onlyFav: f.onlyFav, myCards: f.myCards, unknownKw: f.unknownKw, minKw: f.minKw, cons: f.cons, tempo: f.tempo });
+  }
+
+  $('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await dataReady;
+    if (!STATIONS.length) return;
+    const pts = places.filter((p) => p.lat != null);
+    if (!places[0].lat || !places[places.length - 1].lat) { setStatus('Vyber místo v poli Odkud i Kam (ze seznamu, polohou nebo souřadnicemi).', true); return; }
+    const o = readOptions();
+    Object.assign(prefs, { places, stopBy: o.byKm ? 'km' : 'time', intTime: +intTime.value, tolTime: +tolTime.value,
       intKm: +$('int-km').value, tolKm: +$('tol-km').value, retTime: $('ret-time').value, detour: o.detourKm,
       'at-pump': o.atPump, 'round-trip': o.roundTrip, 'only-fav': o.onlyFav, 'my-cards': o.myCards, 'unknown-kw': o.unknownKw,
       minKw: o.minKw, cons: o.cons, tempo: o.tempo, reserve: o.reserve, favs: [...favs] });
     savePrefs();
 
     setStatus('Počítám trasu…'); $('btn-go').disabled = true;
-    let rt;
+    let raw;
     try {
-      rt = await route(pts);
-      rt.cumT = rt.cumT.map((t) => t * o.tempo); rt.duration *= o.tempo;  // OSRM is ~7 % slower than Google at ~130 km/h
+      raw = await route(pts);
     } catch (err) {
       setStatus(`Trasu se nepodařilo spočítat (${err.message}). Zkus to za chvíli, nebo uprav místa.`, true);
       $('btn-go').disabled = false; return;
     }
     $('btn-go').disabled = false;
-    const cands = candidates(rt, o);
-    const plan = makePlan(rt, cands, o);
-    lastRun = { rt, pts, o, cands, plan };
     setStatus('');
-    render();
-    $('btn-map').disabled = false;
-    if (!$('map-wrap').hidden) drawMap();
+    runPlan(raw, pts, o);
     $('summary').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
@@ -408,9 +557,10 @@
     const lats = rt.line.map((p) => p.lat), lons = rt.line.map((p) => p.lon);
     const pad = WIDE_KM / 100 + 0.02;
     const box = [Math.min(...lats) - pad, Math.max(...lats) + pad, Math.min(...lons) - pad * 1.5, Math.max(...lons) + pad * 1.5];
-    const out = [];
+    const out = [], hidden = hiddenList();
     for (const s of STATIONS) {
       if (s.lat < box[0] || s.lat > box[1] || s.lon < box[2] || s.lon > box[3]) continue;
+      if (hidden.length && hidden.some((h) => Math.abs(h.lat - s.lat) < 0.003 && hav(h, s) < 150)) continue;
       if (o.atPump && !s.fuel) continue;
       if (o.onlyFav && !favs.has(s.fuel)) continue;
       if (o.myCards && !price(s, o.depart)) continue;
@@ -431,35 +581,86 @@
     const t = leg === 'A' ? c.n.t : rt.duration - c.n.t, d = leg === 'A' ? c.n.d : rt.distance - c.n.d;
     return o.byKm ? d / 1000 : t / 60 + c.detourMin / 2;
   }
-  function rankKey(c, o, at) {
-    const pr = price(c.s, at);
-    return [favs.has(c.s.fuel) ? 0 : 1, (c.s.kw || 0) >= 150 ? 0 : 1, pr && pr.czk != null ? pr.czk : 99, c.n.dist];
+  /* Battery on arrival at trip-km x and the top-up a stop there would need. The plan charges at each stop only
+     enough for the next leg + reserve, so until the first real charge you arrive with soc0 − used, and after it
+     with about the reserve. That is exact enough to apply the charger-tier rule while picking stations. */
+  function socModel(rt, o) {
+    const D = rt.distance / 1000, CAP = CAL.battery_kwh || 85;
+    const pct = (km) => km * o.cons / CAP;
+    const endX = o.roundTrip ? 2 * D : D;
+    const stepKm = o.byKm ? o.interval : o.interval * D / (rt.duration / 60);
+    return (x) => {
+      const arrive = Math.max(o.reserve, o.soc0 - pct(x));
+      const need = Math.min(MAX_TARGET, pct(Math.min(stepKm, Math.max(0, endX - x))) + o.reserve);
+      return { arrive, add: need - arrive > 2 ? Math.max(8, need - arrive) : 0 };
+    };
   }
-  const cmpKey = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i]; return 0; };
+  const tripKm = (c, leg, rt) => (leg === 'A' ? c.n.d / 1000 : 2 * rt.distance / 1000 - c.n.d / 1000);
 
-  function pickStops(leg, rt, cands, o) {
+  /* A station right next to a motorway (rest area) is reachable only from its own carriageway: on the way there
+     (leg A) it must be on the right of the direction of travel, on the way back (leg B) on the left of it. */
+  const sideOk = (c, leg) => !(c.n.fast && c.n.dist < 300) || (leg === 'A') === c.n.right;
+
+  /* Ranking inside one window. tier: 0 favourite pump in the window, 1 favourite slightly outside / small detour,
+     2 any other. All candidates are judged from ONE reference point (the middle of the window), so a later
+     position doesn't look like a slower charger and the order is transitive. Then the charger-tier rule
+     (memory: charger-tier-rule): arriving with ≥ 50 % the car takes ≤ ~145 kW, so any ≥ 150 kW stand is as fast
+     and the cheaper tier wins (E.ON 101–200 kW 13 Kč vs 201+ 16,90 Kč); below 50 % the faster stand wins
+     unless it saves ≤ 2 min, then price. Coffee-only stops: closest to the plan. */
+  function rankWindow(pool, leg, rt, o, center, soc) {
+    const xs = pool.map((p) => tripKm(p.c, leg, rt)).sort((a, b) => a - b);
+    const ref = soc(xs[Math.floor(xs.length / 2)]);
+    const charge = ref.add > 0, slow = ref.arrive < 50;
+    const t0 = leg === 'A' ? o.depart : o.retDepart;
+    pool.forEach((p) => {
+      p.off = Math.abs(measure(p.c, leg, rt, o) - center);
+      p.min = charge ? chargeMinutes(ref.arrive, Math.min(MAX_TARGET, ref.arrive + ref.add), p.c.s.kw || 100) : 0;
+      const pr = charge ? price(p.c.s, new Date(t0.getTime() + measureT(p.c, leg, rt) * 60000)) : null;
+      p.czk = pr && pr.czk != null ? pr.czk : 99;
+    });
+    const fastest = Math.min(...pool.map((p) => p.min));
+    const key = (p) => [p.tier,
+      !charge ? 0 : slow ? (p.min > fastest + 2 ? p.min : 0) : ((p.c.s.kw || 0) >= 150 ? 0 : 1),
+      charge ? p.czk : 0, p.off, p.c.n.dist];
+    const cmp = (a, b) => { const A = key(a), B = key(b); for (let i = 0; i < A.length; i++) if (A[i] !== B[i]) return A[i] - B[i]; return 0; };
+    return pool.sort(cmp);
+  }
+
+  function pickStops(leg, rt, cands, o, soc) {
     const legEnd = o.byKm ? rt.distance / 1000 : rt.duration / 60;
-    const tight = cands.filter((c) => c.n.dist <= o.detourKm * 1000);
+    const tightM = o.detourKm * 1000, favM = Math.max(o.detourKm, FAV_DETOUR_KM) * 1000;
+    const favExtra = o.byKm ? FAV_EXTRA_KM : FAV_EXTRA_MIN;
+    const gap = Math.max(o.interval - o.tol - favExtra, o.interval / 2);   // never two stops closer than this (a favourite may come a bit early)
+    const own = cands.filter((c) => sideOk(c, leg));
     const stops = [];
     let prev = 0;
     for (let guard = 0; guard < 40; guard++) {
       if (legEnd - prev <= o.interval + o.tol) break;            // destination is within reach of this interval
       const center = prev + o.interval;
-      let lo = center - o.tol, hi = center + o.tol, note = null;
-      const inWin = (list, a, b) => list.filter((c) => { const m = measure(c, leg, rt, o); return m >= a && m <= b && m > prev + 1; });
-      let pool = inWin(tight, lo, hi);
-      if (!pool.length) { pool = inWin(cands, lo, hi); if (pool.length) note = 'objížďka'; }
+      const lo = center - o.tol, hi = center + o.tol;
+      const within = (c, a, b) => { const m = measure(c, leg, rt, o); return m >= a && m <= b && (prev === 0 || m >= prev + gap) && m > prev + 1; };
+      let pool = [], note = null;
+      for (const c of own) {
+        const fav = favs.has(c.s.fuel);
+        if (c.n.dist <= tightM && within(c, lo, hi)) pool.push({ c, tier: fav ? 0 : 2 });
+        else if (fav && c.n.dist <= favM && within(c, lo - favExtra, hi + favExtra)) pool.push({ c, tier: 1 });
+      }
+      const tierOf = (c) => ({ c, tier: favs.has(c.s.fuel) ? 0 : 2 });
+      if (!pool.length) {
+        pool = own.filter((c) => within(c, lo, hi)).map(tierOf);
+        if (pool.length) note = 'objížďka';
+      }
       if (!pool.length) {
         const extra = Math.max(o.tol, o.byKm ? 20 : 15);
-        pool = inWin(tight, lo - extra, hi + extra); if (pool.length) note = 'mimo okno';
+        pool = own.filter((c) => c.n.dist <= tightM && within(c, lo - extra, hi + extra)).map(tierOf);
+        if (pool.length) note = 'mimo okno';
       }
       if (!pool.length) { stops.push({ leg, empty: true, lo, hi }); prev = center; continue; }
-      const t0 = leg === 'A' ? o.depart : o.retDepart;
-      const ranked = pool.map((c) => ({ c, key: rankKey(c, o, new Date(t0.getTime() + measureT(c, leg, rt) * 60000)) }))
-        .sort((a, b) => cmpKey(a.key, b.key) || Math.abs(measure(a.c, leg, rt, o) - center) - Math.abs(measure(b.c, leg, rt, o) - center))
-        .map((x) => x.c);
-      stops.push({ leg, c: ranked[0], alts: ranked.slice(1, 6), note, lo, hi });
-      prev = measure(ranked[0], leg, rt, o);
+      rankWindow(pool, leg, rt, o, center, soc);
+      const best = pool[0];
+      if (!note && best.tier === 1) note = within(best.c, lo, hi) ? 'oblíbená objížďka' : 'oblíbená mimo okno';
+      stops.push({ leg, c: best.c, alts: pool.slice(1, 6).map((p) => p.c), note, lo, hi });
+      prev = measure(best.c, leg, rt, o);
     }
     return stops;
   }
@@ -479,8 +680,9 @@
 
   function makePlan(rt, cands, o) {
     const D = rt.distance / 1000;
-    const stops = pickStops('A', rt, cands, o);
-    if (o.roundTrip) stops.push(...pickStops('B', rt, cands, o));
+    const soc = socModel(rt, o);
+    const stops = pickStops('A', rt, cands, o, soc);
+    if (o.roundTrip) stops.push(...pickStops('B', rt, cands, o, soc));
     stops.forEach((st) => {
       if (!st.empty) return;
       const k = o.byKm ? (st.lo + st.hi) / 2 : kmAtMinutes(rt, (st.lo + st.hi) / 2);
@@ -490,27 +692,42 @@
     // If a gap is too long for the battery (e.g. a long interval around the destination of a round trip),
     // insert an extra stop inside the reachable part of that gap and re-plan. A few rounds at most.
     const ppk = o.cons / (CAL.battery_kwh || 85);   // % of battery per km
-    for (let round = 0; round < 8; round++) {
+    const legs = o.roundTrip ? ['A', 'B'] : ['A'];
+    const skip = new Set();                          // problems no station can fix: report them, but keep fixing the rest
+    for (let round = 0; round < 12; round++) {
       const real = plan.stops.filter((s) => !s.empty);
-      let from, reach;
-      const bad = real.findIndex((s) => s.short || s.arrive < o.reserve - 3);
-      if (bad >= 0 && real[bad].short) { from = tripX(real[bad], rt); reach = from + (MAX_TARGET - o.reserve) / ppk; }
-      else if (bad >= 0) { const p = real[bad - 1]; from = p ? tripX(p, rt) : 0; reach = from + ((p ? p.target : o.soc0) - o.reserve) / ppk; }
-      else if ((o.roundTrip ? plan.socEnd : plan.socDest) < o.reserve - 3) {
-        const p = real[real.length - 1]; from = p ? tripX(p, rt) : 0; reach = from + ((p ? p.target : o.soc0) - o.reserve) / ppk;
-      } else break;
-      const used = new Set(real.map((s) => `${s.leg}:${s.c.s.lat},${s.c.s.lon}`));
-      const pool = [];
-      for (const c of cands.filter((x) => x.n.dist <= o.detourKm * 1000)) {
-        for (const leg of o.roundTrip ? ['A', 'B'] : ['A']) {
-          const x = leg === 'A' ? c.n.d / 1000 : D + (D - c.n.d / 1000);
-          if (x > from + 10 && x < reach - 3 && !used.has(`${leg}:${c.s.lat},${c.s.lon}`)) pool.push({ c, leg, x });
+      let prob = null;
+      for (let i = 0; i < real.length && !prob; i++) {
+        const s = real[i], key = `${s.leg}:${stationKey(s.c.s)}`;
+        if (skip.has(key)) continue;
+        if (s.short) { const from = tripX(s, rt); prob = { key, from, reach: from + (MAX_TARGET - o.reserve) / ppk }; }
+        else if (s.arrive < o.reserve - 3) {
+          const p = real[i - 1], from = p ? tripX(p, rt) : 0;
+          prob = { key, from, reach: from + ((p ? p.target : o.soc0) - o.reserve) / ppk };
         }
       }
-      if (!pool.length) break;
-      // favourite pump and ≥150 kW first, then as far as the battery allows (fewer stops), then price
-      const at = (p) => new Date((p.leg === 'A' ? o.depart : o.retDepart).getTime() + measureT(p.c, p.leg, rt) * 60000);
-      pool.sort((a, b) => cmpKey(rankKey(a.c, o, at(a)).slice(0, 2), rankKey(b.c, o, at(b)).slice(0, 2)) || b.x - a.x);
+      if (!prob && !skip.has('end') && (o.roundTrip ? plan.socEnd : plan.socDest) < o.reserve - 3) {
+        const p = real[real.length - 1], from = p ? tripX(p, rt) : 0;
+        prob = { key: 'end', from, reach: from + ((p ? p.target : o.soc0) - o.reserve) / ppk };
+      }
+      if (!prob) break;
+      const used = new Set(real.map((s) => `${s.leg}:${stationKey(s.c.s)}`));
+      let pool = [];
+      // stations by the route first, then a small detour, then anything up to 15 km away
+      for (const r of [o.detourKm, Math.max(o.detourKm, FAV_DETOUR_KM), WIDE_KM]) {
+        for (const c of cands) {
+          if (c.n.dist > r * 1000) continue;
+          for (const leg of legs) {
+            const x = tripKm(c, leg, rt);
+            if (sideOk(c, leg) && x > prob.from + 10 && x + c.detourKm / 2 < prob.reach - 3 && !used.has(`${leg}:${stationKey(c.s)}`)) pool.push({ c, leg, x });
+          }
+        }
+        if (pool.length) break;
+      }
+      if (!pool.length) { skip.add(prob.key); continue; }
+      // favourite pump first; you arrive low here, so a ≥ 150 kW stand; then as far as the battery allows (fewer stops)
+      const rank = (p) => (favs.has(p.c.s.fuel) ? 0 : 2) + ((p.c.s.kw || 0) >= 150 ? 0 : 1);
+      pool.sort((a, b) => rank(a) - rank(b) || b.x - a.x);
       const best = pool[0];
       plan.stops.push({ leg: best.leg, c: best.c, alts: pool.slice(1, 5).filter((p) => p.leg === best.leg).map((p) => p.c), note: 'kvůli dojezdu' });
       plan.stops.sort((a, b) => tripX(a, rt) - tripX(b, rt));
@@ -527,7 +744,9 @@
     const xOf = (st) => (st.leg === 'A' ? st.c.n.d / 1000 : D + (D - st.c.n.d / 1000));
     const endX = o.roundTrip ? 2 * D : D;
     const real = stops.filter((st) => !st.empty);
-    let soc = o.soc0, prevX = 0, clockA = 0, clockB = 0, socDest = null;
+    let soc = o.soc0, prevX = 0, clockA = 0, clockB = 0, socDest = null, retDepart = null;
+    // the way back can't start before you get there (+ the planned coffee break at the destination)
+    const backAt = () => { if (!retDepart) retDepart = new Date(Math.max(o.retDepart.getTime(), o.depart.getTime() + (T + clockA + STOP_MIN) * 60000)); return retDepart; };
     let totalMin = 0, totalCzk = 0, totalKwh = 0, priceUnknown = false, short = false;
     for (let i = 0; i < real.length; i++) {
       const st = real[i], x = xOf(st), next = real[i + 1];
@@ -539,13 +758,13 @@
       st.target = Math.round(Math.max(st.arrive, Math.min(st.need, MAX_TARGET)));
       if (st.target - st.arrive <= 2) st.target = st.arrive;   // a 1–2 % top-up isn't worth plugging in: coffee only
       else if (st.target - st.arrive < 8) st.target = Math.min(MAX_TARGET, Math.round(st.arrive + 8));  // if plugging in, take at least 8 %
-      const kw = st.c.s.kw || 150;
+      const kw = st.c.s.kw || 100;
       st.chargeMin = st.target > st.arrive ? chargeMinutes(Math.max(0, st.arrive), st.target, kw) : 0;
       st.kwh = Math.max(0, st.target - st.arrive) * (CAL.kwh_per_pct || 0.98);
       st.stopMin = Math.max(STOP_MIN, st.chargeMin > 0 ? st.chargeMin + 2 : 0);
       const tDrive = measureT(st.c, st.leg, rt);
       if (st.leg === 'A') { st.at = new Date(o.depart.getTime() + (tDrive + clockA) * 60000); clockA += st.stopMin + st.c.detourMin; }
-      else { st.at = new Date(o.retDepart.getTime() + (tDrive + clockB) * 60000); clockB += st.stopMin + st.c.detourMin; }
+      else { st.at = new Date(backAt().getTime() + (tDrive + clockB) * 60000); clockB += st.stopMin + st.c.detourMin; }
       st.tDrive = tDrive;
       st.km = st.leg === 'A' ? st.c.n.d / 1000 : D - st.c.n.d / 1000;
       st.pr = price(st.c.s, st.at);
@@ -558,8 +777,9 @@
     if (socDest == null) socDest = soc - pct(D - prevX);
     const socEnd = soc - pct(endX - prevX);
     const arriveDest = new Date(o.depart.getTime() + (T + clockA) * 60000);
-    const arriveHome = o.roundTrip ? new Date(o.retDepart.getTime() + (T + clockB) * 60000) : null;
+    const arriveHome = o.roundTrip ? new Date(backAt().getTime() + (T + clockB) * 60000) : null;
     return { stops, D, T, socDest, socEnd, arriveDest, arriveHome, totalMin, totalCzk, totalKwh, priceUnknown, short,
+      retDepart: o.roundTrip ? backAt() : null, retLate: o.roundTrip && backAt().getTime() > o.retDepart.getTime() + 60000,
       noChargeEnd: o.soc0 - pct(endX) };
   }
 
@@ -569,9 +789,6 @@
     if (s.kw > 200 && st.arrive >= 50) {
       const p2 = price({ ...s, kw: 150 }, st.at), m2 = chargeMinutes(st.arrive, st.target, 150);
       if (p2 && p2.czk != null && p2.czk < st.pr.czk) return { kind: 'cheaper', czk: st.kwh * p2.czk, min: m2, unit: p2.czk };
-    } else if (s.kw <= 200 && st.arrive < 50) {
-      const p3 = price({ ...s, kw: 300 }, st.at), m3 = chargeMinutes(st.arrive, st.target, 300);
-      if (p3 && p3.czk != null) return { kind: 'faster', czk: st.kwh * p3.czk, min: m3, unit: p3.czk };
     }
     return null;
   }
@@ -586,18 +803,22 @@
   function renderSummary(rt, o, plan) {
     const box = $('summary'); box.textContent = ''; box.className = 'summary';
     const nStops = plan.stops.filter((s) => !s.empty).length, nCharge = plan.stops.filter((s) => !s.empty && s.kwh > 0).length;
+    const low = (v) => v < o.reserve - 0.5;
+    const endTxt = o.roundTrip ? `${fmt(plan.socDest)} → ${fmt(plan.socEnd)} %` : `${fmt(plan.socDest)} %`;
     box.append(
       el('div', { class: 'stat' }, el('b', { text: `${fmt(plan.D)} km` }), el('span', { text: o.roundTrip ? 'tam (a stejně zpět)' : 'trasa' })),
       el('div', { class: 'stat' }, el('b', { text: hm(plan.T) }), el('span', { text: 'jízda tam bez zastávek' })),
       el('div', { class: 'stat' }, el('b', { text: `${nStops}` }), el('span', { text: `zastávek, nabíjení na ${nCharge}` })),
       el('div', { class: 'stat' }, el('b', { text: `${fmt(plan.totalMin)} min` }), el('span', { text: 'nabíjení celkem' })),
       el('div', { class: 'stat' }, el('b', { text: `${fmt(plan.totalCzk)} Kč` }), el('span', { text: plan.priceUnknown ? 'nabíjení (část bez ceny)' : 'za nabíjení' })),
-      el('div', { class: 'stat' }, el('b', { text: `${fmt(o.roundTrip ? plan.socEnd : plan.socDest)} %` }), el('span', { text: o.roundTrip ? 'domů dojedeš s' : 'v cíli' })),
+      el('div', { class: `stat${low(plan.socDest) || (o.roundTrip && low(plan.socEnd)) ? ' warn' : ''}` },
+        el('b', { text: endTxt }), el('span', { text: o.roundTrip ? 'v cíli → doma, podle plánu' : 'v cíli, podle plánu' })),
       el('p', { class: 'summary-note', text:
         (plan.noChargeEnd >= o.reserve ? `Bez nabíjení bys ${o.roundTrip ? 'domů' : 'do cíle'} dojel s ~${fmt(plan.noChargeEnd)} %, takže zastávky jsou hlavně na kávu. `
           : `Celkem potřebuješ cestou dobít asi ${fmt(o.reserve - plan.noChargeEnd)} % baterie (~${fmt((o.reserve - plan.noChargeEnd) * (CAL.battery_kwh || 85) / 100)} kWh). `) +
         `Na každé zastávce se dobije jen tolik, abys na další přijel s alespoň ${fmt(o.reserve)} %.` +
-        (plan.short ? ' Pozor: některý úsek je na jedno nabití moc dlouhý, zkrať interval.' : '') }),
+        (plan.short ? ' Pozor: některý úsek je na jedno nabití moc dlouhý, zkrať interval.' : '') +
+        (plan.retLate ? ` Zpátky v ${clock(o.retDepart)} nestihneš, do cíle dojedeš až v ${clock(plan.arriveDest)}. Počítám s odjezdem ${clock(plan.retDepart)}.` : '') }),
     );
   }
 
@@ -618,7 +839,7 @@
   }
   function destRow(o, plan) {
     return stepRow('dest', `Cíl · ${clock(plan.arriveDest)}`, lastRun.pts[lastRun.pts.length - 1].label || 'Cíl',
-      `přijedeš s ~${fmt(plan.socDest)} %${o.roundTrip ? ` · zpět vyrážíš ${clock(o.retDepart)}` : ''}`);
+      `přijedeš s ~${fmt(plan.socDest)} %${o.roundTrip ? ` · zpět vyrážíš ${clock(plan.retDepart)}${plan.retLate ? ' (dřív to nestihneš)' : ''}` : ''}`);
   }
   function stepRow(kind, head, name, sub) {
     return el('div', { class: `step ${kind}` }, el('b', { text: head }), el('span', { text: name }), el('small', { class: 'muted', text: sub }));
@@ -636,7 +857,8 @@
       st.note === 'mimo okno' ? el('span', { class: 'badge warn', text: 'mimo okno (v okně nic)' }) : null,
       st.note === 'objížďka' ? el('span', { class: 'badge warn', text: 'jen s objížďkou' }) : null,
       st.note === 'kvůli dojezdu' ? el('span', { class: 'badge warn', text: 'navíc, jinak by baterie nestačila' }) : null,
-      favs.has(s.fuel) ? el('span', { class: 'badge fav', text: '★ oblíbená pumpa' }) : null,
+      favs.has(s.fuel) ? el('span', { class: 'badge fav', text: st.note === 'oblíbená mimo okno' ? '★ oblíbená, kousek mimo okno'
+        : st.note === 'oblíbená objížďka' ? '★ oblíbená, malá objížďka' : '★ oblíbená pumpa' }) : null,
       s.fuel ? el('span', { class: 'badge', text: `u pumpy ${s.fd} m` }) : el('span', { class: 'badge warn', text: 'bez pumpy' }),
       el('span', { class: 'badge', text: st.c.n.dist < 300 ? 'přímo u trasy' : `${fmt(st.c.n.dist / 1000, 1)} km od trasy` }),
       s.ccs ? el('span', { class: 'badge', text: `${s.ccs}× CCS` }) : null,
@@ -654,7 +876,7 @@
     const alts = st.alts && st.alts.length ? el('details', { class: 'more-export' },
       el('summary', { text: `Jiné možnosti v tomhle okně (${st.alts.length})` }),
       el('div', { class: 'alts' }, st.alts.map((a) => {
-        const at = new Date((st.leg === 'A' ? o.depart : o.retDepart).getTime() + measureT(a, st.leg, lastRun.rt) * 60000);
+        const at = new Date((st.leg === 'A' ? o.depart : lastRun.plan.retDepart).getTime() + measureT(a, st.leg, lastRun.rt) * 60000);
         const p = price(a.s, at);
         return el('div', { class: 'alt' },
           el('div', {}, el('b', { text: `${a.s.fuel || 'Stanice'} · ${a.s.op || '?'} ${a.s.kw ? a.s.kw + ' kW' : ''}` }),
@@ -671,7 +893,8 @@
       el('div', { class: 'cand-actions' },
         el('a', { class: 'waze', href: wazeUrl(s), target: '_blank', rel: 'noopener', text: 'Waze → sem' }),
         el('a', { href: gPlace(s), target: '_blank', rel: 'noopener', text: 'Google Mapy → sem' })),
-      alts);
+      alts,
+      el('button', { type: 'button', class: 'link-btn hide-btn', text: 'Tuhle nechci (už nenabízet)', onclick: () => hideStation(s) }));
   }
 
   function swapStop(idx, alt) {
@@ -679,6 +902,7 @@
     const st = plan.stops[idx];
     st.alts = [st.c, ...st.alts.filter((a) => a !== alt)];
     st.c = alt; st.note = null;
+    plan.stops.sort((a, b) => tripX(a, rt) - tripX(b, rt));
     lastRun.plan = energize(rt, plan.stops, o);
     render();
     if (!$('map-wrap').hidden) drawMap();
@@ -831,6 +1055,26 @@
   });
 
   // ------------------------------------------------------------------ boot
-  renderPlaces();
-  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  renderPlaces(); renderHidden(); renderStorageInfo();
+  if (freshInstall) {
+    const st = $('status'); st.textContent = '';
+    st.append('Máš uloženou zálohu nastavení z jiného telefonu nebo ze Safari? ',
+      el('button', { type: 'button', class: 'link-btn', text: 'Načíst zálohu', onclick: () => $('import-file').click() }));
+  }
+  let swReg = null, lastCheck = 0;
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    navigator.serviceWorker.register('sw.js').then((reg) => { swReg = reg; reg.update(); }).catch(() => {});
+  }
+  // A home-screen app is usually resumed, not reloaded: check for a new version whenever it comes back to the foreground.
+  async function checkVersion() {
+    if (Date.now() - lastCheck < 5 * 60000) return;
+    lastCheck = Date.now();
+    if (swReg) swReg.update().catch(() => {});
+    try {
+      const v = await fetch('version.json', { cache: 'no-store' }).then((r) => r.json());
+      if (v && v.version && v.version !== APP_VERSION) $('update-banner').hidden = false;
+    } catch (e) { /* offline */ }
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkVersion(); });
+  $('btn-reload').addEventListener('click', () => location.reload());
 })();

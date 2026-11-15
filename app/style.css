@@ -158,3 +158,55 @@ details.more-export[open] > :not(summary){margin-top:8px}
 .alt small{display:block}
 .alt .linkish{min-height:40px;flex:none}
 .export h2{font-size:1.05rem}
+
+/* segmented control (Po čase / Po km) */
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label{min-height:42px;display:grid;place-items:center;font-weight:600;font-size:.9rem;cursor:pointer;color:var(--muted)}
+.seg input:checked + label{background:var(--ev);color:var(--ev-ink)}
+.seg input:focus-visible + label{outline:2px solid var(--ev);outline-offset:-3px}
+
+/* layout: one column on the phone, settings panel as a right column on wide screens */
+.layout{display:block}
+.menu-btn{font-size:1.25rem}
+.prefs{background:var(--surface);display:flex;flex-direction:column;gap:6px;padding:16px 16px calc(24px + env(safe-area-inset-bottom,0px))}
+.prefs-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.pref-sec{display:flex;flex-direction:column;gap:8px;padding:14px 0;border-top:1px solid var(--line)}
+.pref-sec:first-of-type{margin-top:6px}
+.pref-sec h3{font-size:1rem;display:flex;gap:8px;align-items:baseline}
+.pref-sec h3 small{font-family:var(--font-body);font-weight:500;font-size:.8rem}
+.pref-sec .facts{font-size:.85rem}
+.hidden-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.hidden-list li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)}
+.hidden-list li span{display:flex;flex-direction:column;min-width:0}
+.hidden-list small{font-size:.78rem}
+.hidden-list .linkish{min-height:38px;flex:none}
+.scrim{position:fixed;inset:0;z-index:40;background:rgba(5,12,11,.45);touch-action:none}
+
+@media (max-width:1099px){
+  .prefs{position:fixed;top:0;right:0;bottom:0;z-index:50;width:min(92vw,400px);overflow-y:auto;overscroll-behavior:contain;
+    padding-top:calc(16px + env(safe-area-inset-top,0px));box-shadow:-12px 0 40px rgba(0,0,0,.25);
+    transform:translateX(105%);visibility:hidden;transition:transform .22s ease, visibility 0s linear .22s}
+  .prefs.open{transform:none;visibility:visible;transition:transform .22s ease}
+  body.menu-open{overflow:hidden}
+}
+@media (min-width:1100px){
+  .layout{display:grid;grid-template-columns:minmax(0,720px) 360px;gap:28px;justify-content:center;align-items:start;padding:0 20px}
+  .layout .wrap{margin:0;max-width:none}
+  .prefs{position:sticky;top:0;max-height:100vh;overflow-y:auto;border-left:1px solid var(--line);border-right:1px solid var(--line);margin-top:0;
+    padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+  .menu-btn,#btn-menu-close{display:none}
+  .prefs-peek .peek-go{display:none}
+}
+@media (prefers-reduced-motion:reduce){ .prefs{transition:none!important} }
+
+/* "Moje nastavení" summary line inside the form */
+.prefs-peek{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;text-align:left;width:100%;
+  padding:10px 12px;border:1px dashed var(--line);border-radius:10px;background:var(--bg);cursor:pointer}
+.prefs-peek .peek-label{font-size:.82rem;font-weight:600}
+.prefs-peek .peek-text{grid-column:1;font-size:.85rem;color:var(--muted)}
+.prefs-peek .peek-go{grid-row:1 / span 2;grid-column:2;font-size:1.2rem;color:var(--ev)}
+
+.stat.warn{border-color:var(--warn);background:var(--warn-soft)}
+.hide-btn{align-self:flex-start;color:var(--muted);font-weight:500;font-size:.85rem}
+.status.update{display:flex;justify-content:space-between;align-items:center;gap:10px}
