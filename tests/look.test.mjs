@@ -40,3 +40,19 @@ test('[R34] pole s časem a datem nekreslí systémový šedý vzhled (iPhone Sa
       `input[type=${type}] má appearance:none i -webkit-appearance:none`);
   }
 });
+
+// User, 15. 11. 2026: "ta tmavá varianta se mi moc líbí, neměň ji" – the approved dark palette is pinned here.
+test('[R34] tmavá varianta zůstává, jak ji uživatel schválil', () => {
+  const raw = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'app', 'style.css'), 'utf8');
+  const block = raw.match(/@media \(prefers-color-scheme: dark\)\{\s*:root\{([^}]*)\}/);
+  assert.ok(block, 'style.css má tmavou variantu v @media (prefers-color-scheme: dark)');
+  const tokens = Object.fromEntries([...block[1].matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
+  assert.deepEqual(tokens, {
+    '--bg': '#14171B', '--surface': '#1C2026', '--ink': '#E8EBEF', '--muted': '#A1A9B3', '--line': '#2F3640',
+    '--ev': '#6AA9E0', '--ev-ink': '#0B1622', '--ev-soft': '#1A2A3A', '--warn': '#E3A646', '--warn-soft': '#372A13', '--bad': '#F2867E',
+    '--surface-2': '#232830', '--base': '#2A4A6A', '--dim': '#5A636E', '--step-bg': '#222831',
+  });
+  assert.match(block[1], /color-scheme\s*:\s*dark/);
+  const html = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'app', 'index.html'), 'utf8');
+  assert.match(html, /<meta name="theme-color" content="#14171B" media="\(prefers-color-scheme: dark\)">/, 'lišta prohlížeče v tmavé variantě');
+});

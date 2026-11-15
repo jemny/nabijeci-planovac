@@ -109,6 +109,7 @@ U zastávky seznam dalších stanic v okně s tlačítkem Vybrat.
 
 ### R34 — Vzhled
 Rozvržení podle návrhu 1 (Palubní deska), barvy 1H (grafit a ocelově modrá), světlá i tmavá podle telefonu. Ověření: ručně (návrhy na plátně https://claude.ai/artifact/TFCJ4Q9NLwG3febS42GZen).
+**Tmavá varianta je schválená** (uživatel 15. 11. 2026: „ta tmavá varianta se mi moc líbí, neměň ji“). Její barvy se nemění, dokud uživatel neřekne jinak. Hlídá to test v tests/look.test.mjs. Světlou variantu uživatel zhodnotí 16. 11. 2026.
 Všechna pole, do kterých se píše nebo vybírá (i čas návratu a odjezd), mají stejný vzhled jako „Baterie na startu“: vlastní podbarvení, rámeček, zaoblení, i na iPhonu (uživatel 15. 11. 2026: šedé pole času „je hnusné“). Ověření: tests/look.test.mjs.
 
 ### R35 — Data nabíječek
