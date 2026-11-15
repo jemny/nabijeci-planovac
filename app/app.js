@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_EXTRA_MIN = 10, FAV_EXTRA_KM = 15, FAV_DETOUR_KM = 3;  // a favourite pump may be this far outside the window / off the route
-  const APP_VERSION = '2026-11-15c';
+  const APP_VERSION = '2026-11-15d';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -543,6 +543,21 @@
   }
   let forceAuto = false;
 
+  // after a search the form folds into one line (design 1); "Upravit" opens it again
+  function setFormCollapsed(c) {
+    $('form').hidden = c; $('trip-chip').hidden = !c;
+    $('btn-go').hidden = c; $('btn-nav').hidden = !c;
+    if (c && lastRun) {
+      const { o, pts } = lastRun;
+      $('chip-title').textContent = `${shortName(pts[0].label, 'Start')} → ${shortName(pts[pts.length - 1].label, 'Cíl')}${o.roundTrip ? ' a zpět' : ''}`;
+      const day = o.depart.toLocaleDateString('cs-CZ', { weekday: 'short', day: 'numeric', month: 'numeric' });
+      $('chip-sub').textContent = `${day.charAt(0).toUpperCase()}${day.slice(1)} ${clock(o.depart)} · ${fmt(o.soc0)} % · ` +
+        (o.byKm ? `zastávka každých ${fmt(o.interval)} ± ${fmt(o.tol)} km` : `zastávka každou ${hm(o.interval)} ± ${o.tol}`);
+    }
+  }
+  $('trip-chip').addEventListener('click', () => { setFormCollapsed(false); $('form').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  $('btn-nav').addEventListener('click', (e) => { e.preventDefault(); const x = $('export'); if (x) x.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+
   $('form').addEventListener('submit', async (e) => {
     e.preventDefault();
     await dataReady;
@@ -568,6 +583,7 @@
     setStatus('');
     curTrip = { id: newTripId(), saved: false, status: 'plan', input: tripInput(o, pts), stops: [], actual: {} };
     runPlan(raw, pts, o);
+    setFormCollapsed(true);
     $('summary').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
@@ -846,108 +862,133 @@
     renderPlan(o, plan);
   }
 
+  // ---- results in the "Palubní deska" layout (design 1): tiles + battery strip, timeline with time column, stop cards
+  const shortName = (label, fallback) => String(label || fallback || '').split(',')[0].replace(/^Moje poloha.*/, 'Moje poloha');
+  const townOf = (s) => {
+    const p = String(s.place || '').split(',').map((x) => x.trim()).filter(Boolean);
+    return (p.length ? p[p.length - 1] : '').replace(/^\d{3}\s?\d{2}\s+/, '').replace(/\s*--\s*$/, '');
+  };
   function renderSummary(rt, o, plan) {
     const box = $('summary'); box.textContent = ''; box.className = 'summary';
     const nStops = plan.stops.filter((s) => !s.empty).length, nCharge = plan.stops.filter((s) => !s.empty && s.kwh > 0).length;
     const low = (v) => v < o.reserve - 0.5;
-    const endTxt = o.roundTrip ? `${fmt(plan.socDest)} → ${fmt(plan.socEnd)} %` : `${fmt(plan.socDest)} %`;
+    const tile = (big, small) => el('div', { class: 'tile' }, el('b', { text: big }), el('span', { text: small }));
+    const destN = shortName(lastRun.pts[lastRun.pts.length - 1].label, 'cíl');
     box.append(
-      el('div', { class: 'stat' }, el('b', { text: `${fmt(plan.D)} km` }), el('span', { text: o.roundTrip ? 'tam (a stejně zpět)' : 'trasa' })),
-      el('div', { class: 'stat' }, el('b', { text: hm(plan.T) }), el('span', { text: 'jízda tam bez zastávek' })),
-      el('div', { class: 'stat' }, el('b', { text: `${nStops}` }), el('span', { text: `zastávek, nabíjení na ${nCharge}` })),
-      el('div', { class: 'stat' }, el('b', { text: `${fmt(plan.totalMin)} min` }), el('span', { text: 'nabíjení celkem' })),
-      el('div', { class: 'stat' }, el('b', { text: `${fmt(plan.totalCzk)} Kč` }), el('span', { text: plan.priceUnknown ? 'nabíjení (část bez ceny)' : 'za nabíjení' })),
-      el('div', { class: `stat${low(plan.socDest) || (o.roundTrip && low(plan.socEnd)) ? ' warn' : ''}` },
-        el('b', { text: endTxt }), el('span', { text: o.roundTrip ? 'v cíli → doma, podle plánu' : 'v cíli, podle plánu' })),
+      tile(fmt(plan.D), o.roundTrip ? 'km tam' : 'km'),
+      tile(`${fmt(plan.totalMin)} min`, 'nabíjení'),
+      tile(`${fmt(plan.totalCzk)} Kč`, plan.priceUnknown ? 'za proud, část bez ceny' : 'za proud'),
+      el('div', { class: `battery-strip${low(plan.socDest) || (o.roundTrip && low(plan.socEnd)) ? ' warn' : ''}` },
+        el('div', { class: 'bs-head' }, el('span', { text: 'Baterie podle plánu' }), el('span', { text: `rezerva ${fmt(o.reserve)} %` })),
+        el('div', { class: 'bs-vals' },
+          el('b', { class: 'acc', text: `${fmt(plan.socDest)} %` }), el('span', { text: destN }),
+          o.roundTrip ? el('span', { class: 'arrow', 'aria-hidden': 'true', text: '→' }) : null,
+          o.roundTrip ? el('b', { text: `${fmt(plan.socEnd)} %` }) : null,
+          o.roundTrip ? el('span', { text: 'doma' }) : null)),
       el('p', { class: 'summary-note', text:
+        `Jízda tam ${hm(plan.T)} bez zastávek · ${nStops} ${nStops === 1 ? 'zastávka' : nStops < 5 ? 'zastávky' : 'zastávek'}, nabíjení na ${nCharge}. ` +
         (plan.noChargeEnd >= o.reserve ? `Bez nabíjení bys ${o.roundTrip ? 'domů' : 'do cíle'} dojel s ~${fmt(plan.noChargeEnd)} %, takže zastávky jsou hlavně na kávu. `
-          : `Celkem potřebuješ cestou dobít asi ${fmt(o.reserve - plan.noChargeEnd)} % baterie (~${fmt((o.reserve - plan.noChargeEnd) * (CAL.battery_kwh || 85) / 100)} kWh). `) +
-        `Na každé zastávce se dobije jen tolik, abys na další přijel s alespoň ${fmt(o.reserve)} %.` +
-        (plan.short ? ' Pozor: některý úsek je na jedno nabití moc dlouhý, zkrať interval.' : '') +
-        (plan.consReal ? ` Podle zapsaných nabíjení jezdíš za ~${fmt(plan.consReal, 1)} kWh/100 km (plán ${fmt(o.cons, 1)}), zbytek plánu je podle toho přepočítaný.` : '') +
-        (plan.retLate ? ` Zpátky v ${clock(o.retDepart)} nestihneš, do cíle dojedeš až v ${clock(plan.arriveDest)}. Počítám s odjezdem ${clock(plan.retDepart)}.` : '') }),
+          : `Cestou potřebuješ dobít asi ${fmt(o.reserve - plan.noChargeEnd)} % (~${fmt((o.reserve - plan.noChargeEnd) * (CAL.battery_kwh || 85) / 100)} kWh), na každé zastávce jen na další úsek. `) +
+        (plan.short ? 'Pozor: některý úsek je na jedno nabití moc dlouhý, zkrať interval. ' : '') +
+        (plan.consReal ? `Podle zapsaných nabíjení jezdíš za ~${fmt(plan.consReal, 1)} kWh/100 km (plán ${fmt(o.cons, 1)}), zbytek plánu je podle toho přepočítaný. ` : '') +
+        (plan.retLate ? `Zpátky v ${clock(o.retDepart)} nestihneš, do cíle dojedeš až v ${clock(plan.arriveDest)}. Počítám s odjezdem ${clock(plan.retDepart)}.` : '') }),
     );
   }
 
+  const tlRow = (time, kind, content) => el('li', { class: `tl ${kind}` }, el('span', { class: 'tl-time', text: time || '' }), content);
+  const tlText = (head, sub) => el('span', { class: 'tl-text' }, el('b', { text: head }), sub ? el('span', { class: 'muted', text: ` · ${sub}` }) : null);
   function renderPlan(o, plan) {
     const box = $('results'); box.textContent = '';
     if (curTrip) box.append(tripCard());
-    box.append(planExport());
     const pts = lastRun.pts;
-    box.append(stepRow('start', `Start · ${clock(o.depart)}`, pts[0].label || 'Start', `baterie ${fmt(o.soc0)} %`));
-    let k = 0;
+    const ol = el('ol', { class: 'timeline' });
+    ol.append(tlRow(clock(o.depart), 'start', tlText(`Start · ${shortName(pts[0].label, 'Start')}`, `${fmt(o.soc0)} %`)));
+    let k = 0, destDone = false;
     plan.stops.forEach((st, i) => {
-      if (st.leg === 'B' && !box.querySelector('.step.dest')) box.append(destRow(o, plan));
-      if (st.empty) { box.append(emptyStop(st, o)); return; }
+      if (st.leg === 'B' && !destDone) { ol.append(destRow(o, plan)); destDone = true; }
+      if (st.empty) { ol.append(tlRow('', 'empty', emptyStop(st, o))); return; }
       k += 1;
-      box.append(stopCard(st, k, i, o));
+      ol.append(tlRow(clock(st.at), `stop${st.kwh > 0 ? ' charge' : ''}`, stopCard(st, k, i, o)));
     });
-    if (!box.querySelector('.step.dest')) box.append(destRow(o, plan));
-    if (o.roundTrip) box.append(stepRow('home', `Domů · ${clock(plan.arriveHome)}`, pts[0].label || 'Start', `dojedeš s ~${fmt(plan.socEnd)} %`));
+    if (!destDone) ol.append(destRow(o, plan));
+    if (o.roundTrip) ol.append(tlRow(clock(plan.arriveHome), 'home', tlText(`Domů · ${shortName(pts[0].label, 'Start')}`, `${fmt(plan.socEnd)} %`)));
+    box.append(ol, planExport());
     if (curTrip) box.append(finishCard(o, plan));
     box.append(compareCard(o, plan));
   }
   function destRow(o, plan) {
-    return stepRow('dest', `Cíl · ${clock(plan.arriveDest)}`, lastRun.pts[lastRun.pts.length - 1].label || 'Cíl',
-      `přijedeš s ~${fmt(plan.socDest)} %${o.roundTrip ? ` · zpět vyrážíš ${clock(plan.retDepart)}${plan.retLate ? ' (dřív to nestihneš)' : ''}` : ''}`);
-  }
-  function stepRow(kind, head, name, sub) {
-    return el('div', { class: `step ${kind}` }, el('b', { text: head }), el('span', { text: name }), el('small', { class: 'muted', text: sub }));
+    return tlRow(clock(plan.arriveDest), 'dest', tlText(`Cíl · ${shortName(lastRun.pts[lastRun.pts.length - 1].label, 'Cíl')}`,
+      `${fmt(plan.socDest)} %${o.roundTrip ? ` · zpět v ${clock(plan.retDepart)}${plan.retLate ? ' (dřív to nestihneš)' : ''}` : ''}`));
   }
   function emptyStop(st, o) {
     const f = (v) => (o.byKm ? `${fmt(v)} km` : hm(v));
     return el('div', { class: 'status err', text: `${st.leg === 'B' ? 'Zpět: ' : ''}v okně ${f(st.lo)}–${f(st.hi)} není nabíječka podle tvých filtrů. Zkus větší objížďku, vypnout „Jen na pumpách“ nebo „jen oblíbené“, nebo jiný interval.` });
   }
-
+  function batteryBar(from, to) {
+    const a = Math.max(0, Math.min(100, from)), b = Math.max(a, Math.min(100, to));
+    return el('div', { class: 'bar-wrap' },
+      el('div', { class: 'bar', role: 'img', 'aria-label': `Baterie ${fmt(a)} % → ${fmt(b)} %` },
+        el('span', { class: 'bar-base', style: `width:${a}%` }), el('span', { class: 'bar-add', style: `left:${a}%;width:${b - a}%` })),
+      el('div', { class: 'bar-legend' }, el('span', { text: `${fmt(a)} %` }), el('span', { class: 'acc', text: `+${fmt(b - a)} %` }), el('span', { text: `${fmt(b)} %` })));
+  }
   function stopCard(st, k, idx, o) {
     const s = st.c.s;
-    const title = [s.fuel || 'Stanice', [s.op, s.kw ? `${s.kw} kW` : 'výkon ?'].filter(Boolean).join(' ')].join(' · ');
-    const place = [s.name, s.place, s.cc && s.cc !== 'CZ' ? s.cc : null].filter(Boolean).join(' – ');
-    const badges = el('div', { class: 'badges' },
-      st.note === 'mimo okno' ? el('span', { class: 'badge warn', text: 'mimo okno (v okně nic)' }) : null,
-      st.note === 'objížďka' ? el('span', { class: 'badge warn', text: 'jen s objížďkou' }) : null,
-      st.note === 'kvůli dojezdu' ? el('span', { class: 'badge warn', text: 'navíc, jinak by baterie nestačila' }) : null,
-      favs.has(s.fuel) ? el('span', { class: 'badge fav', text: st.note === 'oblíbená mimo okno' ? '★ oblíbená, kousek mimo okno'
-        : st.note === 'oblíbená objížďka' ? '★ oblíbená, malá objížďka' : '★ oblíbená pumpa' }) : null,
-      s.fuel ? el('span', { class: 'badge', text: `u pumpy ${s.fd} m` }) : el('span', { class: 'badge warn', text: 'bez pumpy' }),
-      el('span', { class: 'badge', text: st.c.n.dist < 300 ? 'přímo u trasy' : `${fmt(st.c.n.dist / 1000, 1)} km od trasy` }),
-      s.ccs ? el('span', { class: 'badge', text: `${s.ccs}× CCS` }) : null,
-      warn800(s) ? el('span', { class: 'badge warn', text: warn800(s) }) : null);
-    const facts = el('dl', { class: 'facts' },
-      el('dt', { text: 'Baterie' }), el('dd', { text: st.done ? `přijel jsi s ${fmt(st.arrive)} % → nabito na ${fmt(st.target)} %`
-        : st.kwh > 0 ? `přijedeš s ~${fmt(st.arrive)} % → nabij na ${fmt(st.target)} %` : `přijedeš s ~${fmt(st.arrive)} %, nabíjet nemusíš (jen káva)` }),
-      st.kwh > 0 ? el('dt', { text: 'Nabíjení' }) : null,
-      st.kwh > 0 ? el('dd', { text: `${st.done ? '' : '~'}${fmt(st.chargeMin)} min · ${fmt(st.kwh, 1)} kWh` }) : null,
-      el('dt', { text: 'Cena' }), el('dd', { text: priceText(st) }),
-      st.pr && st.pr.others.length ? el('dt', { text: 'Jiné karty' }) : null,
-      st.pr && st.pr.others.length ? el('dd', { class: 'small', text: st.pr.others.slice(0, 3)
-        .map((p) => `${p.card} ${p.czk != null ? fmt(p.czk, 2) + ' Kč' : '(cena v appce)'}`).join(' · ') }) : null,
-      el('dt', { text: 'Zastávka' }), el('dd', { text: `${fmt(st.stopMin)} min` }));
+    const charge = st.kwh > 0;
+    const town = townOf(s);
+    const name = `${s.fuel || 'Stanice'}${town && !(s.fuel || '').includes(town) ? ` ${town}` : ''}`;
+    const opKw = [s.op, s.kw ? `${s.kw} kW` : 'výkon ?'].filter(Boolean).join(' ');
+    const fav = favs.has(s.fuel);
+    const flags = [
+      st.note === 'mimo okno' ? 'mimo okno (v okně nic)' : null,
+      st.note === 'objížďka' ? 'jen s objížďkou' : null,
+      st.note === 'kvůli dojezdu' ? 'navíc, jinak by baterie nestačila' : null,
+      st.note === 'oblíbená mimo okno' ? 'kousek mimo okno' : null,
+      st.note === 'oblíbená objížďka' ? 'malá objížďka' : null,
+      s.fuel ? null : 'bez pumpy',
+      warn800(s)].filter(Boolean);
+    const sub = [st.c.n.dist < 300 ? 'přímo u trasy' : `${fmt(st.c.n.dist / 1000, 1)} km od trasy`, s.ccs ? `${s.ccs}× CCS` : null,
+      s.fuel && s.fd != null ? `pumpa ${s.fd} m` : null, s.cc && s.cc !== 'CZ' ? s.cc : null, `po ${hm(st.tDrive)} jízdy · ${fmt(st.km)} km`].filter(Boolean).join(' · ');
     const adv = st.done ? null : advice(st);
-    const alts = st.alts && st.alts.length ? el('details', { class: 'more-export' },
-      el('summary', { text: `Jiné možnosti v tomhle okně (${st.alts.length})` }),
-      el('div', { class: 'alts' }, st.alts.map((a) => {
+    const tiles = charge ? el('div', { class: 'tiles3' },
+      el('div', { class: 'tile' }, el('b', { text: `${st.done ? '' : '~'}${fmt(st.chargeMin)} min` }), el('span', { text: 'nabíjení' })),
+      el('div', { class: 'tile' }, el('b', { text: st.cost != null ? `${fmt(st.cost)} Kč` : '? Kč' }), el('span', { text: `${fmt(st.kwh, 1)} kWh` })),
+      el('div', { class: 'tile' }, el('b', { text: st.pr && st.pr.czk != null ? fmt(st.pr.czk, 2) : '–' }), el('span', { text: 'Kč/kWh' }))) : null;
+    const alts = st.alts && st.alts.length ? el('div', { class: 'alts' }, el('p', { class: 'lbl', text: `Jiné možnosti v tomhle okně (${st.alts.length})` }),
+      st.alts.map((a) => {
         const at = new Date((st.leg === 'A' ? o.depart : lastRun.plan.retDepart).getTime() + measureT(a, st.leg, lastRun.rt) * 60000);
         const p = price(a.s, at);
         return el('div', { class: 'alt' },
-          el('div', {}, el('b', { text: `${a.s.fuel || 'Stanice'} · ${a.s.op || '?'} ${a.s.kw ? a.s.kw + ' kW' : ''}` }),
+          el('div', {}, el('b', { text: `${a.s.fuel || 'Stanice'} ${townOf(a.s)} · ${a.s.op || '?'} ${a.s.kw ? a.s.kw + ' kW' : ''}` }),
             el('small', { class: 'muted', text: `za ${hm(measureT(a, st.leg, lastRun.rt))} · ${p && p.czk != null ? fmt(p.czk, 2) + ' Kč/kWh (' + p.card + ')' : p ? p.card : 'bez karty'}${a.n.dist >= 300 ? ` · ${fmt(a.n.dist / 1000, 1)} km od trasy` : ''}` })),
           el('button', { type: 'button', class: 'linkish', text: 'Vybrat', onclick: () => swapStop(idx, a) }));
-      }))) : null;
-    return el('article', { class: 'cand' },
-      el('div', { class: 'cand-head' },
-        el('div', {}, el('p', { class: 'eyebrow', text: `Zastávka ${k}${st.leg === 'B' ? ' · cesta zpět' : ''}` }),
-          el('h3', { text: title }), place ? el('p', { class: 'small muted', text: place }) : null),
-        el('div', { class: 'when' }, clock(st.at), el('small', { text: `po ${hm(st.tDrive)} jízdy · ${fmt(st.km)} km` }))),
-      badges, facts,
-      adv ? el('p', { class: `advice${adv.warn ? ' warn' : ''}`, text: adv.text }) : null,
-      loggedNote(st, o),
-      curTrip ? actualBox(st) : null,
-      el('div', { class: 'cand-actions' },
-        el('a', { class: 'waze', href: wazeUrl(s), target: '_blank', rel: 'noopener', text: 'Waze → sem' }),
-        el('a', { href: gPlace(s), target: '_blank', rel: 'noopener', text: 'Google Mapy → sem' })),
+      })) : null;
+    const more = el('details', { class: 'more-export stop-more' },
+      el('summary', { text: 'Víc o zastávce' }),
+      el('dl', { class: 'facts' },
+        el('dt', { text: 'Místo' }), el('dd', { text: [s.name, s.place].filter(Boolean).join(' – ') || '–' }),
+        el('dt', { text: 'Cena' }), el('dd', { text: priceText(st) }),
+        st.pr && st.pr.others.length ? el('dt', { text: 'Jiné karty' }) : null,
+        st.pr && st.pr.others.length ? el('dd', { text: st.pr.others.slice(0, 3).map((p) => `${p.card} ${p.czk != null ? fmt(p.czk, 2) + ' Kč' : '(cena v appce)'}`).join(' · ') }) : null,
+        el('dt', { text: 'Zastávka' }), el('dd', { text: `${fmt(st.stopMin)} min (přestávka ${st.breakMin} min)` })),
       alts,
       el('button', { type: 'button', class: 'link-btn hide-btn', text: 'Tuhle nechci (už nenabízet)', onclick: () => hideStation(s) }));
+    return el('article', { class: `stop-card${charge ? ' charge' : ''}${st.done ? ' done' : ''}` },
+      el('div', { class: 'stop-head' },
+        el('div', { class: 'stop-title' },
+          el('span', { class: 'eyebrow', text: `Zastávka ${k}${st.leg === 'B' ? ' · zpět' : ''} · ${st.done ? 'zapsáno' : charge ? 'nabíjení' : 'jen káva'}` }),
+          el('h3', {}, `${name} `, el('span', { class: 'op', text: `· ${opKw}` }))),
+        fav ? el('span', { class: 'fav-tag', text: '★ oblíbená' }) : null),
+      el('p', { class: 'stop-sub', text: sub }),
+      flags.length ? el('div', { class: 'badges' }, flags.map((f) => el('span', { class: 'badge warn', text: f }))) : null,
+      charge ? batteryBar(st.arrive, st.target) : el('p', { class: 'stop-line', text: `Přijedeš s ~${fmt(st.arrive)} % · jen káva a párek, nabíjet nemusíš` }),
+      tiles,
+      adv ? el('p', { class: `advice${adv.warn ? ' warn' : ''}`, text: adv.text }) : null,
+      loggedNote(st, o),
+      el('div', { class: 'cand-actions' },
+        el('a', { class: 'go', href: wazeUrl(s), target: '_blank', rel: 'noopener', text: 'Waze → sem' }),
+        el('a', { href: gPlace(s), target: '_blank', rel: 'noopener', text: 'Google Mapy' })),
+      curTrip ? actualBox(st) : null,
+      more);
   }
 
   function swapStop(idx, alt) {
@@ -1023,7 +1064,7 @@
     const { seq, there, back } = sequence();
     const waze = seq.map((st, k) => el('a', { class: 'waze', href: wazeUrl(st.p), target: '_blank', rel: 'noopener',
       text: `${k + 1}. ${st.name}` }));
-    return el('section', { class: 'card export' },
+    return el('section', { class: 'card export', id: 'export' },
       el('h2', { text: 'Do navigace' }),
       el('div', { class: 'cand-actions' },
         el('a', { class: 'nav', href: gDir(pts[0], pts[pts.length - 1], there.map((x) => x.p)), target: '_blank', rel: 'noopener', text: 'Google Mapy: tam' }),
@@ -1147,6 +1188,7 @@
     try { raw = await route(pts); } catch (err) { setStatus(`Trasu se nepodařilo spočítat (${err.message}). Zkus to za chvíli.`, true); return; }
     setStatus(fromLink ? 'Cesta z odkazu. Ulož si ji tlačítkem „Uložit cestu“, ať ji máš v telefonu i bez odkazu.' : '');
     runPlan(raw, pts, readOptions(), t.stops);
+    setFormCollapsed(true);
     $('summary').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   // rebuild a saved plan: same stations, recomputed battery/time/price; alternatives come from a fresh search

@@ -16,7 +16,7 @@
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&family=Space+Grotesk:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -24,7 +24,7 @@
 <main class="wrap" id="main">
   <header class="top">
     <div>
-      <p class="eyebrow">CLA 350 4MATIC · 85 kWh · 800 V</p>
+      <p class="eyebrow mono">CLA 350 · 85 kWh · 800 V</p>
       <h1>Kde po cestě nabít</h1>
     </div>
     <button type="button" class="icon-btn menu-btn" id="btn-menu" aria-expanded="false" aria-controls="prefs" aria-label="Moje nastavení" title="Moje nastavení">☰</button>
@@ -36,6 +36,11 @@
   </div>
 
   <div class="trips-strip" id="trips-strip" hidden></div>
+
+  <button type="button" class="trip-chip" id="trip-chip" hidden>
+    <span class="chip-text"><b id="chip-title"></b><span id="chip-sub"></span></span>
+    <span class="chip-edit">Upravit</span>
+  </button>
 
   <form id="form" class="card form" novalidate autocomplete="off">
     <div class="places" id="places">
@@ -190,6 +195,7 @@
 <div class="actionbar">
   <button type="button" class="btn ghost" id="btn-map" disabled>Mapa</button>
   <button type="submit" form="form" class="btn primary" id="btn-go">Najít zastávky</button>
+  <a class="btn primary" id="btn-nav" href="#export" hidden>Do navigace</a>
 </div>
 
 <template id="tpl-place">
