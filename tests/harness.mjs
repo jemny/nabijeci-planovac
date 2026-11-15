@@ -23,7 +23,8 @@ function response(body, ok = true) {
   return { ok, status: ok ? 200 : 404, json: async () => body, text: async () => JSON.stringify(body) };
 }
 
-export async function loadApp({ prefs = {}, url = 'https://planovac.test/', storage = null } = {}) {
+// prefs: null = a fresh install (nothing saved yet); setup(w): extra stubs a test needs (GPS, Photon, clipboard…)
+export async function loadApp({ prefs = {}, url = 'https://planovac.test/', storage = null, setup = null } = {}) {
   const html = readFileSync(path.join(APP, 'index.html'), 'utf8')
     .replace(/<script src="app\.js"[^>]*><\/script>/, '')          // we run app.js ourselves, after the stubs
     .replace(/<link[^>]+fonts\.googleapis[^>]*>/g, '');
@@ -33,6 +34,11 @@ export async function loadApp({ prefs = {}, url = 'https://planovac.test/', stor
   w.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
   w.Element.prototype.scrollIntoView = function () {};
   w.confirm = () => true;                       // "Smazat cestu?" etc.
+  if (!w.Blob.prototype.text) {                 // real browsers have Blob.text(); jsdom does not
+    w.Blob.prototype.text = function () {
+      return new Promise((resolve) => { const r = new w.FileReader(); r.onload = () => resolve(r.result); r.readAsText(this); });
+    };
+  }
   w.fetch = async (url) => {
     const u = String(url);
     if (u.startsWith('data/')) return response(JSON.parse(readFileSync(path.join(APP, u.split('?')[0]), 'utf8')));
@@ -45,14 +51,37 @@ export async function loadApp({ prefs = {}, url = 'https://planovac.test/', stor
     if (u.startsWith('version.json')) return response({ version: 'test' });
     throw new Error(`unexpected fetch in tests: ${u}`);
   };
-  w.localStorage.setItem('np.prefs.v1', JSON.stringify(prefs));
+  if (prefs !== null) w.localStorage.setItem('np.prefs.v1', JSON.stringify(prefs));
   for (const [k, v] of Object.entries(storage || {})) w.localStorage.setItem(k, v);   // e.g. saved trips
+  if (setup) setup(w);
   w.__NP_TEST__ = {};
   w.eval(readFileSync(path.join(APP, 'app.js'), 'utf8'));
   const api = w.__NP_TEST__;
   await api.ready;
   return { w, api };
 }
+
+// Fill the form from saved prefs, press "Najít zastávky", wait for the results.
+export async function search(prefs = {}, { soc0, depart = '2026-11-16T08:00', storage, setup } = {}) {
+  const praha = [{ role: 'from', ...ROUTES['ostrava-praha'].from }, { role: 'to', ...ROUTES['ostrava-praha'].to }];
+  const loaded = await loadApp({ prefs: { places: praha, favs: ['MOL', 'ORLEN'], ...prefs }, storage, setup });
+  const { w } = loaded, d = w.document;
+  d.getElementById('depart').value = depart;
+  if (soc0 != null) d.getElementById('soc0').value = String(soc0);
+  await submit(w);
+  return { ...loaded, d };
+}
+export async function submit(w) {
+  const d = w.document;
+  const before = d.querySelector('#results .timeline');
+  d.getElementById('form').dispatchEvent(new w.Event('submit', { cancelable: true }));
+  for (let i = 0; i < 100; i++) {
+    const now = d.querySelector('#results .timeline');
+    if (now && now !== before) break;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+export const wait = (ms = 50) => new Promise((r) => setTimeout(r, ms));
 
 // Same shape as readOptions() in app.js; tests override what they need.
 export function options(over = {}) {

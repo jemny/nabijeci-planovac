@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-15j';
+  const APP_VERSION = '2026-11-15k';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -202,7 +202,7 @@
       wireAutocomplete(node, input, i, picked);
       node.querySelector('.gps').addEventListener('click', () => useGps(i));
       node.querySelector('.home').addEventListener('click', () => {
-        if (!prefs.home) { setStatus('Domů zatím není uložené. Otevři ⚙︎ Nastavení.', true); return; }
+        if (!prefs.home) { setStatus('Domů zatím není uložené. Otevři ☰ Moje nastavení → Domů a ulož ho tam.', true); return; }
         places[i] = { role, ...prefs.home }; renderPlaces();
       });
       node.querySelector('.del').addEventListener('click', () => { places.splice(i, 1); renderPlaces(); });
@@ -717,7 +717,8 @@
   // Options OUTSIDE the window, for the user to pick: nearest before / after it (same detour limit) and in the
   // window but further off the route (up to WIDE_KM). onlyFav → only favourite pumps (for the hint next to a stop).
   function outsideOptions(own, leg, rt, o, lo, hi, prev, onlyFav) {
-    const tightM = o.detourKm * 1000, span = Math.max(o.tol, o.byKm ? 20 : 15);
+    // empty window: the nearest station before and after it, however far; favourite hint: only "a bit" outside
+    const tightM = o.detourKm * 1000, span = onlyFav ? Math.max(o.tol, o.byKm ? 20 : 15) : Infinity;
     const before = [], after = [], detour = [];
     for (const c of own) {
       if (onlyFav && !favs.has(c.s.fuel)) continue;
