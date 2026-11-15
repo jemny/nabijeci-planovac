@@ -173,6 +173,15 @@ def main():
         app_cal = os.path.join(APP_DATA, "calibration.json")
         if os.path.exists(app_cal):  # in CI the skill folder is absent: keep the committed copy
             cal = json.load(open(app_cal, encoding="utf-8"))
+    # keep what the nightly Home Assistant collector (ev-trip-cost/scripts/ha_collect.py) adds
+    try:
+        with open(os.path.join(APP_DATA, "calibration.json"), encoding="utf-8") as f:
+            prev_app = json.load(f)
+        for k in ("cons_recent", "car_limit"):
+            if k in prev_app and k not in cal:
+                cal[k] = prev_app[k]
+    except (OSError, ValueError):
+        pass
     cal.update({"ref_curve": REF_CURVE, "kwh_per_pct": 0.98, "battery_kwh": 85,
                 "source": "fdrive.cz test CLA 250+ 85 kWh × k z vlastních nabíjení"})
     with open(os.path.join(APP_DATA, "calibration.json"), "w", encoding="utf-8") as f:

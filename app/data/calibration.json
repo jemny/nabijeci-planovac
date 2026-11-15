@@ -114,5 +114,6 @@
  ],
  "kwh_per_pct": 0.98,
  "battery_kwh": 85,
- "source": "fdrive.cz test CLA 250+ 85 kWh × k z vlastních nabíjení"
+ "source": "fdrive.cz test CLA 250+ 85 kWh × k z vlastních nabíjení",
+ "car_limit": 80
 }

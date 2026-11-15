@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_EXTRA_MIN = 10, FAV_EXTRA_KM = 15, FAV_DETOUR_KM = 3;  // a favourite pump may be this far outside the window / off the route
-  const APP_VERSION = '2026-11-15g';
+  const APP_VERSION = '2026-11-15h';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -79,6 +79,10 @@
       const known = new Set(CARDS.cards.map((c) => c.id));
       selCards = new Set((prefs.cards || CARDS.default).filter((id) => known.has(id)));
       renderDataInfo(); renderBrands(); renderCards();
+      // measured in the car (Home Assistant → nightly collector → calibration.json): defaults unless set by hand
+      if (CAL.car_limit && !prefs.carLimit) { $('car-limit').value = String(CAL.car_limit); if (!lastRun) $('soc0').value = String(CAL.car_limit); }
+      if (CAL.cons_recent && CAL.cons_recent.kwh_100km && !prefs.consCustom) $('cons').value = String(CAL.cons_recent.kwh_100km);
+      renderConsHint(); renderPeek();
     })
     .catch(() => setStatus('Nepodařilo se načíst data nabíječek. Zkus stránku obnovit.', true));
 
@@ -295,7 +299,7 @@
   for (const id of ['at-pump', 'round-trip', 'only-fav', 'my-cards', 'unknown-kw']) if (prefs[id] != null) $(id).checked = prefs[id];
   if (prefs.detour) $('detour').value = String(prefs.detour);
   if (prefs.minKw) $('min-kw').value = String(prefs.minKw);
-  if (prefs.cons) $('cons').value = String(prefs.cons);
+  if (prefs.cons && prefs.consCustom) $('cons').value = String(prefs.cons);
   const carLimit = () => Math.max(50, Math.min(100, +$('car-limit').value || 80));
   if (prefs.carLimit) $('car-limit').value = String(prefs.carLimit);
   $('soc0').value = String(carLimit());           // at home it charges up to the car's limit
@@ -354,6 +358,14 @@
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('prefs').classList.contains('open')) setMenu(false); });
   drawerMq.addEventListener('change', () => setMenu(false));
 
+  function renderConsHint() {
+    const r = CAL && CAL.cons_recent;
+    $('cons-hint').textContent = (r && r.kwh_100km
+      ? `Naměřeno v autě za posledních ${r.days} dní na dálnici: ${fmt(r.kwh_100km, 1)} kWh/100 km (${fmt(r.km)} km). ` +
+        (prefs.consCustom ? 'Teď počítám s tvou ručně zadanou hodnotou. ' : 'Appka s ní počítá sama. ')
+      : 'Spotřeba 23,8 kWh/100 km je horší případ v zimě při 130 km/h. Reálně naměřeno v listopadu: 22,4. ') +
+      (CAL && CAL.car_limit ? `Limit nabití podle auta: ${fmt(CAL.car_limit)} %.` : '');
+  }
   function renderPeek() {
     const parts = [favs.size ? `★ ${[...favs].join(', ')}` : 'bez oblíbených pump'];
     if (CARDS) parts.push(`${selCards.size} ${selCards.size === 1 ? 'karta' : selCards.size < 5 ? 'karty' : 'karet'}`);
@@ -368,7 +380,7 @@
     const v = $(id).type === 'checkbox' ? $(id).checked : $(id).value;
     if (id === 'min-kw') prefs.minKw = +v;
     else if (id === 'car-limit') { prefs.carLimit = carLimit(); $('car-limit').value = String(prefs.carLimit); if (!lastRun) $('soc0').value = String(prefs.carLimit); }
-    else if (id === 'cons') { prefs.cons = Math.min(35, Math.max(12, parseFloat(String(v).replace(',', '.')) || 23.8)); $('cons').value = String(prefs.cons); }
+    else if (id === 'cons') { prefs.cons = Math.min(35, Math.max(12, parseFloat(String(v).replace(',', '.')) || 23.8)); prefs.consCustom = true; $('cons').value = String(prefs.cons); renderConsHint(); }
     else if (id === 'tempo') prefs.tempo = parseFloat(v) || 0.93; else prefs[id] = v;
     savePrefs(); renderPeek(); replan();
   }));
@@ -573,7 +585,7 @@
     Object.assign(prefs, { places, stopBy: o.byKm ? 'km' : 'time', intTime: +intTime.value, tolTime: +tolTime.value,
       intKm: +$('int-km').value, tolKm: +$('tol-km').value, retTime: $('ret-time').value, detour: o.detourKm,
       'at-pump': o.atPump, 'round-trip': o.roundTrip, 'only-fav': o.onlyFav, 'my-cards': o.myCards, 'unknown-kw': o.unknownKw,
-      minKw: o.minKw, cons: o.cons, tempo: o.tempo, reserve: o.reserve, favs: [...favs] });
+      minKw: o.minKw, tempo: o.tempo, reserve: o.reserve, favs: [...favs] });
     savePrefs();
 
     setStatus('Počítám trasu…'); $('btn-go').disabled = true;
