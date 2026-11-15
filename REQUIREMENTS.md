@@ -137,6 +137,13 @@ Prošel jsem wattbox.cz (plánovač, mapa, detail stanice, aplikace). Varianty j
 - **D10 Poplatky za minuty na stojanu:** A cena zastávky započítá poplatek za čas nad volné minuty (E.ON od 201 kW po 30 min 2 Kč/min) a napíše to; B jen cena energie jako dnes.
 - **Nedoporučuju:** nejlevnější a nejkratší trasa (pravidlo jen nejrychlejší), CarPlay, widgety a upozornění do telefonu (webová appka bez serveru to neumí), Apple Mapy a Mapy.com (pravidlo Google Mapy), katalog aut, STK, doklady.
 
+### Návrhy z ABRP k rozhodnutí (15. 11. 2026, čekají na uživatele)
+Prošel jsem ABRP bez přihlášení. Celé srovnání ABRP, WattBoxu a našeho plánovače je v [docs/srovnani-abrp-wattbox.md](docs/srovnani-abrp-wattbox.md). Uživatel chce grafické prvky místo textu („např. nastavení, na kolik nabíjet, je posuvník“). Varianty jsou nakreslené v rozhovoru, doporučená je u každého A.
+- **D11 Formulář s posuvníky a tlačítky:** A baterie a rezerva posuvníkem (ťuknutím na číslo jde napsat přesně), interval, tolerance a objížďka jako tlačítka; B posuvník jen u baterie a rezervy; C jako dnes. Pole si nechají stejné `id`, takže testy zůstanou.
+- **D12 Na kolik nabít u zastávky:** A posuvník „Nabít do“ v kartě zastávky, zbytek plánu se přepočítá (D5) a karta napíše „plán navrhl X %, nastavil jsi Y %“ (R24); B jako A a k tomu „Zůstanu 30 min / 45 min / 1 h“; C jako dnes (R13 určí sám).
+- **D13 Ikony místo textu:** A výkon bleskem, počet stojanů, baterie a minuty ikonou, na mapě % baterie u každého bodu; B ikony jen v kartách; C jako dnes.
+- **D14 Graf baterie po trase:** A graf v souhrnu (% podle km, okna zastávek, čára rezervy); B graf až na klepnutí; C jako dnes.
+
 ## Fronta (až bude vše hotové a popsané)
 
 - ~~**WattBox:** podívat se, co WattBox nabízí, a říct, co by se plánovači hodilo (uživatel 15. 11. 2026).~~ Hotovo, návrhy D7–D10 v „Otevřené rozpory“.
