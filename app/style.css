@@ -46,6 +46,9 @@ a{color:var(--ev)}
 input,select,button{font:inherit;color:inherit}
 input[type=text],input[type=number],input[type=datetime-local],input[type=time],select{
   width:100%;min-height:46px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+/* iPhone Safari otherwise draws its own grey date/time box (R34) */
+input[type=datetime-local],input[type=time]{-webkit-appearance:none;appearance:none;display:block}
+input::-webkit-date-and-time-value{text-align:left}
 input[type=checkbox]{width:22px;height:22px;accent-color:var(--ev);flex:none;margin:0}
 .field{display:flex;flex-direction:column;gap:5px;min-width:0;border:0;padding:0;margin:0}
 .field > span,.field legend,.lbl{font-size:.82rem;font-weight:600}
