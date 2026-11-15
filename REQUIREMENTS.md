@@ -129,6 +129,14 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 
 ## Otevřené rozpory
 
+### Návrhy z WattBoxu k rozhodnutí (15. 11. 2026, čekají na uživatele)
+Prošel jsem wattbox.cz (plánovač, mapa, detail stanice, aplikace). Varianty jsou nakreslené v rozhovoru, doporučená je u každého A.
+- **D7 Počasí a kopce v plánu:** A spotřeba po úsecích podle teploty, větru a stoupání + varování (mlha, sníh, náledí); B jen varování, spotřeba zůstane; C nic. Data: Open-Meteo (zdarma, bez klíče), bez prvních a posledních 3 km trasy.
+- **D8 Odkaz na WattBox u zastávky:** A tlačítko „Volno a fotky na WattBoxu“ v kartě zastávky (živé volno, fotky, zkušenosti, kdy bývá plno); B i u každé jiné možnosti; C nic. Živé volno sami získat nejde: veřejná mapa E.ON stav nemá, volné API není.
+- **D9 Otevřená pumpa v čase příjezdu:** A když je obchod pumpy v čase příjezdu zavřený, appka vybere jinou v okně a napíše proč; B jen varuje a nabídne otevřenou; C nic. OSM má otevírací dobu u 84 % pump MOL, OMV, Shell, Benzina a EuroOil. Potřebuje export v datovém vlákně.
+- **D10 Poplatky za minuty na stojanu:** A cena zastávky započítá poplatek za čas nad volné minuty (E.ON od 201 kW po 30 min 2 Kč/min) a napíše to; B jen cena energie jako dnes.
+- **Nedoporučuju:** nejlevnější a nejkratší trasa (pravidlo jen nejrychlejší), CarPlay, widgety a upozornění do telefonu (webová appka bez serveru to neumí), Apple Mapy a Mapy.com (pravidlo Google Mapy), katalog aut, STK, doklady.
+
 ## Fronta (až bude vše hotové a popsané)
 
-- **WattBox:** podívat se, co WattBox nabízí, a říct, co by se plánovači hodilo (uživatel 15. 11. 2026).
+- ~~**WattBox:** podívat se, co WattBox nabízí, a říct, co by se plánovači hodilo (uživatel 15. 11. 2026).~~ Hotovo, návrhy D7–D10 v „Otevřené rozpory“.
