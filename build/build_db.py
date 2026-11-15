@@ -419,6 +419,9 @@ def apply_overrides(stations, path):
     return fixed, added
 
 
+GENERIC_FUEL = re.compile(r"^(pumpa|čerpací stanice|cerpaci stanice|fuel)$|innogy|\bcng\b|\blpg\b|zemní plyn|adblue", re.I)
+
+
 def parse_fuel(elements):
     out = []
     for e in elements:
@@ -488,7 +491,12 @@ def main():
     pgrid = Grid(pumps)
     for s in stations:
         near = pgrid.near(s["lat"], s["lon"], 200)
-        s["fuel_brand"], s["fuel_dist_m"] = (near[0][1]["brand"], round(near[0][0])) if near else (None, None)
+        if near:  # prefer a real brand over a generic node (CNG/LPG stand, "pumpa") up to 60 m further away
+            branded = [(d, p) for d, p in near if not GENERIC_FUEL.search(p["brand"]) and d <= near[0][0] + 60]
+            d, p = branded[0] if branded else near[0]
+            s["fuel_brand"], s["fuel_dist_m"] = p["brand"], round(d)
+        else:
+            s["fuel_brand"], s["fuel_dist_m"] = None, None
         s["usable_cla"] = usable_for_cla(s["operator"], s["has_dc"], s["dc_kw"])
         s["price_day"], s["price_night"], s["price_card"], s["price_note"] = card_price(
             s["operator"], s["dc_kw"], bool(s["has_dc"]))
