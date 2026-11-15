@@ -84,6 +84,14 @@ Co appka rozhodne sama, to řekne: proč vybrala tuhle stanici, proč nabíjí p
 ### R25 — Souhrn
 Km, minuty nabíjení, Kč za proud, baterie podle plánu v cíli → doma, rezerva.
 
+### R36 — Formulář ve třech krocích
+Zadání je ve třech očíslovaných, podbarvených blocích pod sebou:
+- **1 Trasa:** odkud, přes, kam, + přidat místo.
+- **2 Kdy a baterie:** odjezd, baterie na startu, přijet s alespoň, počítat i cestu zpět, zpátky vyrážím v.
+- **3 Zastávky:** po čase nebo po km, interval ± tolerance, objížďka, jen na pumpách.
+
+Otevřený je vždy jen jeden krok, ten, na který klepneš. Zavřené ukazují shrnutí toho, co je v nich nastavené. Když chybí odkud nebo kam, otevře se krok 1. (Uživatel 15. 11. 2026, D6 = B: „když dáš těm blokům nějaké podbarvení, takže bude lépe vidět, že tam jsou“.)
+
 ### R29 — Nabíjecí model
 Doba nabíjení podle křivky (fdrive.cz) × k z vlastních měření. Čím plnější baterie, tím pomaleji. Data z auta (Home Assistant) model zpřesňují.
 
@@ -116,6 +124,10 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 
 - **D5 (15. 11. 2026, uživatel vybral A):** rozšíří se jen to jedno prázdné okno, tvoje nastavení (např. 100 ± 20 km) zůstane. „Musí se tím pádem přepočítat i vše potom.“ Další okna navazují na novou zastávku. Platí pro každou změnu zastávky (R2). Starší test `[R3] … po Vybrat … „mimo okno, vybral jsi“` čekal, že ubude právě jedno prázdné okno. Podle D5 je upravený: kontroluje, že vybrané okno má tvou stanici (uživatel: „to rozhodnutí už bylo udělané dřív“).
 
+- **D6 (15. 11. 2026, uživatel vybral B):** formulář ve třech krocích (R36) s podbarvenými bloky. Rozdělení polí do kroků je odvozené z nakreslené varianty (krok 2 i cesta zpět, krok 3 i objížďka a pumpy). Další krok se sám neotevírá.
+
 ## Otevřené rozpory
 
-Zatím žádné.
+## Fronta (až bude vše hotové a popsané)
+
+- **WattBox:** podívat se, co WattBox nabízí, a říct, co by se plánovači hodilo (uživatel 15. 11. 2026).

@@ -4,7 +4,7 @@
   --ev:#005EA8; --ev-ink:#FFFFFF; --ev-soft:#DCE8F4; --warn:#A9680B; --warn-soft:#F5E8D2; --bad:#B3261E;
   --font-display:'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   --font-body:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --surface-2:#E9EDF1; --base:#C5DDF2; --dim:#9AA4AE;
+  --surface-2:#E9EDF1; --base:#C5DDF2; --dim:#9AA4AE; --step-bg:#E6ECF3;
   --font-mono:'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --radius:14px;
   color-scheme:light;
@@ -13,7 +13,7 @@
   :root{
     --bg:#14171B; --surface:#1C2026; --ink:#E8EBEF; --muted:#A1A9B3; --line:#2F3640;
     --ev:#6AA9E0; --ev-ink:#0B1622; --ev-soft:#1A2A3A; --warn:#E3A646; --warn-soft:#372A13; --bad:#F2867E;
-    --surface-2:#232830; --base:#2A4A6A; --dim:#5A636E;
+    --surface-2:#232830; --base:#2A4A6A; --dim:#5A636E; --step-bg:#222831;
     color-scheme:dark;
   }
 }
@@ -44,7 +44,7 @@ a{color:var(--ev)}
 
 /* inputs */
 input,select,button{font:inherit;color:inherit}
-input[type=text],input[type=number],input[type=datetime-local],select{
+input[type=text],input[type=number],input[type=datetime-local],input[type=time],select{
   width:100%;min-height:46px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
 input[type=checkbox]{width:22px;height:22px;accent-color:var(--ev);flex:none;margin:0}
 .field{display:flex;flex-direction:column;gap:5px;min-width:0;border:0;padding:0;margin:0}
@@ -309,3 +309,13 @@ a.btn.primary{color:var(--ev-ink)}
 .fav-near .linkish{min-height:38px;flex:none}
 .stop-card .why{margin:0;padding:0 0 0 18px;font-size:.84rem;color:var(--ink);display:flex;flex-direction:column;gap:2px}
 .empty-window .widen-btn{align-self:flex-start;min-height:42px}
+
+/* R36: form in three tinted steps */
+.form-step{background:var(--step-bg);border-radius:12px;padding:2px 12px 12px;display:flex;flex-direction:column;gap:12px}
+.form-step:not(.open){padding-bottom:2px}
+.step-head{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:2px 10px;width:100%;min-height:50px;background:none;border:0;padding:8px 0 6px;cursor:pointer;font:inherit;color:var(--ink);text-align:left}
+.step-num{width:26px;height:26px;border-radius:50%;background:var(--ev);color:var(--ev-ink);display:grid;place-items:center;font-weight:700;font-size:.85rem}
+.step-title{font-family:var(--font-display);font-weight:600;font-size:1rem;white-space:nowrap}
+.step-sum{grid-column:2;font-size:.8rem;color:var(--muted);line-height:1.35}
+.form-step.open .step-sum{display:none}
+.step-body{display:flex;flex-direction:column;gap:12px}
