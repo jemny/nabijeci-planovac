@@ -30,3 +30,14 @@ python3 build/export_app.py          # app/data/*.json
 python3 build/query.py --near 49.28,17.02 --radius 15 --min-kw 100 --pumpa
 python3 -m http.server 8765 --directory app
 ```
+
+## Testy
+
+`tests/` spouští celou appku v jsdom s uloženými trasami (`tests/fixtures`, OSRM) a skutečnými daty z `app/data`.
+Testy popisují, jak se appka má chovat (okno zastávek, objížďka, pumpy, strana dálnice, kolik nabíjet, limit v autě,
+Moje cesty, odkaz do mobilu, zápis nabíjení, srovnání, „Jedu jinudy“…). Jsou závazné: nemění se, aby kód prošel,
+mění se jen se zadáním nové funkce. GitHub Actions je pouští před každým nasazením; když neprojdou, appka se nenasadí.
+
+```bash
+cd tests && npm ci && npm test
+```

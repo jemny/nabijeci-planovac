@@ -10,8 +10,8 @@
   const RESERVE_DEFAULT = 10;    // arrive home / at destination with at least this (user can change)
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
-  const FAV_EXTRA_MIN = 10, FAV_EXTRA_KM = 15, FAV_DETOUR_KM = 3;  // a favourite pump may be this far outside the window / off the route
-  const APP_VERSION = '2026-11-15i';
+  const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
+  const APP_VERSION = '2026-11-15j';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -686,11 +686,13 @@
     return pool.sort(cmp);
   }
 
+  /* Stops are picked ONLY inside the window the user set (interval ± tolerance) and within the detour setting.
+     Nothing there → the window stays empty and the nearest options before/after it (or a bit further off the
+     route) are only offered for the user to pick. A favourite pump just outside the window is offered the same
+     way next to the chosen stop. (User, 2026-11-15: "zadal jsem 100 ± 20 km a nabídneš 136 km – přímý rozpor".) */
   function pickStops(leg, rt, cands, o, soc) {
     const legEnd = o.byKm ? rt.distance / 1000 : rt.duration / 60;
-    const tightM = o.detourKm * 1000, favM = Math.max(o.detourKm, FAV_DETOUR_KM) * 1000;
-    const favExtra = o.byKm ? FAV_EXTRA_KM : FAV_EXTRA_MIN;
-    const gap = Math.max(o.interval - o.tol - favExtra, o.interval / 2);   // never two stops closer than this (a favourite may come a bit early)
+    const tightM = o.detourKm * 1000;
     const own = cands.filter((c) => sideOk(c, leg));
     const stops = [];
     let prev = 0;
@@ -698,31 +700,36 @@
       if (legEnd - prev <= o.interval + o.tol) break;            // destination is within reach of this interval
       const center = prev + o.interval;
       const lo = center - o.tol, hi = center + o.tol;
-      const within = (c, a, b) => { const m = measure(c, leg, rt, o); return m >= a && m <= b && (prev === 0 || m >= prev + gap) && m > prev + 1; };
-      let pool = [], note = null;
-      for (const c of own) {
-        const fav = favs.has(c.s.fuel);
-        if (c.n.dist <= tightM && within(c, lo, hi)) pool.push({ c, tier: fav ? 0 : 2 });
-        else if (fav && c.n.dist <= favM && within(c, lo - favExtra, hi + favExtra)) pool.push({ c, tier: 1 });
-      }
-      const tierOf = (c) => ({ c, tier: favs.has(c.s.fuel) ? 0 : 2 });
+      const pool = own.filter((c) => { const m = measure(c, leg, rt, o); return c.n.dist <= tightM && m >= lo && m <= hi && m > prev + 1; })
+        .map((c) => ({ c, tier: favs.has(c.s.fuel) ? 0 : 2 }));
       if (!pool.length) {
-        pool = own.filter((c) => within(c, lo, hi)).map(tierOf);
-        if (pool.length) note = 'objížďka';
+        stops.push({ leg, empty: true, lo, hi, suggest: outsideOptions(own, leg, rt, o, lo, hi, prev, false) });
+        prev = center; continue;
       }
-      if (!pool.length) {
-        const extra = Math.max(o.tol, o.byKm ? 20 : 15);
-        pool = own.filter((c) => c.n.dist <= tightM && within(c, lo - extra, hi + extra)).map(tierOf);
-        if (pool.length) note = 'mimo okno';
-      }
-      if (!pool.length) { stops.push({ leg, empty: true, lo, hi }); prev = center; continue; }
       rankWindow(pool, leg, rt, o, center, soc);
       const best = pool[0];
-      if (!note && best.tier === 1) note = within(best.c, lo, hi) ? 'oblíbená objížďka' : 'oblíbená mimo okno';
-      stops.push({ leg, c: best.c, alts: pool.slice(1, 6).map((p) => p.c), note, lo, hi });
+      const favNear = best.tier === 0 ? null : (outsideOptions(own, leg, rt, o, lo, hi, prev, true)[0] || null);
+      stops.push({ leg, c: best.c, alts: pool.slice(1, 6).map((p) => p.c), note: null, lo, hi, favNear });
       prev = measure(best.c, leg, rt, o);
     }
     return stops;
+  }
+  // Options OUTSIDE the window, for the user to pick: nearest before / after it (same detour limit) and in the
+  // window but further off the route (up to WIDE_KM). onlyFav → only favourite pumps (for the hint next to a stop).
+  function outsideOptions(own, leg, rt, o, lo, hi, prev, onlyFav) {
+    const tightM = o.detourKm * 1000, span = Math.max(o.tol, o.byKm ? 20 : 15);
+    const before = [], after = [], detour = [];
+    for (const c of own) {
+      if (onlyFav && !favs.has(c.s.fuel)) continue;
+      const m = measure(c, leg, rt, o);
+      if (m <= prev + 1) continue;
+      const inWin = m >= lo && m <= hi;
+      if (inWin && c.n.dist > tightM && c.n.dist <= (onlyFav ? Math.max(o.detourKm, FAV_DETOUR_KM) : WIDE_KM) * 1000) detour.push({ c, why: 'detour', off: c.n.dist / 1000 });
+      else if (!inWin && c.n.dist <= tightM && m >= lo - span && m < lo) before.push({ c, why: 'before', off: lo - m });
+      else if (!inWin && c.n.dist <= tightM && m > hi && m <= hi + span) after.push({ c, why: 'after', off: m - hi });
+    }
+    const pick = (list) => list.sort((x, y) => (favs.has(y.c.s.fuel) - favs.has(x.c.s.fuel)) || (x.off - y.off) || ((y.c.s.kw || 0) - (x.c.s.kw || 0)))[0];
+    return [pick(before), pick(after), pick(detour)].filter(Boolean).sort((x, y) => x.off - y.off);
   }
   const measureT = (c, leg, rt) => (leg === 'A' ? c.n.t : rt.duration - c.n.t) / 60 + c.detourMin / 2;
 
@@ -934,7 +941,7 @@
     let k = 0, destDone = false;
     plan.stops.forEach((st, i) => {
       if (st.leg === 'B' && !destDone) { ol.append(destRow(o, plan)); destDone = true; }
-      if (st.empty) { ol.append(tlRow('', 'empty', emptyStop(st, o))); return; }
+      if (st.empty) { ol.append(tlRow('', 'empty', emptyStop(st, o, i))); return; }
       k += 1;
       ol.append(tlRow(clock(st.at), `stop${st.kwh > 0 ? ' charge' : ''}`, stopCard(st, k, i, o)));
     });
@@ -948,9 +955,32 @@
     return tlRow(clock(plan.arriveDest), 'dest', tlText(`Cíl · ${shortName(lastRun.pts[lastRun.pts.length - 1].label, 'Cíl')}`,
       `${fmt(plan.socDest)} %${o.roundTrip ? ` · zpět v ${clock(plan.retDepart)}${plan.retLate ? ' (dřív to nestihneš)' : ''}` : ''}`));
   }
-  function emptyStop(st, o) {
+  // where an offered station lies relative to the window: "8 km za oknem", "3 min před oknem", "2,4 km od trasy"
+  function offText(opt, o) {
+    if (opt.why === 'detour') return `${fmt(opt.off, 1)} km od trasy`;
+    return `${o.byKm ? `${fmt(opt.off)} km` : `${fmt(Math.max(1, opt.off))} min`} ${opt.why === 'before' ? 'před oknem' : 'za oknem'}`;
+  }
+  const optName = (c) => `${c.s.fuel || 'Stanice'} ${townOf(c.s)} · ${[c.s.op, c.s.kw ? `${c.s.kw} kW` : null].filter(Boolean).join(' ')}`.replace(/\s+·/, ' ·');
+  function emptyStop(st, o, idx) {
     const f = (v) => (o.byKm ? `${fmt(v)} km` : hm(v));
-    return el('div', { class: 'status err', text: `${st.leg === 'B' ? 'Zpět: ' : ''}v okně ${f(st.lo)}–${f(st.hi)} není nabíječka podle tvých filtrů. Zkus větší objížďku, vypnout „Jen na pumpách“ nebo „jen oblíbené“, nebo jiný interval.` });
+    const sug = st.suggest || [];
+    return el('div', { class: 'status err empty-window' },
+      el('p', { text: `${st.leg === 'B' ? 'Zpět: ' : ''}v okně ${f(st.lo)}–${f(st.hi)} není nabíječka podle tvých filtrů, takže tu appka zastávku nevybrala.` +
+        (sug.length ? ' Nejbližší možnosti mimo okno, vyber si:' : ' Zkus delší toleranci, větší objížďku, nebo vypnout „Jen na pumpách“.') }),
+      sug.length ? el('div', { class: 'alts' }, sug.map((opt) => el('div', { class: 'alt' },
+        el('div', {}, el('b', { text: `${favs.has(opt.c.s.fuel) ? '★ ' : ''}${optName(opt.c)}` }), el('small', { class: 'muted', text: offText(opt, o) })),
+        el('button', { type: 'button', class: 'linkish', text: 'Vybrat', onclick: () => pickOutside(idx, opt.c) })))) : null);
+  }
+  // the user picked a station outside the window (or further off the route): use it, marked as their choice
+  function pickOutside(idx, c) {
+    const { rt, o, plan } = lastRun;
+    const st = plan.stops[idx];
+    plan.stops[idx] = { leg: st.leg, c, alts: st.empty ? [] : [st.c, ...(st.alts || [])].slice(0, 5), note: 'vybráno mimo okno', lo: st.lo, hi: st.hi };
+    plan.stops.sort((a, b) => tripX(a, rt) - tripX(b, rt));
+    lastRun.plan = energize(rt, plan.stops, o);
+    if (curTrip) { curTrip.stops = tripStops(lastRun.plan); if (curTrip.saved) persistTrip(true); }
+    render();
+    if (!$('map-wrap').hidden) drawMap();
   }
   function batteryBar(from, to) {
     const a = Math.max(0, Math.min(100, from)), b = Math.max(a, Math.min(100, to));
@@ -969,7 +999,8 @@
     const flags = [
       st.note === 'mimo okno' ? 'mimo okno (v okně nic)' : null,
       st.note === 'objížďka' ? 'jen s objížďkou' : null,
-      st.note === 'kvůli dojezdu' ? 'navíc, jinak by baterie nestačila' : null,
+      st.note === 'kvůli dojezdu' ? 'mimo okno: jinak by baterie nestačila' : null,
+      st.note === 'vybráno mimo okno' ? 'mimo okno, vybral jsi' : null,
       st.note === 'oblíbená mimo okno' ? 'kousek mimo okno' : null,
       st.note === 'oblíbená objížďka' ? 'malá objížďka' : null,
       s.fuel ? null : 'bez pumpy',
@@ -1012,6 +1043,9 @@
       tiles,
       adv ? el('p', { class: `advice${adv.warn ? ' warn' : ''}`, text: adv.text }) : null,
       loggedNote(st, o),
+      st.favNear && !st.done ? el('div', { class: 'fav-near' },
+        el('span', { text: `★ Oblíbená ${optName(st.favNear.c)} je ${offText(st.favNear, o)}.` }),
+        el('button', { type: 'button', class: 'linkish', text: 'Vybrat', onclick: () => pickOutside(idx, st.favNear.c) })) : null,
       el('div', { class: 'cand-actions' },
         el('a', { class: 'go', href: wazeUrl(s), target: '_blank', rel: 'noopener', text: 'Waze → sem' }),
         el('a', { href: gPlace(s), target: '_blank', rel: 'noopener', text: 'Google Mapy' })),
@@ -1654,4 +1688,10 @@
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkVersion(); });
   $('btn-reload').addEventListener('click', () => location.reload());
+
+  // Test hook: tests/harness.mjs sets window.__NP_TEST__ before loading this script. Nothing happens in the real app.
+  if (window.__NP_TEST__) Object.assign(window.__NP_TEST__, { ready: dataReady, route, withTempo, candidates, makePlan,
+    energize, measure, sideOk, tripX, chargeMinutes, parseChargeText, price, MAX_TARGET, WIDE_KM, rankWindow, advice,
+    comparison, tripLink, tripFromHash, sanitizePrefs, BREAK_FIRST, BREAK_NEXT, lastRun: () => lastRun, curTrip: () => curTrip,
+    setFavs: (list) => { favs = new Set(list); }, data: () => ({ STATIONS, CARDS, CAL }) });
 })();

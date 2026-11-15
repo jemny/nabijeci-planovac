@@ -303,3 +303,7 @@ a.btn.primary{color:var(--ev-ink)}
 .stop-card h3 .op{white-space:nowrap;font-weight:500;color:var(--muted)}
 .trip-hist{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:10px;background:var(--surface-2)}
 .trip-hist .lbl{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0}
+.empty-window{display:flex;flex-direction:column;gap:6px}
+.empty-window .alts{margin-top:2px}
+.fav-near{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;border:1px dashed var(--ev);font-size:.84rem}
+.fav-near .linkish{min-height:38px;flex:none}

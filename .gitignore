@@ -4,3 +4,4 @@ build/nabijecky.csv
 build/*.geojson
 __pycache__/
 .DS_Store
+tests/node_modules/

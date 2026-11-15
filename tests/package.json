@@ -1,0 +1,12 @@
+{
+  "name": "nabijeci-planovac-tests",
+  "private": true,
+  "type": "module",
+  "description": "Automatické testy plánovače: appka běží v jsdom s uloženými trasami (fixtures) a skutečnými daty nabíječek.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "jsdom": "25.0.1"
+  }
+}

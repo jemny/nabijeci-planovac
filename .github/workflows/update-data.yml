@@ -6,7 +6,7 @@ on:
   workflow_dispatch: {}    # tlačítko „Run workflow“ (i z mobilní appky GitHub)
   push:
     branches: [main]
-    paths: ["app/**", ".github/workflows/update-data.yml"]
+    paths: ["app/**", "tests/**", ".github/workflows/update-data.yml"]
 
 permissions:
   contents: write
@@ -38,9 +38,26 @@ jobs:
           git add app/data build/cache
           if git diff --cached --quiet; then echo "Beze změn"; else git commit -m "Data nabíječek $(date -u +%Y-%m-%d)" && git push; fi
 
-  deploy:
+  test:
+    # the planner's rules (tests/): nothing is deployed unless they pass
     needs: [build-data]
     if: always() && (needs.build-data.result == 'success' || needs.build-data.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Testy plánovače
+        working-directory: tests
+        run: npm ci --no-audit --no-fund && npm test
+
+  deploy:
+    needs: [test]
+    if: always() && needs.test.result == 'success'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
