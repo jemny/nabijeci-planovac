@@ -49,6 +49,10 @@ export async function loadApp({ prefs = {}, url = 'https://planovac.test/', stor
       return response(JSON.parse(readFileSync(path.join(FIX, `route-${name}.json`), 'utf8')));
     }
     if (u.startsWith('version.json')) return response({ version: 'test' });
+    if (u.includes('api.open-meteo.com')) {                    // R45: fair weather unless a test sets w.__weather
+      (w.__wxUrls = w.__wxUrls || []).push(u);
+      return response((w.__weather || ((x) => weatherBody(x, () => ({}))))(u));
+    }
     throw new Error(`unexpected fetch in tests: ${u}`);
   };
   if (prefs !== null) w.localStorage.setItem('np.prefs.v1', JSON.stringify(prefs));
@@ -59,6 +63,22 @@ export async function loadApp({ prefs = {}, url = 'https://planovac.test/', stor
   const api = w.__NP_TEST__;
   await api.ready;
   return { w, api };
+}
+
+// Open-Meteo answer for the requested places and days; at(i, unixSeconds) → { code, temp, prec } overrides fair weather.
+export function weatherBody(url, at) {
+  const q = new URL(url).searchParams;
+  const lats = q.get('latitude').split(','), lons = q.get('longitude').split(',');
+  const from = Date.parse(`${q.get('start_date')}T00:00:00Z`) / 1000, to = Date.parse(`${q.get('end_date')}T23:00:00Z`) / 1000;
+  const one = (i) => {
+    const time = [], temperature_2m = [], precipitation = [], weather_code = [];
+    for (let t = from; t <= to; t += 3600) {
+      const x = { code: 1, temp: 8, prec: 0, ...at(i, t) };
+      time.push(t); weather_code.push(x.code); temperature_2m.push(x.temp); precipitation.push(x.prec);
+    }
+    return { latitude: +lats[i], longitude: +lons[i], hourly: { time, temperature_2m, precipitation, weather_code } };
+  };
+  return lats.length === 1 ? one(0) : lats.map((_, i) => one(i));
 }
 
 // Fill the form from saved prefs, press "Najít zastávky", wait for the results.

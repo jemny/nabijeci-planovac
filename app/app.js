@@ -5,13 +5,15 @@
 
   // ------------------------------------------------------------------ constants & prefs
   const OSRM = 'https://router.project-osrm.org/route/v1/driving/';
+  const METEO = 'https://api.open-meteo.com/v1/forecast';   // R45: free, no key
+  const WX_STEP_KM = 25, WX_EDGE_KM = 3, WX_DAYS = 16;
   const PHOTON = 'https://photon.komoot.io/api/';
   const BREAK_FIRST = 10, BREAK_NEXT = 5;   // R17: first stop of the day 10 min, every further stop 5 min
   const RESERVE_DEFAULT = 10;    // arrive home / at destination with at least this (user can change)
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16k';
+  const APP_VERSION = '2026-11-16l';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -609,9 +611,11 @@
     lastRun = { raw, rt, pts, o, cands, plan, fixed: isFixed, overrides: isFixed ? [] : overrides,
       excluded: { hidden: cands.hiddenNear || 0, wrongSide: cands.filter((c) => !sideOk(c, 'A')).length } };
     if (curTrip && !(fixed && fixed.length)) { curTrip.stops = tripStops(plan); if (curTrip.saved) persistTrip(true); }
+    lastRun.wx = { state: 'loading' };
     render();
     $('btn-map').disabled = false;
     if (!$('map-wrap').hidden) drawMap();
+    loadWeather(lastRun);
   }
   // settings changed in the panel → recompute the plan for the same route (no new routing request)
   function replan() {
@@ -1062,7 +1066,87 @@
         (() => { const n = (lastRun.excluded || {}).wrongSide || 0;
           return n ? `${n} ${n === 1 ? 'odpočívadlo' : n < 5 ? 'odpočívadla' : 'odpočívadel'} přímo u dálnice je pro cestu tam v protisměru, appka ${n === 1 ? 'ho' : 'je'} tam nenabízí${o.roundTrip ? ' (na cestě zpět ano)' : ''}. ` : ''; })() +
         (plan.retLate ? `Zpátky v ${clock(o.retDepart)} nestihneš, do cíle dojedeš až v ${clock(plan.arriveDest)}. Počítám s odjezdem ${clock(plan.retDepart)}.` : '') }),
+      wxNote(lastRun.wx),
     );
+  }
+
+  // ---- R45 (D7 = B): weather warnings on the route. Only warnings: the plan's consumption stays as it is.
+  // Points every 25 km, none closer than 3 km (straight line) to the start, the destination or a "přes" place, rounded to
+  // 0.01° (≈ 1 km), so no home address leaves the phone.
+  const r2 = (v) => Math.round(v * 100) / 100;
+  const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  function wxSamples(rt, o, plan) {
+    const D = rt.distance / 1000, out = [];
+    const idxAt = (m) => { let lo = 0, hi = rt.cumD.length - 1; while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (rt.cumD[mid] < m) lo = mid; else hi = mid; } return hi; };
+    const stopsBefore = (leg, k) => plan.stops.filter((s) => !s.empty && s.leg === leg && s.km < k).reduce((a, s) => a + (s.stopMin || 0) + (s.c.detourMin || 0), 0);
+    const places = ((lastRun && lastRun.pts) || []).filter((x) => x && Number.isFinite(x.lat));
+    for (let k = WX_EDGE_KM; k <= D - WX_EDGE_KM; k += WX_STEP_KM) {
+      const i = idxAt(k * 1000), p = rt.line[i], lat = r2(p.lat), lon = r2(p.lon);
+      if (places.some((x) => hav(x, p) < WX_EDGE_KM * 1000)) continue;
+      out.push({ lat, lon, km: k, at: new Date(o.depart.getTime() + (rt.cumT[i] / 60 + stopsBefore('A', k)) * 60000) });
+      if (o.roundTrip && plan.retDepart) {
+        const kb = D - k;                                   // km from the destination on the way back
+        out.push({ lat, lon, km: D + kb, back: true, at: new Date(plan.retDepart.getTime() + ((rt.duration - rt.cumT[i]) / 60 + stopsBefore('B', kb)) * 60000) });
+      }
+    }
+    return out.sort((a, b) => a.km - b.km);
+  }
+  function wxHazard(code, temp, prec) {
+    if ([56, 57, 66, 67].includes(code)) return 'mrznoucí déšť';
+    if ([71, 73, 75, 77, 85, 86].includes(code)) return 'sníh';
+    if (temp <= 1 && prec > 0) return 'náledí';
+    if (code === 45 || code === 48) return 'mlha';
+    return null;
+  }
+  async function loadWeather(run) {
+    const { rt, o, plan } = run;
+    const done = (wx) => { if (lastRun !== run) return; run.wx = wx; const n = $('wx-note'); if (n) n.replaceWith(wxNote(wx)); };
+    try {
+      const samples = wxSamples(rt, o, plan);
+      if (!samples.length) return done({ state: 'none' });
+      const last = Math.max(...samples.map((x) => x.at.getTime()));
+      if (last > Date.now() + (WX_DAYS - 1) * 864e5) return done({ state: 'far' });
+      const uniq = [...new Map(samples.map((x) => [`${x.lat},${x.lon}`, x])).values()];
+      const first = Math.min(...samples.map((x) => x.at.getTime()));
+      const url = `${METEO}?latitude=${uniq.map((x) => x.lat).join(',')}&longitude=${uniq.map((x) => x.lon).join(',')}` +
+        `&hourly=temperature_2m,precipitation,weather_code&timeformat=unixtime&timezone=GMT` +
+        `&start_date=${ymd(new Date(first - 864e5))}&end_date=${ymd(new Date(last + 864e5))}`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`Open-Meteo ${r.status}`);
+      const j = await r.json(), list = Array.isArray(j) ? j : [j];
+      const byKey = new Map(uniq.map((x, i) => [`${x.lat},${x.lon}`, list[i]]));
+      const hits = [];
+      for (const x of samples) {
+        const h = (byKey.get(`${x.lat},${x.lon}`) || {}).hourly;
+        if (!h || !h.time) continue;
+        const t = x.at.getTime() / 1000;
+        let best = -1;
+        h.time.forEach((v, i) => { if (Math.abs(v - t) <= 5400 && (best < 0 || Math.abs(v - t) < Math.abs(h.time[best] - t))) best = i; });
+        if (best < 0) continue;
+        const hz = wxHazard(h.weather_code[best], h.temperature_2m[best], h.precipitation[best]);
+        if (!hz) continue;
+        const prev = hits[hits.length - 1];
+        if (prev && prev.hz === hz && prev.back === !!x.back && x.km - prev.to <= WX_STEP_KM + 1) { prev.to = x.km; prev.temp = Math.min(prev.temp, h.temperature_2m[best]); }
+        else hits.push({ hz, from: x.km, to: x.km, at: x.at, back: !!x.back, temp: h.temperature_2m[best] });
+      }
+      done({ state: 'ok', hits });
+    } catch (e) { done({ state: 'error' }); }
+  }
+  function wxNote(wx) {
+    const w = wx || { state: 'loading' };
+    let t = '', warn = false;
+    if (w.state === 'loading') t = 'Načítám předpověď počasí na trase…';
+    else if (w.state === 'far') t = `Předpověď počasí na trase bude až ${WX_DAYS} dní před cestou.`;
+    else if (w.state === 'error') t = 'Předpověď počasí na trase se nepodařilo načíst.';
+    else if (w.state === 'none') t = '';
+    else if (!w.hits.length) t = 'Počasí na trase: podle předpovědi Open-Meteo bez mlhy, sněhu a náledí.';
+    else {
+      warn = true;
+      const part = (h) => `${h.hz}${h.hz === 'náledí' ? ` (${fmt(h.temp)} °C a srážky)` : ''} ` +
+        `${Math.round(h.from) === Math.round(h.to) ? `u ${fmt(h.from)}. km` : `mezi ${fmt(h.from)}. a ${fmt(h.to)}. km`}${h.back ? ' na cestě zpět' : ''} kolem ${clock(h.at)}`;
+      t = `Počasí na trase (předpověď Open-Meteo): ${w.hits.map(part).join('; ')}. Spotřebu to nemění, jen upozorňuje.`;
+    }
+    return el('p', { class: `summary-note wx-note${warn ? ' warn' : ''}`, id: 'wx-note', text: t, hidden: !t });
   }
 
   // R40 (D14 = A): battery % along the trip – a jump at every charging stop, the stop windows as bands, the reserve dashed

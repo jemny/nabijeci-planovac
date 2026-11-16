@@ -365,3 +365,5 @@ a.btn.primary{color:var(--ev-ink)}
 /* R43 icons in stop cards */
 .ic{width:1em;height:1em;vertical-align:-.14em;margin-right:.18em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .op .ic-bolt{color:var(--ev)}
+/* R45 weather warning in the summary */
+.wx-note.warn{color:var(--ink);background:var(--warn-soft);border-left:3px solid var(--warn);padding:8px 10px;border-radius:0 8px 8px 0}
