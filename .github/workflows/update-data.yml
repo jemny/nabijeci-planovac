@@ -19,7 +19,7 @@ jobs:
   build-data:
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 300   # downloads may take hours (D26: OVERPASS_BUDGET_S is 4 h)
+    timeout-minutes: 360   # GitHub's maximum: downloads may take 5.5 h (D26: OVERPASS_BUDGET_S), 30 min to save
     outputs:
       run: ${{ steps.need.outputs.run }}   # "no" = nightly run with nothing to repeat: no test, no deploy
     concurrency:   # one data download at a time; deploys of the app are not blocked by it (only deploy holds "pages")

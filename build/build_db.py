@@ -47,8 +47,8 @@ OVERPASS_SERVERS = [
 ]
 OVERPASS_ROUNDS = 2        # rounds over all servers per file and pass; download_all() repeats passes (D26)
 OVERPASS_TIMEOUT = 300     # s per request; queries ask the server for at most 240 s
-OVERPASS_BUDGET_S = 4 * 3600  # all downloads together (D26: hours, not 30 min); then a file with data from the
-                              # last run uses it (D24); the job limit in update-data.yml is 300 min
+OVERPASS_BUDGET_S = 330 * 60  # all downloads together (D26: as long as GitHub allows); then a file with data from
+                              # the last run uses it (D24); job limit 360 min (GitHub's maximum) leaves 30 min to save
 SLOW_FAIL_S = 60           # a request that failed only after this long ...
 COOLDOWN_S = 15 * 60       # ... skips its server for this long, so it does not hold up the other files (D26)
 _COOLDOWN = {}             # server -> time.monotonic() until which it is skipped
