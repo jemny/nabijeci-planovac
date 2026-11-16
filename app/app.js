@@ -13,7 +13,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16l';
+  const APP_VERSION = '2026-11-16m';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -132,6 +132,53 @@
     }
     return t;
   }
+  // R46 (D9 = B): is the pump open at `date` by its OSM opening_hours? true / false / null = unknown format.
+  // Covers the usual "24/7", "Mo-Fr 06:00-22:00; Sa,Su 07:00-21:00", ranges past midnight and "off"; PH is ignored.
+  const OH_DAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+  function parseOh(oh) {
+    const src = String(oh || '').trim().replace(/\s*-\s*/g, '-').replace(/\s*,\s*/g, ',').replace(/\s+/g, ' ');
+    if (!src) return null;
+    if (src === '24/7') return [{ days: null, ranges: [[0, 1440]] }];
+    const rules = [];
+    // rules are split by ';' and by ',' between a time and a day name ("Mo-Fr 06:00-22:00, Sa 07:00-22:00", not "Su,PH")
+    for (const part of src.split(/;|(?<=\d),(?=(?:Mo|Tu|We|Th|Fr|Sa|Su|PH)\b)/).map((x) => x.trim()).filter(Boolean)) {
+      const m = part.match(/^(?:((?:Mo|Tu|We|Th|Fr|Sa|Su|PH)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?(?:,(?:Mo|Tu|We|Th|Fr|Sa|Su|PH)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?)*) ?)?(off|closed|\d\d?:\d\d-\d\d?:\d\d(?:,\d\d?:\d\d-\d\d?:\d\d)*)$/);
+      if (!m) return null;
+      let days = null;
+      if (m[1]) {
+        days = new Set();
+        for (const tok of m[1].split(',')) {
+          if (tok === 'PH') continue;
+          const [a, b] = tok.split('-').map((x) => OH_DAYS.indexOf(x));
+          for (let k = a; ; k = (k + 1) % 7) { days.add(k); if (b == null || b < 0 || k === b) break; }
+        }
+        if (!days.size) continue;                       // a rule only for public holidays
+      }
+      const ranges = /^(off|closed)$/.test(m[2]) ? [] : m[2].split(',').map((r) => {
+        const [x, y] = r.split('-').map((t) => { const [h, mi] = t.split(':').map(Number); return h * 60 + mi; });
+        return [x, y <= x ? y + 1440 : y];              // "05:00-00:00", "22:00-06:00", "00:00-00:00" run past midnight
+      });
+      rules.push({ days, ranges });
+    }
+    return rules.length ? rules : null;
+  }
+  function isOpen(oh, date) {
+    const rules = parseOh(oh);
+    if (!rules) return null;
+    const dayRule = (wd) => { let r = null; for (const x of rules) if (!x.days || x.days.has(wd)) r = x; return r; };   // later rules win
+    const wd = (date.getDay() + 6) % 7, min = date.getHours() * 60 + date.getMinutes();
+    const today = dayRule(wd), yesterday = dayRule((wd + 6) % 7);
+    if (today && today.ranges.some(([a, b]) => min >= a && min < b)) return true;
+    if (yesterday && yesterday.ranges.some(([, b]) => b > 1440 && min < b - 1440)) return true;   // still open from yesterday
+    return false;
+  }
+
+  // R44: minutes over the free time × Kč per minute (null when there is nothing to pay)
+  function minuteFee(pr, min) {
+    if (!pr || !pr.fee || !(pr.fee.czk > 0) || !(min > pr.fee.free)) return null;
+    const extra = Math.ceil(min - pr.fee.free);
+    return { free: pr.fee.free, min: extra, rate: pr.fee.czk, czk: extra * pr.fee.czk };
+  }
   /* Best price among the selected cards for a station {op, kw, cc} at `date`.
      Returns {czk|null, card, label, night, unknownKw, others:[…]} or null when no selected card works there. */
   function price(st, date, only) {
@@ -153,8 +200,10 @@
       else if ('anywhere' in card) { tiers = card.anywhere; how = 'roaming'; } else continue;
       if (!tiers) { opts.push({ czk: null, card: card.name, label: card.note || 'cena v aplikaci', how }); continue; }
       const t = kw ? (tiers.find((x) => kw <= x.max) || tiers[tiers.length - 1]) : tiers[tiers.length - 1];
+      // R44: a fee for the time on the stand over the free minutes, where the price list has one
+      const fee = t.free_min != null && t.czk_min != null ? { free: t.free_min, czk: night && t.czk_min_night != null ? t.czk_min_night : t.czk_min } : null;
       opts.push({ czk: night ? t.night : t.day, card: card.name, label: t.label, how, unknownKw: !kw && tiers.length > 1,
-        dayNight: t.day !== t.night });
+        dayNight: t.day !== t.night, fee });
     }
     if (!opts.length) return null;
     opts.sort((a, b) => (a.czk == null) - (b.czk == null) || (a.czk || 0) - (b.czk || 0));
@@ -992,7 +1041,9 @@
       st.tDrive = tDrive;
       st.km = st.leg === 'A' ? st.c.n.d / 1000 : D - st.c.n.d / 1000;
       st.pr = price(st.c.s, st.at);
-      st.cost = st.done && Number.isFinite(act.czk) ? act.czk : st.pr && st.pr.czk != null ? st.kwh * st.pr.czk : null;
+      st.fee = st.done || st.pr == null || st.pr.czk == null ? null : minuteFee(st.pr, st.chargeMin);
+      st.cost = st.done && Number.isFinite(act.czk) ? act.czk : st.pr && st.pr.czk != null ? st.kwh * st.pr.czk + (st.fee ? st.fee.czk : 0) : null;
+      if (st.fee) st.why.push(`Nabíjení ~${fmt(st.chargeMin)} min je déle než ${st.fee.free} min zdarma: + ${fmt(st.fee.czk)} Kč za ${st.fee.min} min navíc (${fmt(st.fee.rate)} Kč/min, ${st.pr.card}).`);
       if (st.kwh > 0 && st.cost == null) priceUnknown = true;
       st.alt = st.done ? null : altStand(st);
       totalMin += st.chargeMin; totalCzk += st.cost || 0; totalKwh += st.kwh; short = short || st.short;
@@ -1013,7 +1064,8 @@
     if (s.op !== 'E.ON' || !(st.kwh > 0) || !st.pr || st.pr.czk == null || !s.kw) return null;
     if (s.kw > 200 && st.arrive >= 50) {
       const p2 = price({ ...s, kw: 150 }, st.at), m2 = chargeMinutes(st.arrive, st.target, 150);
-      if (p2 && p2.czk != null && p2.czk < st.pr.czk) return { kind: 'cheaper', czk: st.kwh * p2.czk, min: m2, unit: p2.czk };
+      const f2 = minuteFee(p2, m2), czk2 = p2 && p2.czk != null ? st.kwh * p2.czk + (f2 ? f2.czk : 0) : null;
+      if (czk2 != null && czk2 < st.cost) return { kind: 'cheaper', czk: czk2, min: m2, unit: p2.czk };
     }
     return null;
   }
@@ -1371,6 +1423,7 @@
       (st.why || []).length ? el('ul', { class: 'why' }, st.why.map((t) => el('li', { text: t }))) : null,
       adv ? el('p', { class: `advice${adv.warn ? ' warn' : ''}`, text: adv.text }) : null,
       loggedNote(st, o),
+      st.done ? null : pumpClosed(st, idx, o),
       st.favNear && !st.done ? el('div', { class: 'fav-near' },
         el('span', { text: `★ Oblíbená ${optName(st.favNear.c)} je ${offText(st.favNear, o)}.` }),
         el('button', { type: 'button', class: 'linkish', text: 'Vybrat', onclick: () => pickOutside(idx, st.favNear.c) })) : null,
@@ -1390,6 +1443,24 @@
   };
   const icon = (name) => sv('svg', { class: `ic ic-${name}`, viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' },
     ICONS[name].map(([tag, attrs]) => sv(tag, attrs)));
+
+  // R46 (D9 = B): the pump's shop is closed when you arrive → say so and offer pumps in the window that are open; never swap by itself
+  function pumpClosed(st, idx, o) {
+    const s = st.c.s;
+    if (!s.fuel || !s.oh || !st.at || isOpen(s.oh, st.at) !== false) return null;
+    const legStart = st.leg === 'A' ? o.depart : lastRun.plan.retDepart;
+    const open = (st.alts || []).filter((a) => a.s.fuel && a.s.oh && legStart)
+      .map((a) => ({ a, at: new Date(legStart.getTime() + measureT(a, st.leg, lastRun.rt) * 60000) }))
+      .filter((x) => isOpen(x.a.s.oh, x.at) === true);
+    const nonstop = open.some((x) => /24\/7/.test(x.a.s.oh));
+    return el('div', { class: 'pump-closed' },
+      el('p', { text: `Pumpa ${s.fuel} má v ${clock(st.at)} podle otevírací doby zavřeno (${s.oh}).` +
+        (open.length ? ' V okně má otevřeno:' : ' V okně není jiná pumpa, která má v tu dobu otevřeno.') }),
+      open.slice(0, 3).map((x) => el('div', { class: 'alt' },
+        el('div', {}, el('b', { text: `${x.a.s.fuel} ${townOf(x.a.s)}` }), el('small', { class: 'muted', text: `otevřeno v ${clock(x.at)} (${x.a.s.oh}) · ${x.a.s.op || '?'} ${x.a.s.kw ? x.a.s.kw + ' kW' : ''}` })),
+        el('button', { type: 'button', class: 'linkish', text: 'Vybrat', onclick: () => swapStop(idx, x.a) }))),
+      nonstop ? el('p', { class: 'small muted', text: '24/7 v OpenStreetMap u pump často znamená jen tankování kartou, obchod může mít zavřeno.' }) : null);
+  }
 
   // R39 (D12 = A): "Nabít do" slider; letting it go recomputes the rest of the plan (D5)
   function chargeTo(st) {
@@ -1431,6 +1502,7 @@
     if (!p) return 'žádná z vybraných karet tu nefunguje';
     if (p.czk == null) return `${p.card}: ${p.label}`;
     return `${st.kwh > 0 ? fmt(st.cost) + ' Kč · ' : ''}${fmt(p.czk, 2)} Kč/kWh (${p.card}${p.how !== 'vlastní síť' ? ', ' + p.how : ''}, ${p.label}${p.dayNight ? (p.night ? ', noční cena' : ', denní cena') : ''})` +
+      (st.fee ? ` + ${fmt(st.fee.czk)} Kč za ${st.fee.min} min nad ${st.fee.free} min zdarma` : p.fee && p.fee.czk > 0 ? ` · ${p.fee.free} min zdarma, pak ${fmt(p.fee.czk)} Kč/min` : '') +
       (p.unknownKw ? ' – pásmo podle skutečného výkonu' : '');
   }
 
@@ -2073,6 +2145,6 @@
   // Test hook: tests/harness.mjs sets window.__NP_TEST__ before loading this script. Nothing happens in the real app.
   if (window.__NP_TEST__) Object.assign(window.__NP_TEST__, { ready: dataReady, route, withTempo, candidates, makePlan,
     energize, measure, sideOk, tripX, chargeMinutes, parseChargeText, price, MAX_TARGET, WIDE_KM, rankWindow, advice,
-    comparison, tripLink, tripFromHash, sanitizePrefs, BREAK_FIRST, BREAK_NEXT, lastRun: () => lastRun, curTrip: () => curTrip,
+    comparison, tripLink, tripFromHash, sanitizePrefs, minuteFee, isOpen, BREAK_FIRST, BREAK_NEXT, lastRun: () => lastRun, curTrip: () => curTrip,
     setFavs: (list) => { favs = new Set(list); }, data: () => ({ STATIONS, CARDS, CAL }) });
 })();

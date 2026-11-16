@@ -150,20 +150,15 @@ V kartě zastávky jsou u údajů ikony: výkon bleskem, počet stojanů zástr�
 ### R45 — Varování před počasím na trase
 Appka zjistí předpověď na trase v čase, kdy tam pojedeš (Open-Meteo, zdarma, bez klíče): mlha, sníh, mrznoucí déšť a náledí (teplota do 1 °C se srážkami). Spotřebu nemění. Varování je v souhrnu s místem a časem. Body na trase jsou zaokrouhlené na 0,01° a žádný není blíž než 3 km vzdušnou čarou od startu, cíle a míst „přes“, aby se neposílala adresa domova. Když předpověď nejde načíst nebo je cesta dál než 16 dní, souhrn to řekne. (D7 = B)
 
-## Rozpracované
-
-Schválené požadavky, na kterých se pracuje. Do „Požadavky“ se přesunou s testy, až budou hotové.
-
-#### R44 — Poplatek za minuty na stojanu
+### R44 — Poplatek za minuty na stojanu
 Když síť účtuje poplatek za čas nad volné minuty (údaj v ceníku `prices.json`) a nabíjení podle plánu trvá déle, cena zastávky ho započítá a karta napíše, kolik to je a za kolik minut. Bez údaje v ceníku jen cena energie. (D10 = A)
 
-#### R46 — Zavřená pumpa v čase příjezdu
+### R46 — Zavřená pumpa v čase příjezdu
 Když má obchod pumpy u zastávky v čase příjezdu podle otevírací doby zavřeno, karta to řekne a nabídne pumpu v okně, která má otevřeno, s tlačítkem Vybrat. Sama nic nemění. Bez otevírací doby v datech nic neříká. (D9 = B)
 
-Rozhodnutí k nim (přesunou se do „Rozhodnutí“, až bude požadavek hotový):
+## Rozpracované
 
-- **D9 (16. 11. 2026, uživatel vybral B):** zavřená pumpa se jen hlásí a nabídne otevřenou, appka sama nevybírá (R46). Data otevírací doby dodá datové vlákno.
-- **D10 (16. 11. 2026, uživatel vybral A):** poplatek za minuty nad volné minuty se započítá do ceny a napíše (R44). Data dodá datové vlákno do `prices.json`.
+Nic. Schválený požadavek, na kterém se pracuje, je tady i se svým rozhodnutím, dokud nemá testy; pak se přesune do „Požadavky“ a „Rozhodnutí“.
 
 ## Rozhodnutí
 
@@ -191,6 +186,8 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 - **D11 (16. 11. 2026, uživatel vybral A):** posuvníky a tlačítka ve formuláři (R41). Rozhodl jsem k tomu sám: předvolby intervalu 0:45, 1:00, 1:15, 1:30, 2:00 (po km 100, 130, 150, 200), tolerance 0, 10, 15, 20, 30 min (po km 10, 20, 30), objížďka všech pět dosavadních hodnot. Ostatní hodnoty přes „Jiný“.
 - **D13 (16. 11. 2026, uživatel vybral B):** ikony jen v kartách, ne na mapě (R43). Rozhodl jsem k tomu sám: text u ikon zůstává, ikony ho jen doplní.
 - **D7 (16. 11. 2026, uživatel vybral B):** jen varování před počasím, spotřeba zůstane (R45). Varianty A (spotřeba podle počasí a kopců) a C (nic) nevybrány.
+- **D10 (16. 11. 2026, uživatel vybral A):** poplatek za minuty nad volné minuty se započítá do ceny a napíše (R44). Data dodá datové vlákno do `prices.json`.
+- **D9 (16. 11. 2026, uživatel vybral B):** zavřená pumpa se jen hlásí a nabídne otevřenou, appka sama nevybírá (R46). Data otevírací doby dodá datové vlákno.
 
 ## Otevřené rozpory
 
