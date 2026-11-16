@@ -111,6 +111,7 @@ Google Mapy tam a zpět přes zastávky (pro Send2Car do Mercedesu), Waze po kro
 
 ### R32 — Karta zastávky
 Waze a Google Mapy přímo na stanici, rada ke stojanu a k placení (vypnout Plug & Charge).
+**Pruh baterie** u nabíjecí zastávky ukáže tři věci, každou pod svým kusem pruhu: pod tmavou částí s kolika % přijedeš, pod světlou kolik % nabiješ, na konci světlé části s kolika % odjedeš. Čísla na sebe sedí (přijedeš + nabiješ = odjedeš). U zapsané zastávky „příjezd, nabito, odjezd“. (Nahlášená chyba, uživatel 16. 11. 2026: vlevo 23 %, úplně vpravo 50 %, mezi tím +27 %, „ty modré čáry prostě nejsou dobře, musí tam být vidět, s kolika % přijedu, kolik % načerpám a kolik budu mít při odjezdu“.)
 
 ### R33 — Jiné možnosti v okně
 U zastávky seznam dalších stanic v okně s tlačítkem Vybrat.

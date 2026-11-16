@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16a';
+  const APP_VERSION = '2026-11-16b';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -1094,12 +1094,21 @@
     const st = lastRun.plan.stops[idx];
     changeStop(st, { tol: st.widen });
   }
-  function batteryBar(from, to) {
-    const a = Math.max(0, Math.min(100, from)), b = Math.max(a, Math.min(100, to));
+  // R32: each number sits at its own place on the bar. "nabiješ" above the light part, "přijedeš" at the end of the
+  // dark part, "odjedeš" at the end of the light part one row lower, so labels never overlap. Near the card's edge
+  // a label flips to the other side of its boundary, but it always touches it (the line at the label's side).
+  function batteryBar(from, to, done) {
+    const a = Math.max(0, Math.min(100, Math.round(from))), b = Math.max(a, Math.min(100, Math.round(to))), mid = (a + b) / 2;
+    const w = done ? ['příjezd', 'nabito', 'odjezd'] : ['přijedeš', 'nabiješ', 'odjedeš'];
+    const label = (cls, pos, word, val) => el('span', { class: cls, style: pos }, `${word} `, el('b', { text: val }));
+    const side = (p, endFirst) => (endFirst ? [`right:${100 - p}%`, 'bl-end'] : [`left:${p}%`, 'bl-start']);
+    const [arrPos, arrCls] = side(a, a >= 35), [depPos, depCls] = side(b, b > 65);
+    const [chgPos, chgCls] = mid < 15 ? side(a, false) : mid > 85 ? side(b, true) : [`left:${mid}%`, 'bl-mid'];
     return el('div', { class: 'bar-wrap' },
-      el('div', { class: 'bar', role: 'img', 'aria-label': `Baterie ${fmt(a)} % → ${fmt(b)} %` },
+      el('div', { class: 'bar-top' }, label(`bl-chg ${chgCls}`, chgPos, w[1], `+${b - a} %`)),
+      el('div', { class: 'bar', role: 'img', 'aria-label': `Baterie: ${w[0]} ${a} %, ${w[1]} ${b - a} %, ${w[2]} ${b} %` },
         el('span', { class: 'bar-base', style: `width:${a}%` }), el('span', { class: 'bar-add', style: `left:${a}%;width:${b - a}%` })),
-      el('div', { class: 'bar-legend' }, el('span', { text: `${fmt(a)} %` }), el('span', { class: 'acc', text: `+${fmt(b - a)} %` }), el('span', { text: `${fmt(b)} %` })));
+      el('div', { class: 'bar-legend' }, label(`bl-arr ${arrCls}`, arrPos, w[0], `${a} %`), label(`bl-dep ${depCls}`, depPos, w[2], `${b} %`)));
   }
   function stopCard(st, k, idx, o) {
     const s = st.c.s;
@@ -1151,7 +1160,7 @@
         fav ? el('span', { class: 'fav-tag', text: '★ oblíbená' }) : null),
       el('p', { class: 'stop-sub', text: sub }),
       flags.length ? el('div', { class: 'badges' }, flags.map((f) => el('span', { class: 'badge warn', text: f }))) : null,
-      charge ? batteryBar(st.arrive, st.target) : el('p', { class: 'stop-line', text: `Přijedeš s ~${fmt(st.arrive)} % · jen káva a párek, nabíjet nemusíš` }),
+      charge ? batteryBar(st.arrive, st.target, st.done) : el('p', { class: 'stop-line', text: `Přijedeš s ~${fmt(st.arrive)} % · jen káva a párek, nabíjet nemusíš` }),
       tiles,
       (st.why || []).length ? el('ul', { class: 'why' }, st.why.map((t) => el('li', { text: t }))) : null,
       adv ? el('p', { class: `advice${adv.warn ? ' warn' : ''}`, text: adv.text }) : null,

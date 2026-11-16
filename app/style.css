@@ -290,8 +290,19 @@ a.btn.primary{color:var(--ev-ink)}
 .bar{position:relative;height:12px;border-radius:6px;background:var(--line);overflow:hidden}
 .bar-base{position:absolute;left:0;top:0;bottom:0;background:var(--base)}
 .bar-add{position:absolute;top:0;bottom:0;background:var(--ev)}
-.bar-legend{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:.8rem;font-variant-numeric:tabular-nums}
-.bar-legend .acc{color:var(--ev);font-weight:700}
+/* R32: each label at its own boundary on the bar; departure one row lower so labels never overlap */
+.bar-top,.bar-legend{position:relative;font-size:.78rem;line-height:1.35;color:var(--muted)}
+.bar-top{height:1.35em;margin-bottom:-4px}
+.bar-legend{height:2.7em;margin-top:-5px}
+.bar-top>span,.bar-legend>span{position:absolute;top:0;white-space:nowrap}
+.bar-top b,.bar-legend b{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink)}
+.bar-top .bl-chg,.bar-top .bl-chg b{color:var(--ev)}
+.bl-start{border-left:1px solid var(--muted);padding-left:5px;text-align:left}
+.bl-end{border-right:1px solid var(--muted);padding-right:5px;text-align:right}
+.bl-mid{transform:translateX(-50%);text-align:center}
+.bar-top .bl-start,.bar-top .bl-end{border:0;padding:0}
+.bl-arr{height:1.35em;background:var(--surface);z-index:1}
+.bl-dep{height:2.7em;display:flex;align-items:flex-end;gap:.3em}
 .tiles3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;text-align:center}
 .tiles3 .tile{background:var(--surface-2);border:0;border-radius:10px;padding:8px 4px}
 .tiles3 .tile b{font-size:.95rem}
