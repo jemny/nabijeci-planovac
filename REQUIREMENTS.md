@@ -143,6 +143,7 @@ V souhrnu je graf: % baterie podle km od startu po cíl (při cestě zpět až d
 
 ### R41 — Posuvníky a tlačítka ve formuláři
 Baterie na startu, Na zastávku přijet s alespoň a Do cíle dojet s mají posuvník. Číslo vedle posuvníku je pole, do kterého jde napsat přesně, a oba se drží stejné hodnoty. U rezervy na zastávky jsou předvolby 10 / 15 / 20 %, „Do cíle dojet s“ má jen posuvník a číslo (D22). Interval, tolerance a objížďka jsou tlačítka s předvolbami. Tlačítko „Jiný“ ukáže dosavadní pole pro jinou hodnotu. Pole mají stejná `id` jako dřív. (D11 = A)
+Jezdec každého posuvníku (i „Nabít do“ u zastávky, R39) jede přes celou šířku čáry: na nejmenší hodnotě (např. 0 %) je úplně vlevo, na 100 % úplně vpravo (nahlášená chyba, uživatel 16. 11. 2026). Ověření: tests/slider-ends.test.mjs.
 
 ### R43 — Ikony v kartě zastávky
 V kartě zastávky jsou u údajů ikony: výkon bleskem, počet stojanů zástrčkou, doba nabíjení hodinami, baterie při příjezdu baterií. Text u nich zůstává. Na mapě se nic nemění. (D13 = B)
