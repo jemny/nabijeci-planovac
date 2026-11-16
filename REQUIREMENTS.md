@@ -167,6 +167,9 @@ Na stránce je jen text, který je nutný (uživatel 16. 11. 2026: „snažím s
 - **Do navigace, Dokončit cestu, Srovnání:** Mercedes jedním řádkem, bez věty nad poli dokončení, pod nadpisem srovnání jen km a baterie na konci, rozpis ceny elektra na klepnutí.
 Ponechané: krátká věta o počasí (nahrazená mlčením), věta o Waze, věty pod tabulkou srovnání. Hlídá to tests/less-text.test.mjs.
 
+### R48 — Stát se staršími daty
+Když se data státu při aktualizaci nepodaří stáhnout a appka používá data z dřívějšího běhu (D24, `osm_countries` v `meta.json` s `fresh: false`), ☰ → O appce u řádku Data napíše např. „DE: data z 9. 11.“. Souhrn to napíše jen tehdy, když trasa nebo zastávka vede tím státem (D25 = A). Hlídá to tests/stale-country.test.mjs.
+
 ## Rozpracované
 
 Nic. Schválený požadavek, na kterém se pracuje, je tady i se svým rozhodnutím, dokud nemá testy; pak se přesune do „Požadavky“ a „Rozhodnutí“.
@@ -203,10 +206,9 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 - **D22 (16. 11. 2026, uživatel vybral C):** „Do cíle dojet s“ zůstane bez předvoleb, jen posuvník a číslo (R41). Nevybráno: A (10 / 15 / 20 % jako zastávky), B (10 / 20 / 30 / 50 %).
 - **D23 (16. 11. 2026, uživatel vybral z review textů):** odstranit nebo zkrátit F1–F7, S1, U1, U3, C1–C4, E2, X1, P1, P2; ponechat U2, E1, P3 (R47). Mění R24 (vysvětlení u zastávky na klepnutí) a R45 (počasí v pořádku = ticho). Kvůli tomu se změnily testy: `[R45] bez mlhy, sněhu a náledí souhrn řekne…` teď čeká, že souhrn mlčí, a `[R41] objížďka: pod tlačítky je vysvětlení…` teď čeká, že vysvětlivka není.
 - **D24 (16. 11. 2026, uživatel vybral A):** stát, jehož data OSM nedodá žádný server, použije data z posledního úspěšného běhu a appka u něj ukáže, ze kterého dne jsou (R35). Důvod: ruční běh 16. 11. 2026 stáhl 9 z 10 souborů, u pump v Německu vracely všechny tři servery chyby a běh nestihl 60 minut. Nevybráno: B (menší dotazy pro DE a PL), C (A i B), D (nechat jak je). Rozhodl jsem k tomu sám: data se mezi běhy předávají jako artefakt GitHub Actions s výdrží 90 dní (ne jako soubor v repu, aby nerostlo, a ne jako cache, kterou GitHub maže po 7 dnech nepoužívání). Na stahování je dohromady 40 minut. Datum státu je to starší z nabíječek a pump. Zámek „pages“ drží jen nasazení. Pondělní běh je v 03:17 UTC místo 03:00. Kde to appka ukáže, je D25 v plánovacím vlákně.
+- **D25 (16. 11. 2026, uživatel vybral A):** stát se staršími daty ukáže ☰ → O appce vždy a souhrn jen, když trasa nebo zastávka vede tím státem (R48). Nevybráno: B (jen v ☰), C (v souhrnu vždy).
 
 ## Otevřené rozpory
-
-- **D25 Kde appka ukáže stát se staršími daty (R35, D24 datového vlákna; varianty nakreslené 16. 11. 2026, čekají na uživatele):** A v ☰ → O appce vždy a v souhrnu jen, když trasa nebo zastávka vede tím státem (doporučuju); B jen v ☰ → O appce; C v souhrnu vždy, když je některý stát starší.
 
 Návrhy z WattBoxu a ABRP (D7–D14) jsou rozhodnuté výše, celé srovnání je v [docs/srovnani-abrp-wattbox.md](docs/srovnani-abrp-wattbox.md).
 - **Nedoporučuju:** nejlevnější a nejkratší trasa (pravidlo jen nejrychlejší), CarPlay, widgety a upozornění do telefonu (webová appka bez serveru to neumí), Apple Mapy a Mapy.com (pravidlo Google Mapy), katalog aut, STK, doklady.

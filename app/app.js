@@ -13,7 +13,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16s';
+  const APP_VERSION = '2026-11-16t';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -102,9 +102,13 @@
     })
     .catch(() => setStatus('Nepodařilo se načíst data nabíječek. Zkus stránku obnovit.', true));
 
+  // R48 (D24, D25 = A): a country whose OSM data could not be downloaded keeps the data of an earlier run
+  const staleCountries = () => Object.entries((META && META.osm_countries) || {})
+    .filter(([, v]) => v && v.fresh === false && /^\d{4}-\d{2}-\d{2}$/.test(v.date || '')).map(([cc, v]) => ({ cc, date: v.date }));
+  const staleText = (list) => list.map(({ cc, date }) => { const [, m, d] = date.split('-').map(Number); return `${cc}: data z ${d}. ${m}.`; }).join(', ');
   function renderDataInfo() {
-    const d = META.exported ? new Date(META.exported) : null;
-    $('data-date').textContent = d ? `${d.toLocaleDateString('cs-CZ')} · ${fmt(META.dc_stations)} DC stanic, ${fmt(META.fast_150)} od 150 kW` : '–';
+    const d = META.exported ? new Date(META.exported) : null, stale = staleCountries();
+    $('data-date').textContent = d ? `${d.toLocaleDateString('cs-CZ')} · ${fmt(META.dc_stations)} DC stanic, ${fmt(META.fast_150)} od 150 kW${stale.length ? ` · ${staleText(stale)}` : ''}` : '–';
     const bands = (CAL.bands || []).map((b) => `${b.from}–${b.to} % k ${fmt(b.k, 2)}${b.measured ? '' : ' (odhad)'}`).join(', ');
     $('model-info').textContent = `křivka testu fdrive × k ${fmt(CAL.k_median, 2)}${bands ? ` (${bands})` : ''}`;
   }
@@ -1137,7 +1141,13 @@
           return n ? `${n} ${n === 1 ? 'skrytou stanici' : n < 5 ? 'skryté stanice' : 'skrytých stanic'} u trasy appka nenabízí (☰ → Skryté stanice). ` : ''; })() +
         (() => { const n = (lastRun.excluded || {}).wrongSide || 0;
           return n ? `${n} ${n === 1 ? 'odpočívadlo' : n < 5 ? 'odpočívadla' : 'odpočívadel'} v protisměru appka na cestě tam vynechala. ` : ''; })() +
-        (plan.retLate ? `Zpátky v ${clock(o.retDepart)} nestihneš, do cíle dojedeš až v ${clock(plan.arriveDest)}. Počítám s odjezdem ${clock(plan.retDepart)}.` : '') }),
+        (plan.retLate ? `Zpátky v ${clock(o.retDepart)} nestihneš, do cíle dojedeš až v ${clock(plan.arriveDest)}. Počítám s odjezdem ${clock(plan.retDepart)}. ` : '') +
+        (() => {   // R48: only the countries this trip goes through (stations by the route, stops)
+          const on = new Set([...(lastRun.cands || []).filter((c) => c.n && c.n.dist <= 2000).map((c) => c.s.cc || 'CZ'),
+            ...plan.stops.filter((x) => !x.empty).map((x) => x.c.s.cc || 'CZ')]);
+          const st = staleCountries().filter((x) => on.has(x.cc));
+          return st.length ? staleText(st) : '';               // „DE: data z 9. 11.“ ends with its own dot
+        })() }),
       wxNote(lastRun.wx),
     );
   }
