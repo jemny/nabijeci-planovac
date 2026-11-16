@@ -3,6 +3,7 @@ name: Aktualizace dat nabíječek
 on:
   schedule:
     - cron: "17 3 * * 1"  # každé pondělí 03:17 UTC (4:17/5:17 v ČR); ne v celou hodinu, tehdy GitHub běhy zdržuje
+    - cron: "47 22 * * *" # každou noc 22:47 UTC (23:47/0:47 v ČR): zopakuje nepovedené stahování, jinak hned skončí (D26)
   workflow_dispatch: {}    # tlačítko „Run workflow“ (i z mobilní appky GitHub)
   push:
     branches: [main]
@@ -18,7 +19,9 @@ jobs:
   build-data:
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 300   # downloads may take hours (D26: OVERPASS_BUDGET_S is 4 h)
+    outputs:
+      run: ${{ steps.need.outputs.run }}   # "no" = nightly run with nothing to repeat: no test, no deploy
     concurrency:   # one data download at a time; deploys of the app are not blocked by it (only deploy holds "pages")
       group: data
       cancel-in-progress: false
@@ -26,10 +29,39 @@ jobs:
       PYTHONUNBUFFERED: "1"   # the download log shows up live, also when a run is cancelled or times out
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main   # the newest main when the job starts, not the commit from when a queued run was created
+      - id: need
+        name: Je co stahovat?
+        # Monday run and a manual start always download; the nightly run only repeats a failed or cancelled download,
+        # or one where a country got only data from the last run (meta.json osm_countries fresh: false) (D26)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event.schedule }}" = "17 3 * * 1" ]; then
+            echo "run=yes" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if python3 -c "import json, sys; m = json.load(open('app/data/meta.json')); sys.exit(0 if all(v.get('fresh') for v in m.get('osm_countries', {}).values()) else 1)"; then fresh=yes; else fresh=no; fi
+          last=""
+          # only data runs (push runs of the app would hide them), newest first
+          api="repos/${{ github.repository }}/actions/workflows/update-data.yml/runs?status=completed&per_page=30"
+          runs=$({ gh api "$api&event=schedule" --jq '.workflow_runs[] | "\(.created_at) \(.id)"' || true
+                   gh api "$api&event=workflow_dispatch" --jq '.workflow_runs[] | "\(.created_at) \(.id)"' || true
+                 } | sort -r | awk '{print $2}')
+          for id in $runs; do
+            last=$(gh api "repos/${{ github.repository }}/actions/runs/$id/jobs" \
+                   --jq '.jobs[] | select(.name == "build-data") | .steps[] | select(.name == "Stáhnout data a postavit databázi") | .conclusion') || last=""
+            if [ "$last" = "success" ] || [ "$last" = "failure" ] || [ "$last" = "cancelled" ]; then break; fi
+          done
+          echo "Poslední stahování: ${last:-žádné}; všechny státy čerstvé: $fresh"
+          if [ "$last" != "success" ] || [ "$fresh" = "no" ]; then echo "run=yes" >> "$GITHUB_OUTPUT"
+          else echo "run=no" >> "$GITHUB_OUTPUT"; echo "Není co opakovat."; fi
       - uses: actions/setup-python@v5
+        if: steps.need.outputs.run == 'yes'
         with:
           python-version: "3.12"
       - name: Data OSM z minulého běhu
+        if: steps.need.outputs.run == 'yes'
         # a file that no Overpass server delivers is taken from here (D24); the first run has none
         env:
           GH_TOKEN: ${{ github.token }}
@@ -46,10 +78,11 @@ jobs:
           done
           ls -l build/raw
       - name: Stáhnout data a postavit databázi
+        if: steps.need.outputs.run == 'yes'
         run: python3 build/build_db.py --refresh
       - uses: actions/upload-artifact@v4
         name: Uložit data OSM pro příští běh
-        if: always()   # also after a failed run: what was downloaded helps the next one
+        if: always() && steps.need.outputs.run == 'yes'   # also after a failed run: what was downloaded helps the next one
         continue-on-error: true   # a failed upload must not skip the export and saving of the new data
         with:
           name: osm-raw
@@ -58,8 +91,10 @@ jobs:
           if-no-files-found: ignore
           overwrite: true   # "Re-run" of the same run replaces it
       - name: Export pro appku
+        if: steps.need.outputs.run == 'yes'
         run: python3 build/export_app.py
       - name: Uložit změny
+        if: steps.need.outputs.run == 'yes'
         run: |
           git config user.name "nabijeci-planovac bot"
           git config user.email "actions@users.noreply.github.com"
@@ -77,7 +112,7 @@ jobs:
   test:
     # the planner's rules (tests/): nothing is deployed unless they pass
     needs: [build-data]
-    if: always() && (needs.build-data.result == 'success' || needs.build-data.result == 'skipped')
+    if: always() && (needs.build-data.result == 'success' || needs.build-data.result == 'skipped') && needs.build-data.outputs.run != 'no'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:

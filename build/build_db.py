@@ -45,19 +45,49 @@ OVERPASS_SERVERS = [
     "https://overpass.private.coffee/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
 ]
-OVERPASS_ROUNDS = 4        # rounds over all servers; waits 30, 60, 90 s between rounds
+OVERPASS_ROUNDS = 2        # rounds over all servers per file and pass; download_all() repeats passes (D26)
 OVERPASS_TIMEOUT = 300     # s per request; queries ask the server for at most 240 s
-OVERPASS_BUDGET_S = 30 * 60  # all downloads together; then a file with data from the last run uses it (D24);
-                             # leaves time for OCM, importers, export and saving within the 60 min job limit
+OVERPASS_BUDGET_S = 4 * 3600  # all downloads together (D26: hours, not 30 min); then a file with data from the
+                              # last run uses it (D24); the job limit in update-data.yml is 300 min
+SLOW_FAIL_S = 60           # a request that failed only after this long ...
+COOLDOWN_S = 15 * 60       # ... skips its server for this long, so it does not hold up the other files (D26)
+_COOLDOWN = {}             # server -> time.monotonic() until which it is skipped
+# big countries are downloaded in tiles of their bounding box (D26: Germany as a whole was refused on 16. 11. 2026)
+TILES = {"DE": ((47.27, 5.86, 55.06, 15.05), 3, 3)}  # (south, west, north, east), rows, columns
 OVERPASS_DEADLINE = None     # time.monotonic() when the budget is up, set in main()
 OSM_SOURCES = {}             # file name -> {"fresh": bool, "date": "YYYY-MM-DD"} (R35, D24)
 UA = "elektroauta-chargers-db/0.1 (personal, non-commercial)"
 COUNTRIES = ["CZ", "SK", "PL", "AT", "DE"]  # neighbours for trips abroad (OSM + OCM; E.ON map only CZ/SK)
 
 
-def q_amenity(cc, amenity):
+def q_amenity(cc, amenity, bbox=None):
+    box = "" if bbox is None else "(%s,%s,%s,%s)" % tuple(bbox)
     return (f'[out:json][timeout:240];area["ISO3166-1"="{cc}"][admin_level=2]->.a;'
-            f'(nwr["amenity"="{amenity}"](area.a););out center tags;')
+            f'(nwr["amenity"="{amenity}"](area.a){box};);out center tags;')
+
+
+def tiles(cc):
+    """[(file suffix, (south, west, north, east)), ...] for a country in TILES, else [("", None)] (D26)."""
+    if cc not in TILES:
+        return [("", None)]
+    (s, w, n, e), rows, cols = TILES[cc]
+    lat = [round(s + (n - s) * i / rows, 4) for i in range(rows + 1)]
+    lon = [round(w + (e - w) * i / cols, 4) for i in range(cols + 1)]
+    return [(f"-{r * cols + c + 1}", (lat[r], lon[c], lat[r + 1], lon[c + 1])) for r in range(rows) for c in range(cols)]
+
+
+def merge_parts(parts):
+    """One country from its tiles: each element once (a way across a tile edge comes in both), the older OSM date."""
+    seen, elements = set(), []
+    for p in parts:
+        for e in p["elements"]:
+            key = (e.get("type"), e.get("id"))
+            if key not in seen:
+                seen.add(key)
+                elements.append(e)
+    bases = [p.get("osm3s", {}).get("timestamp_osm_base") for p in parts]
+    bases = [b for b in bases if b]
+    return {"osm3s": {"timestamp_osm_base": min(bases) if bases else None}, "elements": elements}
 
 # ---------------------------------------------------------------- helpers
 def haversine_m(lat1, lon1, lat2, lon2):
@@ -122,7 +152,9 @@ def _previous(path):
     return prev if _usable(prev) else None
 
 
-def overpass(query, path, refresh):
+def overpass(query, path, refresh, final=True):
+    """Download one file. final=False (a pass of download_all): None when no server answers, nothing else.
+    final=True: then the data from the last run, or an error when there is none (D24)."""
     name = os.path.basename(path)
     if os.path.exists(path) and not refresh:
         age = dt.date.today() - dt.date.fromtimestamp(os.path.getmtime(path))
@@ -138,23 +170,31 @@ def overpass(query, path, refresh):
         OSM_SOURCES[name] = {"fresh": False, "date": _osm_date(prev)}
         return prev
 
+    last_chance = final and _past_deadline()
     for rnd in range(OVERPASS_ROUNDS):
         if rnd and _past_deadline():
             break  # no data from the last run: one round after the time is up, then fail within the job limit
         for server in OVERPASS_SERVERS:
             if prev is not None and _past_deadline():
-                return use_previous("time for downloads is up")
+                return use_previous("time for downloads is up") if final else None
             host = urllib.parse.urlsplit(server).netloc
+            if not last_chance and _COOLDOWN.get(server, 0) > time.monotonic():
+                print(f"overpass {host} skipped for {name} (slow failures)")
+                continue
+            started = time.monotonic()
             body = _overpass_post(server, query, _request_timeout(prev is not None))
             try:
                 parsed = json.loads(body)
             except ValueError:  # a busy server answers an HTML error page: never cache it
                 parsed = None
-            if not isinstance(parsed, dict):
-                print(f"overpass {host} busy for {name}")
-                continue
-            if not _usable(parsed):  # e.g. "runtime error: Query timed out", or no elements at all
-                print(f"overpass {host} error for {name}: {str(parsed.get('remark') or 'no elements')[:120]}")
+            if not _usable(parsed):
+                if not isinstance(parsed, dict):
+                    print(f"overpass {host} busy for {name}")
+                else:  # e.g. "runtime error: Query timed out", or no elements at all
+                    print(f"overpass {host} error for {name}: {str(parsed.get('remark') or 'no elements')[:120]}")
+                if time.monotonic() - started > SLOW_FAIL_S:  # it only makes the other files wait (D26)
+                    _COOLDOWN[server] = time.monotonic() + COOLDOWN_S
+                    print(f"overpass {host} failed slowly, skipped for {COOLDOWN_S // 60} min")
                 continue
             with open(path, "wb") as f:
                 f.write(body)
@@ -166,6 +206,8 @@ def overpass(query, path, refresh):
             wait = 30 * (rnd + 1)
             print(f"overpass: no server answered {name}, retry in {wait}s")
             time.sleep(wait)
+    if not final:
+        return None
     if prev is not None:
         return use_previous("no server answered")
     raise RuntimeError(f"Overpass failed for {path} (servers: {', '.join(OVERPASS_SERVERS)})")
@@ -177,11 +219,34 @@ def download_order(paths):
     return sorted(paths, key=lambda p: _previous(p) is not None)
 
 
+def download_all(jobs, refresh):
+    """jobs {path: query}. Files that fail are tried again in further passes until the download time is up
+    (D26: hours, not 30 minutes); then a file with data from the last run uses it, one without it stops the run."""
+    results, pending, n = {}, download_order(list(jobs)), 0
+    while pending:
+        for path in pending:
+            data = overpass(jobs[path], path, refresh, final=False)
+            if data is not None:
+                results[path] = data
+        pending = [p for p in pending if p not in results]
+        if not pending or OVERPASS_DEADLINE is None or _past_deadline():
+            break
+        n += 1
+        wait = min(600, 120 * n)
+        print(f"overpass: {len(pending)} files still missing, pass {n + 1} in {wait}s")
+        time.sleep(wait)
+    for path in pending:  # the time is up
+        results[path] = overpass(jobs[path], path, refresh)
+    return results
+
+
 def osm_countries(sources, countries):
-    """Per country: the older date of its charging and fuel data, fresh only when both were downloaded now (D24)."""
+    """Per country: the older date of its charging and fuel data (all tiles), fresh only when all were downloaded now
+    (D24, D26)."""
     out = {}
     for cc in countries:
-        files = [sources[f] for f in (f"osm_charging_{cc}.json", f"osm_fuel_{cc}.json") if f in sources]
+        own = re.compile(rf"^osm_(charging|fuel)_{re.escape(cc)}(-\d+)?\.json$")
+        files = [v for k, v in sources.items() if own.match(k)]
         if files:
             dates = [f["date"] for f in files if f.get("date")]
             out[cc] = {"date": min(dates) if dates else None, "fresh": all(f["fresh"] for f in files)}
@@ -570,13 +635,17 @@ def main():
     OVERPASS_DEADLINE = time.monotonic() + OVERPASS_BUDGET_S
     stations, fuel_elements, osm_base = [], [], None
     amenity = {"charging": "charging_station", "fuel": "fuel"}
-    files = {os.path.join(RAW, f"osm_{kind}_{cc}.json"): (cc, kind) for cc in COUNTRIES for kind in amenity}
-    osm = {}
-    for path in download_order(list(files)):
-        cc, kind = files[path]
-        osm[(cc, kind)] = overpass(q_amenity(cc, amenity[kind]), path, a.refresh)
+    jobs, parts = {}, {}
     for cc in COUNTRIES:
-        charging, fuel_cc = osm[(cc, "charging")], osm[(cc, "fuel")]
+        for kind in amenity:
+            for suffix, bbox in tiles(cc):
+                path = os.path.join(RAW, f"osm_{kind}_{cc}{suffix}.json")
+                jobs[path] = q_amenity(cc, amenity[kind], bbox)
+                parts.setdefault((cc, kind), []).append(path)
+    got = download_all(jobs, a.refresh)
+    for cc in COUNTRIES:
+        charging = merge_parts([got[p] for p in parts[(cc, "charging")]])
+        fuel_cc = merge_parts([got[p] for p in parts[(cc, "fuel")]])
         stations += parse_osm(charging["elements"], cc)
         fuel_elements += fuel_cc["elements"]
         osm_base = charging.get("osm3s", {}).get("timestamp_osm_base") or osm_base

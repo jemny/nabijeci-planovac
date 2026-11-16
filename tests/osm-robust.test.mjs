@@ -108,7 +108,10 @@ print("RESULT " + json.dumps([with_prev, without_prev, build_db._request_timeout
   assert.ok(withPrev <= 100 && withPrev >= 60, `s daty z minula: ${withPrev} s`);
   assert.equal(withoutPrev, full, 'bez dat z minula dostane dotaz celý čas');
   assert.equal(noDeadline, full);
-  assert.ok(budget <= 30 * 60, `čas na stahování ${budget} s nechá dost času na zbytek běhu (limit 60 min)`);
+  // D26 (uživatel 16. 11. 2026: „neomezuj se na 30 minut“): dřív budget <= 30 min kvůli limitu jobu 60 min;
+  // teď musí čas na stahování nechat aspoň 30 minut z limitu jobu na zbytek běhu
+  const jobMinutes = +(job('build-data').match(/timeout-minutes:\s*(\d+)/) || [])[1];
+  assert.ok(budget <= (jobMinutes - 30) * 60, `čas na stahování ${budget} s nechá dost času na zbytek běhu (limit ${jobMinutes} min)`);
 });
 
 test('[R35] stahování OSM: reset spojení zkusí další server, curl jen u chyby TLS', async () => {
