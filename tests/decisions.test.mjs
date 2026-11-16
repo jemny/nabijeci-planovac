@@ -88,7 +88,12 @@ test('[R24][R3] prázdné okno řekne, že nabízí nejbližší stanice i dalek
   const { d } = await search({ stopBy: 'km', intKm: 100, tolKm: 5, detour: 0.5, 'round-trip': false });
   const empty = d.querySelector('.tl.empty');
   assert.match(text(empty), /nejbližší/); assert.match(text(empty), /i když jsou daleko/);
-  for (const alt of empty.querySelectorAll('.alt')) assert.match(text(alt), /(před oknem|za oknem|od trasy)/);
+  const alts = [...empty.querySelectorAll('.alt')];
+  assert.ok(alts.length, 'prázdné okno nabízí stanice');
+  for (const alt of alts) {
+    assert.match(text(alt), /(o \d+ (minutu|minuty|minut) (dříve|dále)|o [\d,]+ km (blíže|dále)|[\d,]+ km od trasy)/);
+    assert.doesNotMatch(text(alt), /oknem/);
+  }
 });
 test('[R24][R7] souhrn řekne, že počítá se spotřebou naměřenou v autě', async () => {
   const setup = (w) => {

@@ -210,8 +210,8 @@ test('[R14] dokončit cestu + srovnání: elektro = veřejné nabíjení + dobit
   assert.equal(r.km, 400);
   assert.ok(Math.abs(r.homeCzk - (100 - 30) / 100 * 85 / 0.9 * 6.61) < 0.01);
   assert.ok(Math.abs(r.ev - (r.pubCzk + r.homeCzk)) < 0.01);
-  const volvo = r.cars.find((c) => /Volvo/.test(c.name));
-  assert.ok(Math.abs(volvo.czk - 400 * 5 / 100 * 47.99) < 0.01);
+  const talisman = r.cars.find((c) => /Talisman/.test(c.name));
+  assert.ok(Math.abs(talisman.czk - 400 * 6.5 / 100 * 47.99) < 0.01);
   assert.match(text(d.querySelector('.card.compare')), /400 km/);
 });
 

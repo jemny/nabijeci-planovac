@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16e';
+  const APP_VERSION = '2026-11-16f';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -39,8 +39,12 @@
     if (p.hidden) p.hidden = p.hidden.filter((h) => h && typeof h.k === 'string');
     if (p.favs) p.favs = p.favs.filter((f) => typeof f === 'string');
     if (p.home && (typeof p.home !== 'object' || !Number.isFinite(p.home.lat) || !Number.isFinite(p.home.lon))) delete p.home;
+    // D18: a car list stored before 16. 11. 2026 holds a car the user removed; back to the defaults, prices stay.
+    // Lists saved since then carry cmpV 2 (savePrefs) and stay as they are.
+    if (p.cmp && typeof p.cmp === 'object' && 'cars' in p.cmp && p.cmpV !== 2) { delete p.cmp.cars; p.cmpV = 2; cmpMigrated = true; }
     return p;
   }
+  let cmpMigrated = false;
   let prefs = {}, freshInstall = false;
   try {
     const rawPrefs = localStorage.getItem(PREFS_KEY);
@@ -49,10 +53,12 @@
   } catch (e) { prefs = {}; }
   let persistAsked = false;
   const savePrefs = () => {
+    if (prefs.cmp) prefs.cmpV = 2;                                   // D18: comparison settings saved after the cleanup
     try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) { /* private mode */ }
     // ask the browser not to evict our storage (granted silently for installed apps on Android; iOS home-screen apps keep it anyway)
     if (!persistAsked && navigator.storage && navigator.storage.persist) { persistAsked = true; navigator.storage.persist().then(renderStorageInfo, () => {}); }
   };
+  if (cmpMigrated) savePrefs();
   const stationKey = (s) => `${(+s.lat).toFixed(5)},${(+s.lon).toFixed(5)}`;
   const stopKey = (st) => `${st.leg}:${stationKey(st.c.s)}`;
   // Moje cesty: saved plans (with logged real charging) live in their own key, so a big history never touches prefs
@@ -1027,10 +1033,14 @@
     return tlRow(clock(plan.arriveDest), 'dest', tlText(`Cíl · ${shortName(lastRun.pts[lastRun.pts.length - 1].label, 'Cíl')}`,
       `${fmt(plan.socDest)} %${o.roundTrip ? ` · zpět v ${clock(plan.retDepart)}${plan.retLate ? ' (dřív to nestihneš)' : ''}` : ''}`));
   }
-  // where an offered station lies relative to the window: "8 km za oknem", "3 min před oknem", "2,4 km od trasy"
+  // R24: where an offered station lies relative to the window, in plain Czech: "o 9 minut dále", "o 3 minuty dříve",
+  // "o 8 km dále", "o 8 km blíže", "2,4 km od trasy"
   function offText(opt, o) {
     if (opt.why === 'detour') return `${fmt(opt.off, 1)} km od trasy`;
-    return `${o.byKm ? `${fmt(opt.off)} km` : `${fmt(Math.max(1, opt.off))} min`} ${opt.why === 'before' ? 'před oknem' : 'za oknem'}`;
+    const before = opt.why === 'before';
+    if (o.byKm) return `o ${fmt(opt.off)} km ${before ? 'blíže' : 'dále'}`;
+    const n = Math.max(1, Math.round(opt.off));
+    return `o ${n} ${n === 1 ? 'minutu' : n <= 4 ? 'minuty' : 'minut'} ${before ? 'dříve' : 'dále'}`;
   }
   const optName = (c) => `${c.s.fuel || 'Stanice'} ${townOf(c.s)} · ${[c.s.op, c.s.kw ? `${c.s.kw} kW` : null].filter(Boolean).join(' ')}`.replace(/\s+·/, ' ·');
   function emptyStop(st, o, idx) {
@@ -1664,7 +1674,7 @@
 
   // ---- finish the trip + comparison with fuel cars (same method as the ev-trip-cost skill)
   const CMP_DEFAULT = { home: 6.61, loss: 0.10, diesel: 47.99, petrol: 42.35,
-    cars: [{ name: 'Volvo diesel', fuel: 'diesel', l: 5.0 }, { name: 'Renault Talisman diesel', fuel: 'diesel', l: 6.5 }, { name: 'Benzínové auto', fuel: 'petrol', l: 8.0 }] };
+    cars: [{ name: 'Renault Talisman diesel', fuel: 'diesel', l: 6.5 }, { name: 'Benzínové auto', fuel: 'petrol', l: 8.0 }] };
   function cmpPrefs() {
     const c = { ...CMP_DEFAULT, ...(prefs.cmp && typeof prefs.cmp === 'object' ? prefs.cmp : {}) };
     if (!Array.isArray(c.cars) || !c.cars.length) c.cars = CMP_DEFAULT.cars;

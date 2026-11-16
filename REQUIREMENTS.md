@@ -49,8 +49,9 @@ Odkaz s cestou (místa a vybrané stanice v `#cesta=`, neposílá se na server),
 Na každé zastávce jen tolik, abys na další (nebo domů / do cíle) přijel s alespoň „Přijet s alespoň“ %. Chybí-li ≤ 2 %, jen přestávka bez nabíjení. Když už nabíjíš, tak aspoň o 8 %, ale kvůli tomu minimu nikdy nad 80 %. Nad 80 % jen když to další úsek opravdu potřebuje, nejvýš 90 %. Zastávka navíc mimo okno jen když by jinak baterie nestačila, a je tak označená.
 
 ### R14 — Dokončit cestu a srovnání
-Po cestě zapsat baterii na konci a km. Srovnání s auty na palivo (Volvo diesel 5 l, Talisman 6,5 l, benzín 8 l, ceny se dají upravit): elektro = veřejné nabíjení + dobití doma (6,61 Kč/kWh + 10 % ztráty), čas navíc na nabíječkách.
+Po cestě zapsat baterii na konci a km. Srovnání s auty na palivo (Talisman 6,5 l a benzín 8 l, ceny se dají upravit): elektro = veřejné nabíjení + dobití doma (6,61 Kč/kWh + 10 % ztráty), čas navíc na nabíječkách.
 
+Jedno dřív srovnávané auto je vyřazené i se svými údaji (uživatel 16. 11. 2026: „odstraň odevšad … a jeho údaje“). Neukáže se ani z nastavení uloženého v telefonu: seznam aut uložený před 16. 11. 2026 se nahradí výchozím, ceny paliv zůstanou (D18).
 ### R15 — Zápis skutečného nabíjení
 U zastávky „Zapsat, jak to dopadlo“: text z aplikace, screenshot (čte se v telefonu) nebo ručně. Zbytek plánu se přepočítá i podle skutečné spotřeby a appka varuje, když to na další úsek nestačí.
 
@@ -81,6 +82,7 @@ Po návratu do appky ukáže „Je tu nová verze“ a tlačítko Načíst. Star
 ### R24 — Žádné tiché rozhodnutí
 Co appka rozhodne sama, to řekne: proč vybrala tuhle stanici, proč nabíjí právě tolik (minimum 8 %, strop 80 %, jen přestávka), že nabízí stanice mimo okno a jak daleko, že je zastávka navíc kvůli baterii, že počítá se spotřebou naměřenou v autě, že některé stanice skryla nebo vynechala (protisměr), že posunula odjezd zpět. (Uživatel 15. 11. 2026: „žádné rozhodnutí za něj nesmí být tiché“.)
 
+**Jak daleko je nabízená stanice** se píše normální češtinou: „je o 9 minut dále“, „o 3 minuty dříve“, „o 8 km dále“, „o 8 km blíže“, „2,4 km od trasy“ (uživatel 16. 11. 2026: „je 9 min za oknem“ není dobrá čeština).
 ### R25 — Souhrn
 Km, minuty nabíjení, Kč za proud na cestě (a celková cena cesty, R37), baterie podle plánu v cíli → doma, rezerva.
 
@@ -143,6 +145,7 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 - **D15 (16. 11. 2026, uživatel vybral A):** dlaždice s Kč nahoře ukazuje jen nabíjení na cestě („za proud na cestě“, to, co zaplatíš kartou na zastávkách). Celá cena i s elektřinou z domu je ve větě pod ní a rozepsaná ve srovnání (R37). Varianta B (celá cena v dlaždici) nevybrána.
 - **D16 (16. 11. 2026, uživatel):** u pruhu baterie „přijedeš 30 % dej doleva před [čárku] a odjedeš 71 % doprava za čárku, jinak to vypadá dobře“. Slovo a číslo jsou pod sebou, aby se nápis vešel i na užším telefonu. Kvůli tomu se změnil test `[R32] pruh baterie: přijedeš X %, nabiješ +Y %, odjedeš Z %…`: dřív dovoloval nápis na kterékoli straně čárky a odjezd chtěl o řádek níž. Teď chce příjezd před čárkou a odjezd za ní na stejném řádku. Nový test hlídá případ, kdy se nápis nevejde.
 - **D17 (16. 11. 2026, uživatel):** bloky 1, 2, 3 formuláře jsou pořád rozbalené („těch boxů není vidět, že by něco skrývaly, dokud se na ně neťukne… drž je rozbalené“). Rozhodl jsem k tomu sám: nadpisy bloků už nejsou tlačítka a zmizelo shrnutí u zavřeného bloku, protože žádný zavřený blok není. Celý formulář se po hledání dál sbalí do řádku s cestou (R1). Kvůli tomu se změnily testy v tests/form-steps.test.mjs: `[R36] na začátku je otevřený krok 1, klepnutí na jiný krok ho otevře a ostatní zavře` je nahrazený testem, že jsou všechny tři pořád rozbalené. `[R36] zavřené kroky ukazují shrnutí…` je smazaný. Pomocná kontrola „krok je otevřený“ už nečte `aria-expanded`, protože nadpis není tlačítko.
+- **D18 (16. 11. 2026, uživatel):** jedno ze srovnávaných aut je vyřazené ze srovnání i se svými údaji („odstraň odevšad … a jeho údaje“). Rozhodl jsem k tomu sám: seznam aut uložený v telefonu před 16. 11. 2026 se nahradí výchozím (Talisman a benzínové auto), protože obsahoval i tohle auto. Ceny paliv a elektřiny zůstanou. Kdo si pak auta přejmenuje, tomu zůstanou. Ve zdrojích ani v testech jméno auta není. Kvůli tomu se změnily testy `[R14] dokončit cestu + srovnání…` a `[R14] Srovnání s palivem: změna ceny nafty…`: počítají s Talismanem (6,5 l) místo vyřazeného auta. U nového textu „o 9 minut dále“ jsem pro stanici před oknem zvolil „o 3 minuty dříve“ (čas) a „o 8 km blíže“ (km). Test `[R24][R3] prázdné okno…` teď čeká nové znění místo „před oknem / za oknem“.
 
 ## Otevřené rozpory
 

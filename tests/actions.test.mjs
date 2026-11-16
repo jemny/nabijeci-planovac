@@ -318,8 +318,8 @@ test('[R14] Srovnání s palivem: změna ceny nafty přepočítá srovnání', a
   const nafta = [...d.querySelectorAll('#cmp-box label')].find((l) => /Nafta/.test(l.textContent)).querySelector('input');
   change(w, nafta, '40');
   const { o, plan: p } = api.lastRun();
-  const r = api.comparison(o, p), volvo = r.cars.find((c) => /Volvo/.test(c.name));
-  assert.ok(Math.abs(volvo.czk - r.km * 5 / 100 * 40) < 0.01);
+  const r = api.comparison(o, p), talisman = r.cars.find((c) => /Talisman/.test(c.name));
+  assert.ok(Math.abs(talisman.czk - r.km * 6.5 / 100 * 40) < 0.01);
   assert.match(text(d.querySelector('.card.compare')), /nafta 40,00/);
 });
 
