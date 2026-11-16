@@ -123,7 +123,7 @@ U zastávky seznam dalších stanic v okně s tlačítkem Vybrat.
 
 ### R34 — Vzhled
 Rozvržení podle návrhu 1 (Palubní deska), barvy 1H (grafit a ocelově modrá), světlá i tmavá podle telefonu. Ověření: ručně (návrhy na plátně https://claude.ai/artifact/TFCJ4Q9NLwG3febS42GZen).
-**Tmavá varianta je schválená** (uživatel 15. 11. 2026: „ta tmavá varianta se mi moc líbí, neměň ji“). Její barvy se nemění, dokud uživatel neřekne jinak. Hlídá to test v tests/look.test.mjs. Světlou variantu uživatel zhodnotí 16. 11. 2026.
+**Tmavá varianta je schválená** (uživatel 15. 11. 2026: „ta tmavá varianta se mi moc líbí, neměň ji“). Její barvy se nemění, dokud uživatel neřekne jinak. Hlídá to test v tests/look.test.mjs. **Světlá varianta je schválená** (uživatel 16. 11. 2026: „ano, později uděláme pár změn“, D21). Její barvy se mění jen zadáním uživatele. Hlídá to test v tests/look.test.mjs.
 Všechna pole, do kterých se píše nebo vybírá (i čas návratu a odjezd), mají stejný vzhled jako „Baterie na startu“: vlastní podbarvení, rámeček, zaoblení, i na iPhonu (uživatel 15. 11. 2026: šedé pole času „je hnusné“). Ověření: tests/look.test.mjs.
 
 ### R35 — Data nabíječek
@@ -188,6 +188,7 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 - **D7 (16. 11. 2026, uživatel vybral B):** jen varování před počasím, spotřeba zůstane (R45). Varianty A (spotřeba podle počasí a kopců) a C (nic) nevybrány. Rozhodl jsem k tomu sám (nezávislá kontrola to správně chtěla zapsat): místo „bez prvních a posledních 3 km trasy“ platí přísněji „žádný poslaný bod blíž než 3 km vzdušnou čarou od startu, cíle a míst přes“, měřeno u zaokrouhleného bodu, protože silnice se může k domovu vracet.
 - **D10 (16. 11. 2026, uživatel vybral A):** poplatek za minuty nad volné minuty se započítá do ceny a napíše (R44). Data dodá datové vlákno do `prices.json`.
 - **D9 (16. 11. 2026, uživatel vybral B):** zavřená pumpa se jen hlásí a nabídne otevřenou, appka sama nevybírá (R46). Data otevírací doby dodá datové vlákno.
+- **D21 (16. 11. 2026, uživatel):** světlá varianta je schválená („ano, později uděláme pár změn“). Její barvy hlídá test jako u tmavé (R34). Změny, které uživatel chystá, přijdou jako nové zadání a test se upraví s nimi.
 
 ## Otevřené rozpory
 

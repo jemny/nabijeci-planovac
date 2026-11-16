@@ -56,3 +56,19 @@ test('[R34] tmavá varianta zůstává, jak ji uživatel schválil', () => {
   const html = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'app', 'index.html'), 'utf8');
   assert.match(html, /<meta name="theme-color" content="#14171B" media="\(prefers-color-scheme: dark\)">/, 'lišta prohlížeče v tmavé variantě');
 });
+
+// User, 16. 11. 2026: "ano, později uděláme pár změn" – the approved light palette is pinned here too (D21).
+test('[R34] světlá varianta zůstává, jak ji uživatel schválil', () => {
+  const raw = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'app', 'style.css'), 'utf8');
+  const block = raw.match(/^:root\{([^}]*)\}/m);
+  assert.ok(block, 'style.css má světlou variantu v prvním :root');
+  const tokens = Object.fromEntries([...block[1].matchAll(/(--[\w-]+)\s*:\s*(#[0-9A-Fa-f]{3,8})\s*;/g)].map((m) => [m[1], m[2]]));
+  assert.deepEqual(tokens, {
+    '--bg': '#EEF1F4', '--surface': '#FFFFFF', '--ink': '#1B1F24', '--muted': '#59636E', '--line': '#D3D9DF',
+    '--ev': '#005EA8', '--ev-ink': '#FFFFFF', '--ev-soft': '#DCE8F4', '--warn': '#A9680B', '--warn-soft': '#F5E8D2', '--bad': '#B3261E',
+    '--surface-2': '#E9EDF1', '--base': '#C5DDF2', '--dim': '#9AA4AE', '--step-bg': '#E6ECF3',
+  });
+  assert.match(block[1], /color-scheme\s*:\s*light/);
+  const html = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'app', 'index.html'), 'utf8');
+  assert.match(html, /<meta name="theme-color" content="#EEF1F4" media="\(prefers-color-scheme: light\)">/, 'lišta prohlížeče ve světlé variantě');
+});
