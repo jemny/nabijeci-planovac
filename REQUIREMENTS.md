@@ -151,7 +151,7 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 
 ### Návrhy z WattBoxu k rozhodnutí (15. 11. 2026, čekají na uživatele)
 Prošel jsem wattbox.cz (plánovač, mapa, detail stanice, aplikace). Varianty jsou nakreslené v rozhovoru, doporučená je u každého A.
-- **D7 Počasí a kopce v plánu:** A spotřeba po úsecích podle teploty, větru a stoupání + varování (mlha, sníh, náledí); B jen varování, spotřeba zůstane; C nic. Data: Open-Meteo (zdarma, bez klíče), bez prvních a posledních 3 km trasy.
+- **D7 Počasí a kopce v plánu:** A spotřeba po úsecích podle teploty, větru a stoupání + varování (mlha, sníh, náledí); B jen varování, spotřeba zůstane; C nic. Data: Open-Meteo (zdarma, bez klíče), bez prvních a posledních 3 km trasy. **Doporučení změněno 16. 11. 2026 z A na B:** spotřeba se bere ze skutečných jízd auta (D3), takže už obsahuje dnešní zimu; přepočet podle teploty by ji započítal dvakrát. Varování (náledí, mlha, sníh) je levné a nic nepokazí.
 - **D8 Odkaz na WattBox u zastávky:** A tlačítko „Volno a fotky na WattBoxu“ v kartě zastávky (živé volno, fotky, zkušenosti, kdy bývá plno); B i u každé jiné možnosti; C nic. Živé volno sami získat nejde: veřejná mapa E.ON stav nemá, volné API není.
 - **D9 Otevřená pumpa v čase příjezdu:** A když je obchod pumpy v čase příjezdu zavřený, appka vybere jinou v okně a napíše proč; B jen varuje a nabídne otevřenou; C nic. OSM má otevírací dobu u 84 % pump MOL, OMV, Shell, Benzina a EuroOil. Potřebuje export v datovém vlákně.
 - **D10 Poplatky za minuty na stojanu:** A cena zastávky započítá poplatek za čas nad volné minuty (E.ON od 201 kW po 30 min 2 Kč/min) a napíše to; B jen cena energie jako dnes.
