@@ -13,7 +13,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16t';
+  const APP_VERSION = '2026-11-16u';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -1462,6 +1462,7 @@
         st.pr && st.pr.others.length ? el('dd', { text: st.pr.others.slice(0, 3).map((p) => `${p.card} ${p.czk != null ? fmt(p.czk, 2) + ' Kč' : '(cena v appce)'}`).join(' · ') }) : null,
         el('dt', { text: 'Zastávka' }), el('dd', { text: `${fmt(st.stopMin)} min (přestávka ${st.breakMin} min)` })),
       alts,
+      nearList(st, idx),
       el('button', { type: 'button', class: 'link-btn hide-btn', text: 'Tuhle nechci (už nenabízet)', onclick: () => hideStation(s) }));
     return el('article', { class: `stop-card${charge ? ' charge' : ''}${st.done ? ' done' : ''}` },
       el('div', { class: 'stop-head' },
@@ -1497,6 +1498,21 @@
   };
   const icon = (name) => sv('svg', { class: `ic ic-${name}`, viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' },
     ICONS[name].map(([tag, attrs]) => sv(tag, attrs)));
+
+  // R50 (D27, N2): up to 3 nearest other chargers within 5 km (any window, your filters), for a busy or broken stand
+  function nearList(st, idx) {
+    if (st.done) return null;
+    const here = st.c.s, skip = new Set([stationKey(here), ...(st.alts || []).map((a) => stationKey(a.s))]);
+    const near = (lastRun.cands || []).filter((c) => !skip.has(stationKey(c.s)))
+      .map((c) => ({ c, km: hav(here, c.s) / 1000 })).filter((x) => x.km > 0.01 && x.km <= 5)
+      .sort((a, b) => a.km - b.km).slice(0, 3);
+    if (!near.length) return null;
+    return el('div', { class: 'alts near' }, el('p', { class: 'lbl', text: 'Nabíječky poblíž' }),
+      near.map(({ c, km }) => el('div', { class: 'alt', 'data-key': stationKey(c.s) },
+        el('div', {}, el('b', { text: `${c.s.fuel || 'Stanice'} ${townOf(c.s)} · ${c.s.op || '?'}${c.s.kw ? ` ${c.s.kw} kW` : ''}` }),
+          el('small', { class: 'muted', text: `${fmt(km, 1)} km odsud` })),
+        el('button', { type: 'button', class: 'linkish', text: 'Vybrat', onclick: () => swapStop(idx, c) }))));
+  }
 
   // R46 (D9 = B): the pump's shop is closed when you arrive → say so and offer pumps in the window that are open; never swap by itself
   function pumpClosed(st, idx, o) {
@@ -1584,6 +1600,8 @@
     // R47: the routine advice in short phrases; warnings above stay sentences
     const tips = [];
     if (st.kwh > 0) tips.push(st.arrive >= 50 ? 'Stačí 150kW stojan' : 'Nejrychlejší volný stojan');
+    // R49: the car warms the battery only when its own navigation leads to a charger (temperování akumulátoru AUTO)
+    if (st.kwh > 0 && st.arrive < 50 && (st.c.s.kw || 0) >= 100) tips.push('naviguj sem v autě, předehřeje baterii');
     if (st.alt && st.alt.kind === 'cheaper') {
       tips.push(`stojan E.ON do 200 kW: ~${fmt(st.alt.min)} min, o ${fmt(st.cost - st.alt.czk)} Kč levněji`);
     } else if (st.alt && st.alt.kind === 'faster' && st.chargeMin - st.alt.min > 1) {

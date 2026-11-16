@@ -92,6 +92,8 @@ V obou stejné auto (Mercedes CLA Shooting Brake 350 4MATIC, 85 kWh) a stejná t
 
 ## Co z ABRP dává smysl
 
+- **Rezerva zvlášť pro zastávky a pro cíl:** od 16. 11. 2026 hotové (D19, R42), dřív u nás platilo jedno číslo pro všechno.
+
 - **Posuvníky a tlačítka místo čísel a rozbalovacích seznamů:** baterie na startu, „přijet s alespoň“, interval, tolerance, objížďka. Uživatel to výslovně chce. → **D11**
 - **Posuvník „nabít do“ u každé zastávky:** zbytek plánu se přepočítá jako u každé změny zastávky (D5). → **D12**
 - **Ikony místo textu v plánu:** výkon jako blesky, baterie jako ikona s náplní, počet stojanů, služby. % baterie na mapě u každého bodu. → **D13**
@@ -102,7 +104,6 @@ V obou stejné auto (Mercedes CLA Shooting Brake 350 4MATIC, 85 kWh) a stejná t
 
 - **Varianty trasy, vyhnout se dálnici nebo mýtu:** uživatel jezdí jen nejrychlejší trasu. Dálniční známku mají elektroauta zdarma.
 - **Navigace, radary, CarPlay:** navigaci dělá Google Mapy a auto, webová appka do CarPlay nejde.
-- **Rezerva zvlášť pro zastávky a pro cíl:** u nás platí jedno „přijet s alespoň“ pro všechno (R13). Na nabíječce ráno nic nehrozí a jedno číslo je jednodušší.
 - **Volby „méně zastávek“:** naše zastávky dělá pravidlo přestávek po čase nebo km, ne baterie.
 - **Výchozí spotřeba 155 Wh/km:** na zimu příliš optimistická. My bereme skutečnou spotřebu z auta.
 - **Živá data z auta přes ABRP:** jen s účtem a placenou verzí. My máme vlastní data z Home Assistantu.
