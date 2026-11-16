@@ -138,6 +138,9 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 
 ## Otevřené rozpory
 
+### D15 Co ukazuje dlaždice „Kč“ nahoře (16. 11. 2026, rozhodl jsem sám, čeká na potvrzení)
+Při opravě R37 jsem nechal dlaždici ukazovat jen nabíjení na cestě („za proud na cestě“, to, co zaplatíš na zastávkách). Celá cena i s elektřinou z domu je ve větě pod ní a rozepsaná ve srovnání. Varianty jsou nakreslené v rozhovoru: A takhle (doporučuju), B dlaždice ukáže celou cenu cesty a pod ní „na cestě X + z domu Y“.
+
 ### Návrhy z WattBoxu k rozhodnutí (15. 11. 2026, čekají na uživatele)
 Prošel jsem wattbox.cz (plánovač, mapa, detail stanice, aplikace). Varianty jsou nakreslené v rozhovoru, doporučená je u každého A.
 - **D7 Počasí a kopce v plánu:** A spotřeba po úsecích podle teploty, větru a stoupání + varování (mlha, sníh, náledí); B jen varování, spotřeba zůstane; C nic. Data: Open-Meteo (zdarma, bez klíče), bez prvních a posledních 3 km trasy.
