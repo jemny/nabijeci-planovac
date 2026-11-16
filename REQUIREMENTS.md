@@ -148,7 +148,7 @@ Baterie na startu, Na zastávku přijet s alespoň a Do cíle dojet s mají posu
 V kartě zastávky jsou u údajů ikony: výkon bleskem, počet stojanů zástrčkou, doba nabíjení hodinami, baterie při příjezdu baterií. Text u nich zůstává. Na mapě se nic nemění. (D13 = B)
 
 ### R45 — Varování před počasím na trase
-Appka zjistí předpověď na trase v čase, kdy tam pojedeš (Open-Meteo, zdarma, bez klíče): mlha, sníh, mrznoucí déšť a náledí (teplota do 1 °C se srážkami). Spotřebu nemění. Varování je v souhrnu s místem a časem. Body na trase jsou zaokrouhlené na 0,01° a žádný není blíž než 3 km vzdušnou čarou od startu, cíle a míst „přes“, aby se neposílala adresa domova. Když předpověď nejde načíst nebo je cesta dál než 16 dní, souhrn to řekne. (D7 = B)
+Appka zjistí předpověď na trase v čase, kdy tam pojedeš (Open-Meteo, zdarma, bez klíče): mlha, sníh, mrznoucí déšť a náledí (teplota do 1 °C se srážkami). Spotřebu nemění. Varování je v souhrnu s místem a časem. Body na trase jsou zaokrouhlené na 0,01° a žádný není blíž než 3 km vzdušnou čarou od startu, cíle a míst „přes“, aby se neposílala adresa domova. Na cestě zpět se km počítají od cíle, stejně jako v kartách zastávek. Když předpověď nejde načíst (nebo nepřijde do 10 s) nebo je cesta dál než 16 dní, souhrn to řekne. (D7 = B)
 
 ### R44 — Poplatek za minuty na stojanu
 Když síť účtuje poplatek za čas nad volné minuty (údaj v ceníku `prices.json`) a nabíjení podle plánu trvá déle, cena zastávky ho započítá a karta napíše, kolik to je a za kolik minut. Bez údaje v ceníku jen cena energie. (D10 = A)
@@ -185,7 +185,7 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 - **D19 (16. 11. 2026, uživatel vybral A, v relaci „Posuvník úrovně nabití do cíle“):** dva posuvníky, „Na zastávku přijet s alespoň“ a zvlášť „Do cíle dojet s“; když jedeš i zpátky, platí cíl i pro příjezd domů (R42). Mění R13, kde dřív platilo jedno číslo pro všechno. Rozhodl jsem k tomu sám: výchozí „Do cíle dojet s“ je 10 % jako rezerva (obrázek ukazoval 30 % jen pro ilustraci), u uloženého nastavení se převezme rezerva. „I pro příjezd domů“ chápu tak, že platí v cíli i doma.
 - **D11 (16. 11. 2026, uživatel vybral A):** posuvníky a tlačítka ve formuláři (R41). Rozhodl jsem k tomu sám: předvolby intervalu 0:45, 1:00, 1:15, 1:30, 2:00 (po km 100, 130, 150, 200), tolerance 0, 10, 15, 20, 30 min (po km 10, 20, 30), objížďka všech pět dosavadních hodnot. Ostatní hodnoty přes „Jiný“.
 - **D13 (16. 11. 2026, uživatel vybral B):** ikony jen v kartách, ne na mapě (R43). Rozhodl jsem k tomu sám: text u ikon zůstává, ikony ho jen doplní.
-- **D7 (16. 11. 2026, uživatel vybral B):** jen varování před počasím, spotřeba zůstane (R45). Varianty A (spotřeba podle počasí a kopců) a C (nic) nevybrány.
+- **D7 (16. 11. 2026, uživatel vybral B):** jen varování před počasím, spotřeba zůstane (R45). Varianty A (spotřeba podle počasí a kopců) a C (nic) nevybrány. Rozhodl jsem k tomu sám (nezávislá kontrola to správně chtěla zapsat): místo „bez prvních a posledních 3 km trasy“ platí přísněji „žádný poslaný bod blíž než 3 km vzdušnou čarou od startu, cíle a míst přes“, měřeno u zaokrouhleného bodu, protože silnice se může k domovu vracet.
 - **D10 (16. 11. 2026, uživatel vybral A):** poplatek za minuty nad volné minuty se započítá do ceny a napíše (R44). Data dodá datové vlákno do `prices.json`.
 - **D9 (16. 11. 2026, uživatel vybral B):** zavřená pumpa se jen hlásí a nabídne otevřenou, appka sama nevybírá (R46). Data otevírací doby dodá datové vlákno.
 
