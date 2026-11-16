@@ -100,3 +100,12 @@ test('[R41] otevřená cesta nastaví i posuvníky a tlačítka', async () => {
   assert.deepEqual(pressed(d, 'reserve'), ['15 %']);
   assert.deepEqual(pressed(d, 'int-time'), ['1:15']); assert.deepEqual(pressed(d, 'tol-time'), ['10 min']); assert.deepEqual(pressed(d, 'detour'), ['1 km']);
 });
+
+// D22 = C (uživatel 16. 11. 2026): „Do cíle dojet s“ zůstane bez předvoleb, jen posuvník a číslo.
+test('[R41] Do cíle dojet s má jen posuvník a číslo, bez tlačítek s předvolbami', async () => {
+  const { w } = await loadApp({ prefs: { places: praha } }), d = w.document;
+  assert.ok(range(d, 'reserve-dest'), 'posuvník je');
+  assert.equal(chipsOf(d, 'reserve-dest').length, 0, 'žádné předvolby');
+  const field = d.getElementById('reserve-dest').closest('.slider-field');
+  assert.equal(field.querySelectorAll('.chip').length, 0, 'ani jiná tlačítka u pole');
+});

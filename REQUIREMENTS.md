@@ -142,7 +142,7 @@ V souhrnu je graf: % baterie podle km od startu po cíl (při cestě zpět až d
 „Na zastávku přijet s alespoň“ (výchozí 10 %) platí pro příjezd na každou zastávku. „Do cíle dojet s“ (výchozí 10 %, u starého nastavení stejně jako rezerva, aby se uložené plány samy nezměnily) platí pro příjezd do cíle, a když jedeš i zpátky, i pro příjezd domů. (D19 = A)
 
 ### R41 — Posuvníky a tlačítka ve formuláři
-Baterie na startu, Na zastávku přijet s alespoň a Do cíle dojet s mají posuvník. Číslo vedle posuvníku je pole, do kterého jde napsat přesně, a oba se drží stejné hodnoty. U rezervy jsou předvolby 10 / 15 / 20 %. Interval, tolerance a objížďka jsou tlačítka s předvolbami. Tlačítko „Jiný“ ukáže dosavadní pole pro jinou hodnotu. Pole mají stejná `id` jako dřív. (D11 = A)
+Baterie na startu, Na zastávku přijet s alespoň a Do cíle dojet s mají posuvník. Číslo vedle posuvníku je pole, do kterého jde napsat přesně, a oba se drží stejné hodnoty. U rezervy na zastávky jsou předvolby 10 / 15 / 20 %, „Do cíle dojet s“ má jen posuvník a číslo (D22). Interval, tolerance a objížďka jsou tlačítka s předvolbami. Tlačítko „Jiný“ ukáže dosavadní pole pro jinou hodnotu. Pole mají stejná `id` jako dřív. (D11 = A)
 
 ### R43 — Ikony v kartě zastávky
 V kartě zastávky jsou u údajů ikony: výkon bleskem, počet stojanů zástrčkou, doba nabíjení hodinami, baterie při příjezdu baterií. Text u nich zůstává. Na mapě se nic nemění. (D13 = B)
@@ -189,12 +189,11 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 - **D10 (16. 11. 2026, uživatel vybral A):** poplatek za minuty nad volné minuty se započítá do ceny a napíše (R44). Data dodá datové vlákno do `prices.json`.
 - **D9 (16. 11. 2026, uživatel vybral B):** zavřená pumpa se jen hlásí a nabídne otevřenou, appka sama nevybírá (R46). Data otevírací doby dodá datové vlákno.
 - **D21 (16. 11. 2026, uživatel):** světlá varianta je schválená („ano, později uděláme pár změn“). Její barvy hlídá test jako u tmavé (R34). Změny, které uživatel chystá, přijdou jako nové zadání a test se upraví s nimi.
+- **D22 (16. 11. 2026, uživatel vybral C):** „Do cíle dojet s“ zůstane bez předvoleb, jen posuvník a číslo (R41). Nevybráno: A (10 / 15 / 20 % jako zastávky), B (10 / 20 / 30 / 50 %).
 
 ## Otevřené rozpory
 
-- **D22 Předvolby u „Do cíle dojet s“ (R41, R42; varianty nakreslené 16. 11. 2026, čekají na uživatele):** A 10 / 15 / 20 % jako u zastávek; B vlastní 10 / 20 / 30 / 50 % (doporučuju, v cíli chceš obvykle víc); C bez předvoleb jako dnes.
-
-Návrhy z WattBoxu a ABRP (D7–D14) jsou rozhodnuté výše, celé srovnání je v [docs/srovnani-abrp-wattbox.md](docs/srovnani-abrp-wattbox.md).
+Žádné. Návrhy z WattBoxu a ABRP (D7–D14) jsou rozhodnuté výše, celé srovnání je v [docs/srovnani-abrp-wattbox.md](docs/srovnani-abrp-wattbox.md).
 - **Nedoporučuju:** nejlevnější a nejkratší trasa (pravidlo jen nejrychlejší), CarPlay, widgety a upozornění do telefonu (webová appka bez serveru to neumí), Apple Mapy a Mapy.com (pravidlo Google Mapy), katalog aut, STK, doklady.
 
 ## Fronta (až bude vše hotové a popsané)
