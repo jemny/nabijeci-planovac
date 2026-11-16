@@ -192,7 +192,9 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 
 ## Otevřené rozpory
 
-Žádné. Návrhy z WattBoxu a ABRP (D7–D14) jsou rozhodnuté výše, celé srovnání je v [docs/srovnani-abrp-wattbox.md](docs/srovnani-abrp-wattbox.md).
+- **D22 Předvolby u „Do cíle dojet s“ (R41, R42; varianty nakreslené 16. 11. 2026, čekají na uživatele):** A 10 / 15 / 20 % jako u zastávek; B vlastní 10 / 20 / 30 / 50 % (doporučuju, v cíli chceš obvykle víc); C bez předvoleb jako dnes.
+
+Návrhy z WattBoxu a ABRP (D7–D14) jsou rozhodnuté výše, celé srovnání je v [docs/srovnani-abrp-wattbox.md](docs/srovnani-abrp-wattbox.md).
 - **Nedoporučuju:** nejlevnější a nejkratší trasa (pravidlo jen nejrychlejší), CarPlay, widgety a upozornění do telefonu (webová appka bez serveru to neumí), Apple Mapy a Mapy.com (pravidlo Google Mapy), katalog aut, STK, doklady.
 
 ## Fronta (až bude vše hotové a popsané)
