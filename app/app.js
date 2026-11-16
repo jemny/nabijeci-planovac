@@ -13,7 +13,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16p';
+  const APP_VERSION = '2026-11-16q';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -403,6 +403,8 @@
       chips.forEach((c) => c.setAttribute('aria-pressed', String(+c.dataset.v === v)));
       const other = box.querySelector('.chip[data-other]');
       if (other) other.setAttribute('aria-pressed', String(!hit));
+      const hint = box.parentElement.querySelector('.preset-hint');   // e.g. the detour: what the chosen value means
+      if (hint && ctl.tagName === 'SELECT') hint.textContent = ctl.options[ctl.selectedIndex] ? ctl.options[ctl.selectedIndex].textContent : '';
       if (wrap) wrap.hidden = !(other && (!hit || box.dataset.open === '1'));
     });
   }
@@ -1042,7 +1044,8 @@
         if (st.userTarget) {                                   // R39: the user's number counts exactly (no 8 % minimum, up to 100 %)
           st.target = ut > st.arrive + 0.5 ? Math.min(100, Math.round(ut)) : st.arrive;
           st.short = false;
-          st.why.push(`Plán navrhl ${fmt(st.planTarget)} %, nastavil jsi ${fmt(st.target)} %.`);
+          st.why.push(ut > st.arrive + 0.5 ? `Plán navrhl ${fmt(st.planTarget)} %, nastavil jsi ${fmt(st.target)} %.`
+            : `Plán navrhl ${fmt(st.planTarget)} %, nastavil jsi ${fmt(ut)} %, ale přijedeš už s ~${fmt(st.arrive)} %, takže se tu nenabíjí.`);
         } else st.why.push(...whyAuto);
         const kw = st.c.s.kw || 100;
         st.chargeMin = st.target > st.arrive ? chargeMinutes(Math.max(0, st.arrive), st.target, kw) : 0;
@@ -1371,8 +1374,8 @@
     const a = Math.max(0, Math.min(100, Math.round(from))), b = Math.max(a, Math.min(100, Math.round(to))), mid = (a + b) / 2;
     const w = done ? ['příjezd', 'nabito', 'odjezd'] : ['přijedeš', 'nabiješ', 'odjedeš'];
     const [chgPos, chgCls] = mid < 15 ? [`left:${a}%`, 'bl-start'] : mid > 85 ? [`right:${100 - b}%`, 'bl-end'] : [`left:${mid}%`, 'bl-mid'];
-    const label = (cls, p, word, val) => el('span', { class: cls, 'data-p': p }, el('small', { text: word }), el('b', { text: val }));
-    const arr = label('bl-arr', a, w[0], `${a} %`), dep = label('bl-dep', b, w[2], `${b} %`);
+    const label = (cls, p, word, val, ic) => el('span', { class: cls, 'data-p': p }, el('small', {}, ic ? icon(ic) : null, word), el('b', { text: val }));
+    const arr = label('bl-arr', a, w[0], `${a} %`, 'batt'), dep = label('bl-dep', b, w[2], `${b} %`);
     placeLabel(arr, 'end'); placeLabel(dep, 'start');
     return el('div', { class: 'bar-wrap' },
       el('div', { class: 'bar-top' }, el('span', { class: `bl-chg ${chgCls}`, style: chgPos }, `${w[1]} `, el('b', { text: `+${b - a} %` }))),
@@ -1512,8 +1515,9 @@
   function chargeTo(st) {
     const min = Math.max(0, Math.round(st.arrive)), val = Math.max(min, Math.round(st.target));
     const out = el('b', { class: 'ct-val', text: `${val} %` });
-    const input = el('input', { type: 'range', class: 'charge-to', min, max: 100, step: 1, value: val, 'aria-label': 'Nabít do' });
-    input.addEventListener('input', () => { out.textContent = `${input.value} %`; });
+    const input = el('input', { type: 'range', class: 'charge-to', min, max: 100, step: 1, value: val, 'aria-label': 'Nabít do',
+      'aria-valuetext': `${val} %`, 'data-key': stopKey(st) });
+    input.addEventListener('input', () => { out.textContent = `${input.value} %`; input.setAttribute('aria-valuetext', `${input.value} %`); });
     input.addEventListener('change', () => setTarget(st, +input.value));
     return el('div', { class: 'charge-to-row' },
       el('label', { class: 'ct-label' }, el('span', { text: 'Nabít do' }), out, input),
@@ -1527,6 +1531,9 @@
     lastRun.plan = fixRange(rt, lastRun.cands, o, energize(rt, lastRun.plan.stops, o));
     if (curTrip) { curTrip.stops = tripStops(lastRun.plan); if (curTrip.saved) persistTrip(true); }
     render();
+    // keep the keyboard / VoiceOver focus on the same slider after the cards were drawn again
+    const again = [...document.querySelectorAll('input.charge-to')].find((x) => x.dataset.key === key);
+    if (again) again.focus();
     if (!$('map-wrap').hidden) drawMap();
     loadWeather(lastRun);                              // R45: the times moved a little
   }
@@ -1759,8 +1766,13 @@
       return { leg, c, alts: [], note: null, pickWhy: 'Stanice z uložené cesty.' };
     });
     stops.sort((a, b) => tripX(a, rt) - tripX(b, rt));
-    const nWin = { A: 0, B: 0 };
-    stops.forEach((st) => { st.win = nWin[st.leg]++; });
+    const nWin = { A: 0, B: 0 }, prev = { A: 0, B: 0 };
+    stops.forEach((st) => {
+      st.win = nWin[st.leg]++;
+      const center = prev[st.leg] + o.interval;          // R40: the window this stop sits in, like pickStops
+      st.lo = center - o.tol; st.hi = center + o.tol;
+      prev[st.leg] = measure(st.c, st.leg, rt, o);
+    });
     try {
       const auto = makePlan(rt, cands, o).stops.filter((s) => !s.empty);
       stops.forEach((st) => {

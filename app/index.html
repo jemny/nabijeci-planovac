@@ -58,20 +58,20 @@
       <div class="step-body" id="step-2">
         <label class="field"><span>Odjezd</span><input type="datetime-local" id="depart"></label>
         <div class="slider-field">
-          <label class="field slider-head"><span>Baterie na startu</span>
+          <label class="field slider-head"><span id="soc0-label">Baterie na startu</span>
             <span class="suffix"><input type="number" id="soc0" min="5" max="100" step="1" inputmode="numeric" value="100"><i>%</i></span></label>
-          <input type="range" data-for="soc0" min="5" max="100" step="1" value="100" aria-label="Baterie na startu, posuvník">
+          <input type="range" data-for="soc0" min="5" max="100" step="1" value="100" aria-labelledby="soc0-label">
         </div>
         <div class="slider-field">
           <label class="field slider-head"><span id="reserve-label">Na zastávku přijet s alespoň</span>
             <span class="suffix"><input type="number" id="reserve" min="0" max="80" step="1" inputmode="numeric" value="10"><i>%</i></span></label>
-          <input type="range" data-for="reserve" min="0" max="80" step="1" value="10" aria-label="Na zastávku přijet s alespoň, posuvník">
+          <input type="range" data-for="reserve" min="0" max="80" step="1" value="10" aria-labelledby="reserve-label">
           <div class="chips presets" data-for="reserve" data-values="10,15,20" role="group" aria-label="Předvolby rezervy"></div>
         </div>
         <div class="slider-field">
-          <label class="field slider-head"><span>Do cíle dojet s</span>
+          <label class="field slider-head"><span id="reserve-dest-label">Do cíle dojet s</span>
             <span class="suffix"><input type="number" id="reserve-dest" min="0" max="80" step="1" inputmode="numeric" value="10"><i>%</i></span></label>
-          <input type="range" data-for="reserve-dest" min="0" max="80" step="1" value="10" aria-label="Do cíle dojet s, posuvník">
+          <input type="range" data-for="reserve-dest" min="0" max="80" step="1" value="10" aria-labelledby="reserve-dest-label">
         </div>
         <p class="small muted hint-top">Rezerva na zastávky a do cíle se nastaví každá zvlášť. Když jedeš i zpátky, platí „Do cíle dojet s“ i pro příjezd domů.</p>
         <label class="check"><input type="checkbox" id="round-trip" checked><span><b>Počítat i cestu zpět</b><small>stejnou trasou, ten samý den</small></span></label>
@@ -108,6 +108,7 @@
         </fieldset>
         <div class="field"><span>Objížďka k nabíječce</span>
           <div class="chips presets" data-for="detour" data-values="0.5,1,1.5,5,15" role="group" aria-label="Objížďka k nabíječce"></div>
+          <p class="small muted preset-hint" aria-live="polite"></p>
           <label class="other-wrap" hidden><span class="sr">Objížďka k nabíječce</span><select id="detour"><option value="0.5">Žádná, jen přímo u trasy (do 0,5 km)</option><option value="1">Do 1 km od trasy</option><option value="1.5" selected>Do 1,5 km (sjezdy z dálnice)</option><option value="5">Do 5 km od trasy</option><option value="15">Do 15 km od trasy</option></select></label></div>
         <label class="check"><input type="checkbox" id="at-pump" checked><span><b>Jen na pumpách</b><small>nabíječka u čerpací stanice</small></span></label>
       </div>
