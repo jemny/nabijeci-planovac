@@ -155,3 +155,22 @@ test('[R35] aktualizace dat: nasadí se jen commit, který prošel testy', () =>
   assert.match(job('test'), /outputs:[\s\S]*sha:/, 'test řekne, který commit otestoval');
   assert.match(job('deploy'), /needs\.test\.outputs\.sha/, 'nasazení porovná main s otestovaným commitem');
 });
+
+// Ruční běhy 16. 11. 2026: stahovalo se vždy CZ, SK, PL, AT, DE. Soubory bez dat z minula (AT, DE) přišly na řadu až
+// po vypršení času, takže se nikdy nestáhly a nemohly dostat data z minula. Jdou proto na řadu první.
+test('[R35] stahování OSM: soubory bez dat z minula se stahují první, aby na ně zbyl čas', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'osm-'));
+  const r = await python(`
+import os
+d = ${JSON.stringify(dir)}
+good = json.dumps({"osm3s": {"timestamp_osm_base": "2026-11-09T03:00:00Z"}, "elements": [1]})
+open(os.path.join(d, "osm_charging_CZ.json"), "w").write(good)
+open(os.path.join(d, "osm_fuel_CZ.json"), "w").write("<html>502</html>")
+open(os.path.join(d, "osm_fuel_SK.json"), "w").write(good)
+names = ["osm_charging_CZ.json", "osm_fuel_CZ.json", "osm_charging_SK.json", "osm_fuel_SK.json", "osm_charging_DE.json"]
+assert hasattr(build_db, "download_order"), "build_db nemá download_order (pořadí stahování)"
+print("RESULT " + json.dumps([os.path.basename(p) for p in build_db.download_order([os.path.join(d, n) for n in names])]))
+`);
+  assert.ok(r.ok, r.out);
+  assert.deepEqual(r.res, ['osm_fuel_CZ.json', 'osm_charging_SK.json', 'osm_charging_DE.json', 'osm_charging_CZ.json', 'osm_fuel_SK.json']);
+});

@@ -171,6 +171,12 @@ def overpass(query, path, refresh):
     raise RuntimeError(f"Overpass failed for {path} (servers: {', '.join(OVERPASS_SERVERS)})")
 
 
+def download_order(paths):
+    """Files without usable data from the last run first: only they cannot fall back when the download time is up
+    (D24; on 16. 11. 2026 AT and DE came last and were never downloaded). Otherwise the given order stays."""
+    return sorted(paths, key=lambda p: _previous(p) is not None)
+
+
 def osm_countries(sources, countries):
     """Per country: the older date of its charging and fuel data, fresh only when both were downloaded now (D24)."""
     out = {}
@@ -563,9 +569,14 @@ def main():
     global OVERPASS_DEADLINE
     OVERPASS_DEADLINE = time.monotonic() + OVERPASS_BUDGET_S
     stations, fuel_elements, osm_base = [], [], None
+    amenity = {"charging": "charging_station", "fuel": "fuel"}
+    files = {os.path.join(RAW, f"osm_{kind}_{cc}.json"): (cc, kind) for cc in COUNTRIES for kind in amenity}
+    osm = {}
+    for path in download_order(list(files)):
+        cc, kind = files[path]
+        osm[(cc, kind)] = overpass(q_amenity(cc, amenity[kind]), path, a.refresh)
     for cc in COUNTRIES:
-        charging = overpass(q_amenity(cc, "charging_station"), os.path.join(RAW, f"osm_charging_{cc}.json"), a.refresh)
-        fuel_cc = overpass(q_amenity(cc, "fuel"), os.path.join(RAW, f"osm_fuel_{cc}.json"), a.refresh)
+        charging, fuel_cc = osm[(cc, "charging")], osm[(cc, "fuel")]
         stations += parse_osm(charging["elements"], cc)
         fuel_elements += fuel_cc["elements"]
         osm_base = charging.get("osm3s", {}).get("timestamp_osm_base") or osm_base
