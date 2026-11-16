@@ -13,7 +13,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16n';
+  const APP_VERSION = '2026-11-16o';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -1068,7 +1068,13 @@
     }
     if (socDest == null) socDest = soc - pct(D - prevX);
     const socEnd = soc - pct(endX - prevX);
-    real.forEach((st, i) => { if (st.done) st.nextArrive = real[i + 1] ? real[i + 1].arrive : (o.roundTrip ? socEnd : socDest); });
+    real.forEach((st, i) => {
+      if (!st.done) return;
+      const nx = real[i + 1];
+      st.nextArrive = nx ? nx.arrive : (o.roundTrip ? socEnd : socDest);
+      st.nextIs = nx ? 'stop' : o.roundTrip ? 'home' : 'dest';                    // where the logged charge has to get you
+      st.destArrive = o.roundTrip && st.leg === 'A' && (!nx || nx.leg === 'B') ? socDest : null;   // R42: also the destination
+    });
     const arriveDest = new Date(o.depart.getTime() + (T + clockA) * 60000);
     const arriveHome = o.roundTrip ? new Date(backAt().getTime() + (T + clockB) * 60000) : null;
     return { stops, D, T, socDest, socEnd, arriveDest, arriveHome, totalMin, totalCzk, totalKwh, priceUnknown, short,
@@ -1932,8 +1938,14 @@
     if (st.done) parts.push(`nabito na ${fmt(st.target)} %${Number.isFinite(a.kwh) ? `, ${fmt(a.kwh, 1)} kWh` : ''}${Number.isFinite(a.min) ? `, ${fmt(a.min)} min` : ''}${Number.isFinite(a.czk) ? `, ${fmt(a.czk)} Kč` : ''}`);
     let check = '', warn = false;
     if (st.done && st.nextArrive != null) {
-      if (st.nextArrive < o.reserve - 1) { check = ` Na další úsek to nestačí: přijedeš jen s ~${fmt(st.nextArrive)} %. Nabij ještě na ~${fmt(Math.min(MAX_TARGET, st.need))} %, nebo zastav dřív.`; warn = true; }
-      else check = ` Plán platí, na další zastávku přijedeš s ~${fmt(st.nextArrive)} %.`;
+      // R42: the next stop needs "Na zastávku přijet s alespoň", the destination and home "Do cíle dojet s"
+      const toStop = (st.nextIs || 'stop') === 'stop', min = toStop ? o.reserve : resDest(o);
+      const where = toStop ? 'na další zastávku' : st.nextIs === 'home' ? 'domů' : 'do cíle';
+      const probs = [], short = (w, v, m) => (v < 0.5 ? `${w} nedojedeš (chybí ~${fmt(m - v)} %)` : `${w} přijedeš jen s ~${fmt(v)} % (chceš aspoň ${fmt(m)} %)`);
+      if (st.destArrive != null && st.destArrive < resDest(o) - 1) probs.push(short('do cíle', st.destArrive, resDest(o)));
+      if (st.nextArrive < min - 1) probs.push(short(where, st.nextArrive, min));
+      if (probs.length) { check = ` Nestačí to: ${probs.join(' a ')}. Nabij ještě na ~${fmt(Math.min(MAX_TARGET, st.need))} %, nebo zastav dřív.`; warn = true; }
+      else check = ` Plán platí, ${where} přijedeš s ~${fmt(st.nextArrive)} %.`;
     }
     return el('p', { class: `advice logged${warn ? ' warn' : ''}`, text: `Skutečnost: ${parts.join(', ')}.${check}` });
   }
