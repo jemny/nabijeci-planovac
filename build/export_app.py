@@ -163,7 +163,7 @@ def main():
     con = sqlite3.connect(a.db)
     con.row_factory = sqlite3.Row
     meta = dict(con.execute("SELECT key, value FROM meta").fetchall())
-    cols = ["lat", "lon", "op", "name", "kw", "ccs", "fuel", "fd", "use", "place", "src", "cc", "oh"]
+    cols = ["lat", "lon", "op", "name", "kw", "ccs", "fuel", "fd", "use", "place", "src", "cc", "oh", "svc"]
     rows = []
     for r in con.execute("SELECT * FROM stations WHERE has_dc = '1' OR has_dc = 1"):
         if (r["cc"] or "CZ") not in ("CZ", "SK") and not (r["dc_kw"] and r["dc_kw"] >= 100):
@@ -173,7 +173,8 @@ def main():
                      round(r["dc_kw"]) if r["dc_kw"] else None, int(r["ccs_count"] or 0) or None,
                      fuel_brand(r["fuel_brand"]), int(r["fuel_dist_m"]) if r["fuel_dist_m"] is not None else None,
                      r["usable_cla"], place, r["source"], r["cc"] or "CZ",
-                     (r["fuel_oh"] if "fuel_oh" in r.keys() else None) if r["fuel_brand"] else None])
+                     (r["fuel_oh"] if "fuel_oh" in r.keys() else None) if r["fuel_brand"] else None,
+                     (r["fuel_svc"] if "fuel_svc" in r.keys() else None) if r["fuel_brand"] else None])
     with open(os.path.join(APP_DATA, "stations.json"), "w", encoding="utf-8") as f:
         json.dump({"cols": cols, "rows": rows}, f, ensure_ascii=False, separators=(",", ":"))
 

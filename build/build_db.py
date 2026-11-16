@@ -598,8 +598,17 @@ def parse_fuel(elements):
         brand = t.get("brand") or t.get("name") or t.get("operator") or "pumpa"
         out.append({"lat": lat, "lon": lon, "brand": brand.strip(), "name": t.get("name"),
                     "shop": t.get("shop") or ("yes" if t.get("compressed_air") else None),
-                    "opening_hours": (t.get("opening_hours") or "").strip() or None})
+                    "opening_hours": (t.get("opening_hours") or "").strip() or None, "svc": pump_services(t)})
     return out
+
+
+def pump_services(t):
+    """Services tagged on the pump itself (D28: no extra OSM queries): w = WC, f = food, s = shop; None when none."""
+    yes = lambda k: str(t.get(k) or "").lower() == "yes"  # noqa: E731
+    have = (("w", str(t.get("toilets") or "").lower() in ("yes", "customers")),
+            ("f", bool(t.get("cuisine")) or any(yes(k) for k in ("food", "fast_food", "cafe", "restaurant"))),
+            ("s", bool(t.get("shop")) and str(t.get("shop")).lower() != "no"))
+    return "".join(ch for ch, ok in have if ok) or None
 
 
 def attach_pumps(stations, pumps):
@@ -611,14 +620,15 @@ def attach_pumps(stations, pumps):
             branded = [(d, p) for d, p in near if not GENERIC_FUEL.search(p["brand"]) and d <= near[0][0] + 60]
             d, p = branded[0] if branded else near[0]
             s["fuel_brand"], s["fuel_dist_m"], s["fuel_oh"] = p["brand"], round(d), p.get("opening_hours")
+            s["fuel_svc"] = p.get("svc")
         else:
-            s["fuel_brand"], s["fuel_dist_m"], s["fuel_oh"] = None, None, None
+            s["fuel_brand"], s["fuel_dist_m"], s["fuel_oh"], s["fuel_svc"] = None, None, None, None
 
 
 # ---------------------------------------------------------------- main
 COLUMNS = ["id", "name", "operator", "operator_raw", "lat", "lon", "address", "city", "has_dc", "dc_kw",
            "ccs_count", "chademo_count", "ac_kw", "capacity", "usable_cla", "price_day", "price_night",
-           "price_card", "price_note", "fuel_brand", "fuel_dist_m", "fuel_oh", "opening_hours", "evse_ref", "fee",
+           "price_card", "price_note", "fuel_brand", "fuel_dist_m", "fuel_oh", "fuel_svc", "opening_hours", "evse_ref", "fee",
            "check_date", "osm_id", "ocm_id", "source", "gmaps", "cc"]
 
 
