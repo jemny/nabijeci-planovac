@@ -60,9 +60,9 @@ test('[R24][R5] proč tahle stanice: oblíbená pumpa', async () => {
   const best = await rank(15, 50, [{ c: cand(400, 'E.ON', 'OMV', 60), tier: 2 }, { c: cand(150, 'E.ON', 'MOL', 70), tier: 0 }], ['MOL']);
   assert.match(best.why, /oblíbená/i);
 });
-test('[R24] proč tahle stanice: jediná v okně / jen káva', async () => {
+test('[R24] proč tahle stanice: jediná v okně / jen přestávka', async () => {
   assert.match((await rank(60, 20, [{ c: cand(150, 'E.ON', 'OMV', 60), tier: 2 }])).why, /jediná/);
-  assert.match((await rank(80, 0, [{ c: cand(150, 'E.ON', 'OMV', 60), tier: 2 }, { c: cand(300, 'E.ON', 'OMV', 70), tier: 2 }])).why, /káv/);
+  assert.match((await rank(80, 0, [{ c: cand(150, 'E.ON', 'OMV', 60), tier: 2 }, { c: cand(300, 'E.ON', 'OMV', 70), tier: 2 }])).why, /jen přestávka/);
 });
 
 test('[R24][R13] zastávka navíc kvůli baterii to řekne', async () => {

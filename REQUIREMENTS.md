@@ -19,7 +19,7 @@ Zastavovat se po čase jízdy (např. 1:00 ± 15 min) nebo po km (např. 100 ± 
 Když v okně nic nevyhovuje, appka tam zastávku nevybere a řekne to. Nabídne tlačítko **Rozšířit tohle okno** tak, aby nejbližší stanice padla dovnitř: rozšíří se jen tohle okno, nastavení zůstane. K tomu nabídne nejbližší možnosti mimo okno (před ním, za ním, dál od trasy) s tlačítkem Vybrat. Vybraná je označená „mimo okno, vybral jsi“, rozšířené okno „okno rozšířené tvým klepnutím“. Viz rozhodnutí D1 a D5.
 
 ### R4 — Jen na pumpách
-Zastávky jen u čerpacích stanic (káva, párek, záchod), výchozí zapnuto.
+Zastávky jen u čerpacích stanic, výchozí zapnuto.
 
 ### R5 — Oblíbené pumpy
 Oblíbené značky (výchozí MOL, ORLEN) mají v okně přednost. Oblíbená kousek mimo okno se u zastávky jen nabídne, sama se nevybere. Volba „jen oblíbené“. Oblíbené se nastavují v ☰.
@@ -46,7 +46,7 @@ Uložit cestu do telefonu, seznam v ☰ a rozjeté cesty nahoře na hlavní obra
 Odkaz s cestou (místa a vybrané stanice v `#cesta=`, neposílá se na server), QR kód, kopírovat a sdílet. Odkaz otevře stejnou cestu se stejnými zastávkami.
 
 ### R13 — Kolik nabíjet
-Na každé zastávce jen tolik, abys na další (nebo domů / do cíle) přijel s alespoň „Přijet s alespoň“ %. Chybí-li ≤ 2 %, jen káva. Když už nabíjíš, tak aspoň o 8 %, ale kvůli tomu minimu nikdy nad 80 %. Nad 80 % jen když to další úsek opravdu potřebuje, nejvýš 90 %. Zastávka navíc mimo okno jen když by jinak baterie nestačila, a je tak označená.
+Na každé zastávce jen tolik, abys na další (nebo domů / do cíle) přijel s alespoň „Přijet s alespoň“ %. Chybí-li ≤ 2 %, jen přestávka bez nabíjení. Když už nabíjíš, tak aspoň o 8 %, ale kvůli tomu minimu nikdy nad 80 %. Nad 80 % jen když to další úsek opravdu potřebuje, nejvýš 90 %. Zastávka navíc mimo okno jen když by jinak baterie nestačila, a je tak označená.
 
 ### R14 — Dokončit cestu a srovnání
 Po cestě zapsat baterii na konci a km. Srovnání s auty na palivo (Volvo diesel 5 l, Talisman 6,5 l, benzín 8 l, ceny se dají upravit): elektro = veřejné nabíjení + dobití doma (6,61 Kč/kWh + 10 % ztráty), čas navíc na nabíječkách.
@@ -58,7 +58,7 @@ U zastávky „Zapsat, jak to dopadlo“: text z aplikace, screenshot (čte se v
 Přeplánovat zbytek cesty z nového místa (cíl nebo poloha) přes nová místa. Odjetá část zůstane v cestě i ve srovnání. Zrušit vrátí původní cestu.
 
 ### R17 — Přestávky
-První zastávka dne 10 min (káva, párek, záchod), každá další 5 min. Elektro stojí, dokud nabíjí.
+První zastávka dne 10 min, každá další 5 min. Elektro stojí, dokud nabíjí.
 
 ### R18 — Strana dálnice
 Odpočívadla přímo u dálnice jen na straně, kterou jedeš.
@@ -79,7 +79,7 @@ Nastavení i cesty se ukládají v zařízení. Záloha do souboru a načtení (
 Po návratu do appky ukáže „Je tu nová verze“ a tlačítko Načíst. Stará cache nesmí držet starou verzi.
 
 ### R24 — Žádné tiché rozhodnutí
-Co appka rozhodne sama, to řekne: proč vybrala tuhle stanici, proč nabíjí právě tolik (minimum 8 %, strop 80 %, jen káva), že nabízí stanice mimo okno a jak daleko, že je zastávka navíc kvůli baterii, že počítá se spotřebou naměřenou v autě, že některé stanice skryla nebo vynechala (protisměr), že posunula odjezd zpět. (Uživatel 15. 11. 2026: „žádné rozhodnutí za něj nesmí být tiché“.)
+Co appka rozhodne sama, to řekne: proč vybrala tuhle stanici, proč nabíjí právě tolik (minimum 8 %, strop 80 %, jen přestávka), že nabízí stanice mimo okno a jak daleko, že je zastávka navíc kvůli baterii, že počítá se spotřebou naměřenou v autě, že některé stanice skryla nebo vynechala (protisměr), že posunula odjezd zpět. (Uživatel 15. 11. 2026: „žádné rozhodnutí za něj nesmí být tiché“.)
 
 ### R25 — Souhrn
 Km, minuty nabíjení, Kč za proud na cestě (a celková cena cesty, R37), baterie podle plánu v cíli → doma, rezerva.
@@ -91,6 +91,9 @@ Nahlášená chyba (uživatel 16. 11. 2026): „na druhé natankuju za 455, ale 
 - **Souhrn nahoře** u Kč za proud napíše, že je to jen nabíjení na cestě, a uvede celou cenu cesty i s elektřinou z domu, stejnou jako ve srovnání.
 
 Hlídá to tests/costs.test.mjs.
+
+### R38 — Bez soukromých poznámek
+Appka nepíše, co uživatel dělá na zastávce. Jsou to jeho soukromé poznámky (uživatel 16. 11. 2026: „tyto texty odstraň, to jsou mé soukromé poznámky“). Zastávka bez nabíjení je „bez nabíjení“, krátká zastávka „přestávka“. Platí pro appku i pro její zdrojové soubory. Hlídá to tests/private-notes.test.mjs.
 
 ### R36 — Formulář ve třech krocích
 Zadání je ve třech očíslovaných, podbarvených blocích pod sebou:

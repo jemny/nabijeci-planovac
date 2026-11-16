@@ -103,6 +103,6 @@ V obou stejné auto (Mercedes CLA Shooting Brake 350 4MATIC, 85 kWh) a stejná t
 - **Varianty trasy, vyhnout se dálnici nebo mýtu:** uživatel jezdí jen nejrychlejší trasu. Dálniční známku mají elektroauta zdarma.
 - **Navigace, radary, CarPlay:** navigaci dělá Google Mapy a auto, webová appka do CarPlay nejde.
 - **Rezerva zvlášť pro zastávky a pro cíl:** u nás platí jedno „přijet s alespoň“ pro všechno (R13). Na nabíječce ráno nic nehrozí a jedno číslo je jednodušší.
-- **Volby „méně zastávek“:** naše zastávky dělá pravidlo kávy a záchodu po čase nebo km, ne baterie.
+- **Volby „méně zastávek“:** naše zastávky dělá pravidlo přestávek po čase nebo km, ne baterie.
 - **Výchozí spotřeba 155 Wh/km:** na zimu příliš optimistická. My bereme skutečnou spotřebu z auta.
 - **Živá data z auta přes ABRP:** jen s účtem a placenou verzí. My máme vlastní data z Home Assistantu.

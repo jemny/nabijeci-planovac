@@ -6,12 +6,12 @@
   // ------------------------------------------------------------------ constants & prefs
   const OSRM = 'https://router.project-osrm.org/route/v1/driving/';
   const PHOTON = 'https://photon.komoot.io/api/';
-  const BREAK_FIRST = 10, BREAK_NEXT = 5;   // user rule: first stop of the day coffee + párek + toilet, then toilet only
+  const BREAK_FIRST = 10, BREAK_NEXT = 5;   // R17: first stop of the day 10 min, every further stop 5 min
   const RESERVE_DEFAULT = 10;    // arrive home / at destination with at least this (user can change)
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16d';
+  const APP_VERSION = '2026-11-16e';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -700,7 +700,7 @@
     const best = pool[0];
     if (pool.length === 1) best.why = 'V okně je jediná vhodná stanice.';
     else if (best.tier === 0 && pool.some((p) => p.tier > 0)) best.why = 'Oblíbená pumpa má v okně přednost.';
-    else if (!charge) best.why = 'Tady se nenabíjí, jen káva: vybraná je stanice nejblíž plánu.';
+    else if (!charge) best.why = 'Tady se nenabíjí, jen přestávka: vybraná je stanice nejblíž plánu.';
     else if (!slow) best.why = (best.c.s.kw || 0) >= 150
       ? `Přijedeš s ~${fmt(ref.arrive)} %: auto víc než ~145 kW nevezme, takže stačí 150 kW stojan a vybraný je levnější.`
       : `Přijedeš s ~${fmt(ref.arrive)} %: rychlejší stojan by tu nepomohl, vybraný je levnější.`;
@@ -894,7 +894,7 @@
         st.target = Math.round(Math.max(st.arrive, Math.min(st.need, MAX_TARGET)));
         const needR = st.target;
         if (st.target - st.arrive <= 2) {                      // a 1–2 % top-up isn't worth plugging in: coffee only
-          if (st.need > st.arrive + 0.5) st.why.push(`Chybí jen ~${fmt(st.need - st.arrive)} %, nabíjení se nevyplatí: jen káva.`);
+          if (st.need > st.arrive + 0.5) st.why.push(`Chybí jen ~${fmt(st.need - st.arrive)} %, nabíjení se nevyplatí: jen přestávka.`);
           st.target = st.arrive;
         } else if (st.target - st.arrive < 8) {
           // if plugging in, take at least 8 % – but never push past 80 % just for that: above 80 % it charges at ~60–80 kW
@@ -909,7 +909,7 @@
         st.kwh = Math.max(0, st.target - st.arrive) * KPP;
         st.nextArrive = null;
       }
-      // user rule: first stop of the day = coffee + párek + toilet (10 min), every further stop = toilet (5 min)
+      // R17: first stop of the day 10 min, every further stop 5 min
       st.breakMin = i === 0 && !histStops ? BREAK_FIRST : BREAK_NEXT;
       st.stopMin = Math.max(st.breakMin, st.chargeMin > 0 ? st.chargeMin + (st.done ? 0 : 2) : 0);
       const tDrive = measureT(st.c, st.leg, rt);
@@ -977,7 +977,7 @@
           o.roundTrip ? el('span', { text: 'doma' }) : null)),
       el('p', { class: 'summary-note', text:
         `Jízda tam ${hm(plan.T)} bez zastávek · ${nStops} ${nStops === 1 ? 'zastávka' : nStops < 5 ? 'zastávky' : 'zastávek'}, nabíjení na ${nCharge}. ` +
-        (plan.noChargeEnd >= o.reserve ? `Bez nabíjení bys ${o.roundTrip ? 'domů' : 'do cíle'} dojel s ~${fmt(plan.noChargeEnd)} %, takže zastávky jsou hlavně na kávu. `
+        (plan.noChargeEnd >= o.reserve ? `Bez nabíjení bys ${o.roundTrip ? 'domů' : 'do cíle'} dojel s ~${fmt(plan.noChargeEnd)} %, takže zastávky jsou hlavně přestávky. `
           : `Cestou potřebuješ dobít asi ${fmt(o.reserve - plan.noChargeEnd)} % (~${fmt((o.reserve - plan.noChargeEnd) * (CAL.battery_kwh || 85) / 100)} kWh), na každé zastávce jen na další úsek. `) +
         wholePrice(o, plan) +
         (plan.short ? 'Pozor: některý úsek je na jedno nabití moc dlouhý, zkrať interval. ' : '') +
@@ -1164,12 +1164,12 @@
     return el('article', { class: `stop-card${charge ? ' charge' : ''}${st.done ? ' done' : ''}` },
       el('div', { class: 'stop-head' },
         el('div', { class: 'stop-title' },
-          el('span', { class: 'eyebrow', text: `Zastávka ${k}${st.leg === 'B' ? ' · zpět' : ''} · ${st.done ? 'zapsáno' : charge ? 'nabíjení' : 'jen káva'}` }),
+          el('span', { class: 'eyebrow', text: `Zastávka ${k}${st.leg === 'B' ? ' · zpět' : ''} · ${st.done ? 'zapsáno' : charge ? 'nabíjení' : 'bez nabíjení'}` }),
           el('h3', {}, `${name} `, el('span', { class: 'op', text: `· ${opKw}` }))),
         fav ? el('span', { class: 'fav-tag', text: '★ oblíbená' }) : null),
       el('p', { class: 'stop-sub', text: sub }),
       flags.length ? el('div', { class: 'badges' }, flags.map((f) => el('span', { class: 'badge warn', text: f }))) : null,
-      charge ? batteryBar(st.arrive, st.target, st.done) : el('p', { class: 'stop-line', text: `Přijedeš s ~${fmt(st.arrive)} % · jen káva a párek, nabíjet nemusíš` }),
+      charge ? batteryBar(st.arrive, st.target, st.done) : el('p', { class: 'stop-line', text: `Přijedeš s ~${fmt(st.arrive)} % · nabíjet nemusíš` }),
       tiles,
       (st.why || []).length ? el('ul', { class: 'why' }, st.why.map((t) => el('li', { text: t }))) : null,
       adv ? el('p', { class: `advice${adv.warn ? ' warn' : ''}`, text: adv.text }) : null,
@@ -1299,7 +1299,7 @@
   }
   async function shareTrip() {
     const { pts, plan } = lastRun;
-    const lines = plan.stops.filter((s) => !s.empty).map((s, k) => `${k + 1}. ${clock(s.at)} ${s.c.s.fuel || ''} ${s.c.s.op || ''} ${s.c.s.kw ? s.c.s.kw + ' kW' : ''}: ${s.kwh > 0 ? `nabít ${fmt(s.arrive)} → ${fmt(s.target)} %` : 'jen káva'}`);
+    const lines = plan.stops.filter((s) => !s.empty).map((s, k) => `${k + 1}. ${clock(s.at)} ${s.c.s.fuel || ''} ${s.c.s.op || ''} ${s.c.s.kw ? s.c.s.kw + ' kW' : ''}: ${s.kwh > 0 ? `nabít ${fmt(s.arrive)} → ${fmt(s.target)} %` : 'bez nabíjení'}`);
     const { there } = sequence();
     try { await navigator.share({ title: 'Trasa s nabíjením', text: lines.join('\n'), url: gDir(pts[0], pts[pts.length - 1], there.map((x) => x.p)) }); } catch (e) { /* cancelled */ }
   }
@@ -1796,7 +1796,7 @@
       if (st.empty) return;
       k += 1;
       L.marker([st.c.s.lat, st.c.s.lon], { icon: L.divIcon({ className: 'pin', html: String(k), iconSize: [28, 28] }) })
-        .bindPopup(`<b>${k}. ${xml(st.c.s.fuel || '')} ${xml(st.c.s.op || '')} ${st.c.s.kw ? st.c.s.kw + ' kW' : ''}</b><br>${clock(st.at)} · ${st.kwh > 0 ? 'nabít ' + fmt(st.arrive) + ' → ' + fmt(st.target) + ' %' : 'jen káva'}`)
+        .bindPopup(`<b>${k}. ${xml(st.c.s.fuel || '')} ${xml(st.c.s.op || '')} ${st.c.s.kw ? st.c.s.kw + ' kW' : ''}</b><br>${clock(st.at)} · ${st.kwh > 0 ? 'nabít ' + fmt(st.arrive) + ' → ' + fmt(st.target) + ' %' : 'bez nabíjení'}`)
         .addTo(layer);
     });
     setTimeout(() => { map.invalidateSize(); map.fitBounds(line.getBounds(), { padding: [24, 24] }); }, 60);

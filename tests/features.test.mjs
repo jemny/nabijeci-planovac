@@ -82,7 +82,7 @@ test('[R13] nabíjení: minimum 8 % nikdy nad 80 % (72 % → 80 %, ne 82 %)', as
   const st = await charge(280, 960);
   assert.equal(Math.round(st.arrive), 72); assert.equal(st.target, 80);
 });
-test('[R13] nabíjení: chybí ≤ 2 % → jen káva, nenabíjí se (85 %, potřeba 87 %)', async () => {
+test('[R13] nabíjení: chybí ≤ 2 % → jen přestávka, nenabíjí se (85 %, potřeba 87 %)', async () => {
   const st = await charge(150, 920);
   assert.equal(st.target, st.arrive); assert.equal(st.kwh, 0);
 });
