@@ -204,7 +204,9 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 
 ## Otevřené rozpory
 
-Žádné. Návrhy z WattBoxu a ABRP (D7–D14) jsou rozhodnuté výše, celé srovnání je v [docs/srovnani-abrp-wattbox.md](docs/srovnani-abrp-wattbox.md).
+- **D25 Kde appka ukáže stát se staršími daty (R35, D24 datového vlákna; varianty nakreslené 16. 11. 2026, čekají na uživatele):** A v ☰ → O appce vždy a v souhrnu jen, když trasa nebo zastávka vede tím státem (doporučuju); B jen v ☰ → O appce; C v souhrnu vždy, když je některý stát starší.
+
+Návrhy z WattBoxu a ABRP (D7–D14) jsou rozhodnuté výše, celé srovnání je v [docs/srovnani-abrp-wattbox.md](docs/srovnani-abrp-wattbox.md).
 - **Nedoporučuju:** nejlevnější a nejkratší trasa (pravidlo jen nejrychlejší), CarPlay, widgety a upozornění do telefonu (webová appka bez serveru to neumí), Apple Mapy a Mapy.com (pravidlo Google Mapy), katalog aut, STK, doklady.
 
 ## Fronta (až bude vše hotové a popsané)
