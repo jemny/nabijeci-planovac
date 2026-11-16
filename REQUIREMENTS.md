@@ -133,12 +133,12 @@ Když hlavní server OpenStreetMap (Overpass) nejede, stahování zkusí zálož
 ### R39 — Na kolik nabít u zastávky
 U každé zastávky, která ještě není zapsaná, je posuvník „Nabít do“: od % při příjezdu do 100 %, výchozí je návrh plánu. Po puštění posuvníku se zbytek plánu přepočítá (D5). Karta napíše „Plán navrhl X %, nastavil jsi Y %“ a má tlačítko „Vrátit na plán“. Tvoje číslo platí přesně, minimum 8 % a strop z R13 jsou jen pro návrh plánu. Když pak baterie na další úsek nestačí, appka přidá zastávku „kvůli dojezdu“ (R13). Nastavení patří k té stanici: když stanici vyměníš, platí zase plán. Uloží se s cestou. (D12 = A)
 
+### R40 — Graf baterie po trase
+V souhrnu je graf: % baterie podle km od startu po cíl (při cestě zpět až domů). U nabíjecí zastávky svislý skok z příjezdu na odjezd, okna zastávek jako podbarvené pruhy, čárkovaně rezerva na zastávky a „Do cíle dojet s“. Graf má i popis slovy (pro čtečku obrazovky). (D14 = A)
+
 ## Rozpracované
 
 Schválené požadavky, na kterých se pracuje. Do „Požadavky“ se přesunou s testy, až budou hotové.
-
-#### R40 — Graf baterie po trase
-V souhrnu je graf: % baterie podle km od startu po cíl (při cestě zpět až domů). U nabíjecí zastávky svislý skok z příjezdu na odjezd, okna zastávek jako podbarvené pruhy, čárkovaně rezerva na zastávky a „Do cíle dojet s“. Graf má i popis slovy (pro čtečku obrazovky). (D14 = A)
 
 #### R41 — Posuvníky a tlačítka ve formuláři
 Baterie na startu, Na zastávku přijet s alespoň a Do cíle dojet s mají posuvník. Číslo vedle posuvníku je pole, do kterého jde napsat přesně, a oba se drží stejné hodnoty. U rezervy jsou předvolby 10 / 15 / 20 %. Interval, tolerance a objížďka jsou tlačítka s předvolbami. Tlačítko „Jiný“ ukáže dosavadní pole pro jinou hodnotu. Pole mají stejná `id` jako dřív. (D11 = A)
@@ -165,7 +165,6 @@ Rozhodnutí k nim (přesunou se do „Rozhodnutí“, až bude požadavek hotov�
 - **D10 (16. 11. 2026, uživatel vybral A):** poplatek za minuty nad volné minuty se započítá do ceny a napíše (R44). Data dodá datové vlákno do `prices.json`.
 - **D11 (16. 11. 2026, uživatel vybral A):** posuvníky a tlačítka ve formuláři (R41). Rozhodl jsem k tomu sám: předvolby intervalu 0:45, 1:00, 1:15, 1:30, 2:00 (po km 100, 130, 150, 200), tolerance 0, 10, 15, 20, 30 min (po km 10, 20, 30), objížďka všech pět dosavadních hodnot. Ostatní hodnoty přes „Jiný“.
 - **D13 (16. 11. 2026, uživatel vybral B):** ikony jen v kartách, ne na mapě (R43). Rozhodl jsem k tomu sám: text u ikon zůstává, ikony ho jen doplní.
-- **D14 (16. 11. 2026, uživatel vybral A):** graf baterie po trase v souhrnu (R40).
 - **D19 (16. 11. 2026, uživatel vybral A, v relaci „Posuvník úrovně nabití do cíle“):** dva posuvníky, „Na zastávku přijet s alespoň“ a zvlášť „Do cíle dojet s“; když jedeš i zpátky, platí cíl i pro příjezd domů (R42). Mění R13, kde dřív platilo jedno číslo pro všechno. Rozhodl jsem k tomu sám: výchozí „Do cíle dojet s“ je 10 % jako rezerva (obrázek ukazoval 30 % jen pro ilustraci), u uloženého nastavení se převezme rezerva. „I pro příjezd domů“ chápu tak, že platí v cíli i doma.
 
 ## Rozhodnutí
@@ -189,6 +188,7 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 - **D8 (16. 11. 2026, uživatel vybral C):** odkaz na WattBox u zastávky nebude. (bez funkce v appce)
 - **D12 (16. 11. 2026, uživatel vybral A):** posuvník „Nabít do“ v kartě zastávky (R39). Rozhodl jsem k tomu sám: tvoje číslo platí přesně (bez minima 8 % a stropu 90 %), posuvník jde do 100 %.
 - **D20 (16. 11. 2026, uživatel vybral A):** pondělní aktualizace dat selhala, protože hlavní server OpenStreetMap 19 minut vracel chyby 502/504. Teď se při výpadku zkusí záložní servery (R35). Nevybráno: B (navíc použít minulá data státu, který nejde stáhnout nikde, a ukázat v appce jejich datum) a C (jen zopakovat běh v úterý). Rozhodl jsem k tomu sám: záložní jsou overpass.private.coffee a overpass.kumi.systems (veřejné servery ze seznamu na wiki OSM). Zkouší se 4 kola po všech serverech, mezi koly pauza 30, 60 a 90 s, jeden dotaz čeká nejvýš 5 minut. Odpověď „runtime error“ (vypršel čas, chybí data) se bere jako výpadek, aby se neuložil stát bez stanic.
+- **D14 (16. 11. 2026, uživatel vybral A):** graf baterie po trase v souhrnu (R40).
 
 ## Otevřené rozpory
 

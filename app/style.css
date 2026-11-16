@@ -342,3 +342,14 @@ a.btn.primary{color:var(--ev-ink)}
 .ct-label .ct-val{font-family:var(--font-mono);color:var(--ink)}
 .ct-label input{grid-column:1/-1}
 .charge-to-row .linkish{min-height:46px;flex:none}
+/* R40 battery chart in the summary */
+.soc-fig{grid-column:1 / -1;margin:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 6px 4px}
+.soc-chart{display:block;width:100%;height:auto}
+.soc-win{fill:var(--ev-soft)}
+.soc-win.empty{fill:var(--warn-soft)}
+.soc-grid{stroke:var(--line);stroke-width:1}
+.soc-dest-mark{stroke:var(--dim);stroke-width:1;stroke-dasharray:2 3}
+.soc-reserve{stroke:var(--warn);stroke-width:1.2}
+.soc-line{fill:none;stroke:var(--ev);stroke-width:2.2;stroke-linejoin:round}
+.soc-dot{fill:var(--ev)}
+.soc-ax{fill:var(--muted);font-size:9.5px;font-family:var(--font-mono)}

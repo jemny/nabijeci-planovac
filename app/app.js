@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16g';
+  const APP_VERSION = '2026-11-16h';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -25,6 +25,13 @@
       else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v === true ? '' : v);
     }
     for (const kid of kids.flat()) if (kid != null) e.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+    return e;
+  };
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const sv = (tag, attrs = {}, ...kids) => {
+    const e = document.createElementNS(SVG_NS, tag);
+    for (const [k, v] of Object.entries(attrs)) if (v != null && v !== false) { if (k === 'text') e.textContent = v; else e.setAttribute(k, v); }
+    for (const kid of kids.flat(Infinity)) if (kid != null) e.append(kid);
     return e;
   };
   const fmt = (n, d = 0) => Number(n).toLocaleString('cs-CZ', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -992,6 +999,7 @@
           o.roundTrip ? el('span', { class: 'arrow', 'aria-hidden': 'true', text: '→' }) : null,
           o.roundTrip ? el('b', { text: `${fmt(plan.socEnd)} %` }) : null,
           o.roundTrip ? el('span', { text: 'doma' }) : null)),
+      socChart(rt, o, plan, destN),
       el('p', { class: 'summary-note', text:
         `Jízda tam ${hm(plan.T)} bez zastávek · ${nStops} ${nStops === 1 ? 'zastávka' : nStops < 5 ? 'zastávky' : 'zastávek'}, nabíjení na ${nCharge}. ` +
         (plan.noChargeEnd >= o.reserve ? `Bez nabíjení bys ${o.roundTrip ? 'domů' : 'do cíle'} dojel s ~${fmt(plan.noChargeEnd)} %, takže zastávky jsou hlavně přestávky. `
@@ -1009,6 +1017,41 @@
           return n ? `${n} ${n === 1 ? 'odpočívadlo' : n < 5 ? 'odpočívadla' : 'odpočívadel'} přímo u dálnice je pro cestu tam v protisměru, appka ${n === 1 ? 'ho' : 'je'} tam nenabízí${o.roundTrip ? ' (na cestě zpět ano)' : ''}. ` : ''; })() +
         (plan.retLate ? `Zpátky v ${clock(o.retDepart)} nestihneš, do cíle dojedeš až v ${clock(plan.arriveDest)}. Počítám s odjezdem ${clock(plan.retDepart)}.` : '') }),
     );
+  }
+
+  // R40 (D14 = A): battery % along the trip – a jump at every charging stop, the stop windows as bands, the reserve dashed
+  function socChart(rt, o, plan, destN) {
+    const D = plan.D, KM = o.roundTrip ? 2 * D : D, T = rt.duration / 60;
+    const W = 340, H = 150, x0 = 38, x1 = W - 10, y0 = 14, y1 = H - 22;
+    const X = (km) => +(x0 + Math.max(0, Math.min(KM, km)) / KM * (x1 - x0)).toFixed(1);
+    const Y = (p) => +(y1 - Math.max(0, Math.min(100, p)) / 100 * (y1 - y0)).toFixed(1);
+    // a window edge (minutes or km from the start of its leg) → km along the whole trip
+    const winKm = (leg, v) => {
+      const k = o.byKm ? v : leg === 'A' ? kmAtMinutes(rt, v) : D - kmAtMinutes(rt, Math.max(0, T - v));
+      return leg === 'A' ? k : D + k;
+    };
+    const stops = plan.stops.filter((s) => !s.empty);
+    const pts = [[0, o.soc0]];
+    stops.forEach((st) => { const x = tripX(st, rt); pts.push([x, st.arrive]); if (st.target > st.arrive + 0.5) pts.push([x, st.target]); });
+    const end = o.roundTrip ? plan.socEnd : plan.socDest;
+    pts.push([KM, end]);
+    const r = (v) => Math.round(Math.max(0, Math.min(100, v)));
+    const label = `Baterie po trase: start ${r(o.soc0)} %, ` + stops.map((st, i) => `zastávka ${i + 1} ${st.target > st.arrive + 0.5 ? `${r(st.arrive)} % → ${r(st.target)} %` : `${r(st.arrive)} %`}`).join(', ') +
+      `, ${o.roundTrip ? `v cíli ${r(plan.socDest)} %, doma` : 'v cíli'} ${r(end)} %. Rezerva ${r(o.reserve)} %.`;
+    const svg = sv('svg', { class: 'soc-chart', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': label, 'data-plot': `${x0} ${y0} ${x1} ${y1}`, 'data-km': KM.toFixed(2) },
+      plan.stops.filter((s) => s.win != null && s.lo != null).map((st) => {
+        const a = X(winKm(st.leg, st.lo)), b = X(winKm(st.leg, st.hi));
+        return sv('rect', { class: `soc-win${st.empty ? ' empty' : ''}`, x: Math.min(a, b), y: y0, width: Math.max(1, Math.abs(b - a)), height: y1 - y0 });
+      }),
+      [0, 50, 100].map((p) => [sv('line', { class: 'soc-grid', x1: x0, x2: x1, y1: Y(p), y2: Y(p) }),
+        sv('text', { class: 'soc-ax', x: x0 - 4, y: Y(p) + 3, 'text-anchor': 'end', text: `${p} %` })]),
+      o.roundTrip ? [sv('line', { class: 'soc-dest-mark', x1: X(D), x2: X(D), y1: y0 - 6, y2: y1 }),
+        sv('text', { class: 'soc-ax', x: X(D), y: y0 - 8 + 2, 'text-anchor': 'middle', text: destN })] : null,
+      sv('line', { class: 'soc-reserve', x1: x0, x2: x1, y1: Y(o.reserve), y2: Y(o.reserve), 'stroke-dasharray': '4 3' }),
+      sv('polyline', { class: 'soc-line', points: pts.map(([k, p]) => `${X(k)},${Y(p)}`).join(' ') }),
+      stops.filter((st) => st.kwh > 0).map((st) => sv('circle', { class: 'soc-dot', cx: X(tripX(st, rt)), cy: Y(st.target), r: 2.5 })),
+      [[0, 'start'], [KM, 'end']].map(([k, anchor]) => sv('text', { class: 'soc-ax', x: X(k), y: H - 6, 'text-anchor': anchor, text: `${fmt(k)} km` })));
+    return el('figure', { class: 'soc-fig' }, svg);
   }
 
   // R37: the tile says what you pay on the way; the whole trip also uses the battery charged at home
