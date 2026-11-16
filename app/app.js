@@ -13,7 +13,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16m';
+  const APP_VERSION = '2026-11-16n';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -906,11 +906,19 @@
       const k = o.byKm ? (st.lo + st.hi) / 2 : kmAtMinutes(rt, (st.lo + st.hi) / 2);
       st.x = st.leg === 'A' ? k : D + k;
     });
-    let plan = energize(rt, stops, o);
-    // If a gap is too long for the battery (e.g. a long interval around the destination of a round trip),
-    // insert an extra stop inside the reachable part of that gap and re-plan. A few rounds at most.
+    return fixRange(rt, cands, o, energize(rt, stops, o));
+  }
+
+  /* If a gap is too long for the battery (e.g. a long interval around the destination of a round trip), insert an
+     extra stop between the problem and the point the battery has to reach (the next stop, the destination or the end)
+     and re-plan. A few rounds at most. Used for a new plan and after every change of a planned stop (R39), also for a
+     saved trip. An extra stop that ends up charging nothing is dropped again; no two stops at the same place. */
+  function fixRange(rt, cands, o, plan) {
+    const D = rt.distance / 1000, endX = o.roundTrip ? 2 * D : D;
     const ppk = o.cons / (CAL.battery_kwh || 85);   // % of battery per km
     const legs = o.roundTrip ? ['A', 'B'] : ['A'];
+    const useless = (s) => s.note === 'kvůli dojezdu' && !s.done && !s.userTarget && !(s.kwh > 0);
+    for (let k = 0; k < 6 && plan.stops.some(useless); k++) plan = energize(rt, plan.stops.filter((s) => !useless(s)), o);
     const skip = new Set();                          // problems no station can fix: report them, but keep fixing the rest
     for (let round = 0; round < 12; round++) {
       const real = plan.stops.filter((s) => !s.empty);
@@ -918,42 +926,47 @@
       for (let i = 0; i < real.length && !prob; i++) {
         const s = real[i], key = `${s.leg}:${stationKey(s.c.s)}`;
         if (skip.has(key)) continue;
-        if (s.short) { const from = tripX(s, rt); prob = { key, from, reach: from + (MAX_TARGET - o.reserve) / ppk }; }
+        if (s.short) { const from = tripX(s, rt); prob = { key, from, reach: from + (MAX_TARGET - o.reserve) / ppk, limit: s.needX }; }
         else if (s.arrive < o.reserve - 3) {
           const p = real[i - 1], from = p ? tripX(p, rt) : 0;
-          prob = { key, from, reach: from + ((p ? p.target : o.soc0) - o.reserve) / ppk };
+          prob = { key, from, reach: from + ((p ? p.target : o.soc0) - o.reserve) / ppk, limit: tripX(s, rt) };
         }
       }
       if (!prob && !skip.has('dest') && o.roundTrip && plan.socDest < resDest(o) - 3) {   // R42: the destination of a round trip
         const before = real.filter((s) => s.leg === 'A'), p = before[before.length - 1], from = p ? tripX(p, rt) : 0;
-        prob = { key: 'dest', from, reach: Math.min(D, from + ((p ? p.target : o.soc0) - resDest(o)) / ppk) };
+        prob = { key: 'dest', from, reach: from + ((p ? p.target : o.soc0) - o.reserve) / ppk, limit: D };
       }
       if (!prob && !skip.has('end') && (o.roundTrip ? plan.socEnd : plan.socDest) < resDest(o) - 3) {
         const p = real[real.length - 1], from = p ? tripX(p, rt) : 0;
-        prob = { key: 'end', from, reach: from + ((p ? p.target : o.soc0) - resDest(o)) / ppk };
+        prob = { key: 'end', from, reach: from + ((p ? p.target : o.soc0) - o.reserve) / ppk, limit: endX };
       }
       if (!prob) break;
       const used = new Set(real.map((s) => `${s.leg}:${stationKey(s.c.s)}`));
-      let pool = [];
-      // stations by the route first, then a small detour, then anything up to 15 km away
-      for (const r of [o.detourKm, Math.max(o.detourKm, FAV_DETOUR_KM), WIDE_KM]) {
-        for (const c of cands) {
-          if (c.n.dist > r * 1000) continue;
-          for (const leg of legs) {
-            const x = tripKm(c, leg, rt);
-            if (sideOk(c, leg) && x > prob.from + 10 && x + c.detourKm / 2 < prob.reach - 3 && !used.has(`${leg}:${stationKey(c.s)}`)) pool.push({ c, leg, x });
-          }
+      const busy = (c, leg) => real.some((s) => s.leg === leg && hav(s.c.s, c.s) < 500);   // another stop at the same place
+      const upTo = Math.min(prob.reach, prob.limit != null ? prob.limit : Infinity);
+      // tier 0 = by the route, 1 = a small detour, 2 = anything up to 15 km away
+      const tiers = [o.detourKm, Math.max(o.detourKm, FAV_DETOUR_KM), WIDE_KM];
+      const pool = [];
+      for (const c of cands) {
+        const tier = tiers.findIndex((r) => c.n.dist <= r * 1000);
+        if (tier < 0) continue;
+        for (const leg of legs) {
+          const x = tripKm(c, leg, rt);
+          if (sideOk(c, leg) && x > prob.from + 10 && x + c.detourKm / 2 < upTo - 3 && !used.has(`${leg}:${stationKey(c.s)}`) && !busy(c, leg)) pool.push({ c, leg, x, tier });
         }
-        if (pool.length) break;
       }
       if (!pool.length) { skip.add(prob.key); continue; }
-      // favourite pump first; you arrive low here, so a ≥ 150 kW stand; then as far as the battery allows (fewer stops)
-      const rank = (p) => (favs.has(p.c.s.fuel) ? 0 : 2) + ((p.c.s.kw || 0) >= 150 ? 0 : 1);
+      // far enough (the last 40 % of the reachable stretch, so that one extra stop is enough) by the route or with a small
+      // detour first; a 15 km detour only when nothing else; then the favourite pump, a ≥ 150 kW stand (you arrive low)
+      // and as far as the battery allows
+      const farFrom = prob.from + 0.6 * (upTo - prob.from);
+      const rank = (p) => (p.tier === 2 ? 16 : 0) + (p.x >= farFrom ? 0 : 8) + (p.tier === 1 ? 4 : 0) + (favs.has(p.c.s.fuel) ? 0 : 2) + ((p.c.s.kw || 0) >= 150 ? 0 : 1);
       pool.sort((a, b) => rank(a) - rank(b) || b.x - a.x);
       const best = pool[0];
-      plan.stops.push({ leg: best.leg, c: best.c, alts: pool.slice(1, 5).filter((p) => p.leg === best.leg).map((p) => p.c), note: 'kvůli dojezdu' });
-      plan.stops.sort((a, b) => tripX(a, rt) - tripX(b, rt));
-      plan = energize(rt, plan.stops, o);
+      const added = { leg: best.leg, c: best.c, alts: pool.slice(1, 5).filter((p) => p.leg === best.leg).map((p) => p.c), note: 'kvůli dojezdu' };
+      const next = energize(rt, [...plan.stops, added].sort((a, b) => tripX(a, rt) - tripX(b, rt)), o);
+      if (!(added.kwh > 0)) { skip.add(prob.key); continue; }   // it would charge nothing: it does not solve this problem
+      plan = next;
     }
     return plan;
   }
@@ -993,8 +1006,12 @@
       } else st.arrive = st.planArrive;
       const nextX = next ? xOf(next) : endX;
       st.need = pct(nextX - x) + pct(st.c.detourKm / 2) + (next ? o.reserve + pct(next.c.detourKm / 2) : resDest(o));
+      st.needX = nextX;                                        // the point this stop has to get you to
       // R42: on a round trip, the last stop before the destination also has to get you there with "Do cíle dojet s"
-      if (o.roundTrip && st.leg === 'A' && (!next || next.leg === 'B')) st.need = Math.max(st.need, pct(D - x) + pct(st.c.detourKm / 2) + resDest(o));
+      if (o.roundTrip && st.leg === 'A' && (!next || next.leg === 'B')) {
+        const toDest = pct(D - x) + pct(st.c.detourKm / 2) + resDest(o);
+        if (toDest > st.need) { st.need = toDest; st.needX = D; }
+      }
       st.done = !!(act && Number.isFinite(act.socTo));
       if (st.done) {
         st.target = act.socTo;
@@ -1477,7 +1494,8 @@
     const key = stopKey(st);
     if (val == null) delete targets[key]; else targets[key] = val;
     const { rt, o } = lastRun;
-    lastRun.plan = lastRun.fixed ? energize(rt, lastRun.plan.stops, o) : makePlan(rt, lastRun.cands, o, lastRun.overrides || []);
+    // the same stations (also ones you picked by hand), recomputed; an extra stop is added or dropped as the battery needs
+    lastRun.plan = fixRange(rt, lastRun.cands, o, energize(rt, lastRun.plan.stops, o));
     if (curTrip) { curTrip.stops = tripStops(lastRun.plan); if (curTrip.saved) persistTrip(true); }
     render();
     if (!$('map-wrap').hidden) drawMap();
@@ -1491,7 +1509,7 @@
     st.alts = [st.c, ...st.alts.filter((a) => a !== alt)];
     st.c = alt; st.note = null; st.pickWhy = 'Tuhle stanici jsi vybral ze seznamu v okně.';
     plan.stops.sort((a, b) => tripX(a, rt) - tripX(b, rt));
-    lastRun.plan = energize(rt, plan.stops, o);
+    lastRun.plan = fixRange(rt, lastRun.cands, o, energize(rt, plan.stops, o));
     if (curTrip) { curTrip.stops = tripStops(lastRun.plan); if (curTrip.saved) persistTrip(true); }
     render();
     if (!$('map-wrap').hidden) drawMap();
