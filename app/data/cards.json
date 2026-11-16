@@ -28,13 +28,17 @@
       "max": 149,
       "day": 12.9,
       "night": 12.9,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 90,
+      "czk_min": 2
      },
      {
       "max": 9999,
       "day": 15.9,
       "night": 15.9,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 45,
+      "czk_min": 2
      }
     ]
    }
@@ -50,13 +54,17 @@
       "max": 149,
       "day": 12.4,
       "night": 12.4,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 90,
+      "czk_min": 2
      },
      {
       "max": 9999,
       "day": 12.4,
       "night": 12.4,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 45,
+      "czk_min": 2
      }
     ]
    }
@@ -72,13 +80,17 @@
       "max": 149,
       "day": 11.4,
       "night": 11.4,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 90,
+      "czk_min": 2
      },
      {
       "max": 9999,
       "day": 11.4,
       "night": 11.4,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 45,
+      "czk_min": 2
      }
     ]
    }
@@ -116,19 +128,26 @@
       "max": 100,
       "day": 9.5,
       "night": 8.0,
-      "label": "pásmo do 100 kW"
+      "label": "pásmo do 100 kW",
+      "free_min": 120,
+      "czk_min": 2,
+      "czk_min_night": 0
      },
      {
       "max": 200,
       "day": 13.0,
       "night": 10.0,
-      "label": "pásmo 101–200 kW"
+      "label": "pásmo 101–200 kW",
+      "free_min": 60,
+      "czk_min": 2
      },
      {
       "max": 400,
       "day": 16.9,
       "night": 12.0,
-      "label": "pásmo 201–400 kW"
+      "label": "pásmo 201–400 kW",
+      "free_min": 30,
+      "czk_min": 2
      }
     ]
    }
@@ -144,19 +163,26 @@
       "max": 100,
       "day": 10.5,
       "night": 8.5,
-      "label": "pásmo do 100 kW"
+      "label": "pásmo do 100 kW",
+      "free_min": 120,
+      "czk_min": 2,
+      "czk_min_night": 0
      },
      {
       "max": 200,
       "day": 14.5,
       "night": 11.0,
-      "label": "pásmo 101–200 kW"
+      "label": "pásmo 101–200 kW",
+      "free_min": 60,
+      "czk_min": 2
      },
      {
       "max": 400,
       "day": 20.0,
       "night": 14.0,
-      "label": "pásmo 201–400 kW"
+      "label": "pásmo 201–400 kW",
+      "free_min": 30,
+      "czk_min": 2
      }
     ]
    }
@@ -172,13 +198,17 @@
       "max": 149,
       "day": 12,
       "night": 12,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 60,
+      "czk_min": 2
      },
      {
       "max": 9999,
       "day": 14,
       "night": 14,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 30,
+      "czk_min": 2
      }
     ]
    },
@@ -188,13 +218,17 @@
       "max": 149,
       "day": 18,
       "night": 18,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 60,
+      "czk_min": 3
      },
      {
       "max": 9999,
       "day": 21,
       "night": 21,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 45,
+      "czk_min": 4
      }
     ],
     "ČEZ": [
@@ -202,13 +236,17 @@
       "max": 149,
       "day": 19,
       "night": 19,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 60,
+      "czk_min": 2
      },
      {
       "max": 9999,
       "day": 26,
       "night": 26,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 60,
+      "czk_min": 2
      }
     ],
     "IONITY": [
@@ -216,7 +254,9 @@
       "max": 9999,
       "day": 25,
       "night": 25,
-      "label": "jedna cena"
+      "label": "jedna cena",
+      "free_min": 60,
+      "czk_min": 3
      }
     ],
     "Teplárny Brno": [
@@ -224,13 +264,17 @@
       "max": 149,
       "day": 17,
       "night": 17,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 60,
+      "czk_min": 1
      },
      {
       "max": 9999,
       "day": 18,
       "night": 18,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 60,
+      "czk_min": 1
      }
     ],
     "Lidl": [
@@ -238,7 +282,9 @@
       "max": 9999,
       "day": 13.2,
       "night": 13.2,
-      "label": "DC"
+      "label": "DC",
+      "free_min": 60,
+      "czk_min": 1
      }
     ],
     "Shell": [
@@ -246,7 +292,9 @@
       "max": 9999,
       "day": 17,
       "night": 17,
-      "label": "jedna cena"
+      "label": "jedna cena",
+      "free_min": 45,
+      "czk_min": 2
      }
     ],
     "ORLEN": [
@@ -262,13 +310,17 @@
       "max": 149,
       "day": 25,
       "night": 25,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 90,
+      "czk_min": 2
      },
      {
       "max": 9999,
       "day": 27,
       "night": 27,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 60,
+      "czk_min": 2
      }
     ]
    },
@@ -292,7 +344,9 @@
       "max": 9999,
       "day": 25,
       "night": 25,
-      "label": "jedna cena"
+      "label": "jedna cena",
+      "free_min": 60,
+      "czk_min": 3
      }
     ],
     "Shell": [
@@ -300,7 +354,9 @@
       "max": 9999,
       "day": 23,
       "night": 23,
-      "label": "jedna cena"
+      "label": "jedna cena",
+      "free_min": 45,
+      "czk_min": 2
      }
     ]
    }
@@ -317,13 +373,17 @@
       "max": 149,
       "day": 11,
       "night": 11,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 60,
+      "czk_min": 1
      },
      {
       "max": 9999,
       "day": 13,
       "night": 13,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 30,
+      "czk_min": 2
      }
     ]
    },
@@ -333,13 +393,17 @@
       "max": 149,
       "day": 18,
       "night": 18,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 60,
+      "czk_min": 3
      },
      {
       "max": 9999,
       "day": 21,
       "night": 21,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 45,
+      "czk_min": 4
      }
     ],
     "ČEZ": [
@@ -347,13 +411,17 @@
       "max": 149,
       "day": 19,
       "night": 19,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 60,
+      "czk_min": 2
      },
      {
       "max": 9999,
       "day": 26,
       "night": 26,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 60,
+      "czk_min": 2
      }
     ],
     "IONITY": [
@@ -361,7 +429,9 @@
       "max": 9999,
       "day": 25,
       "night": 25,
-      "label": "jedna cena"
+      "label": "jedna cena",
+      "free_min": 60,
+      "czk_min": 3
      }
     ],
     "Teplárny Brno": [
@@ -369,13 +439,17 @@
       "max": 149,
       "day": 17,
       "night": 17,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 60,
+      "czk_min": 1
      },
      {
       "max": 9999,
       "day": 18,
       "night": 18,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 60,
+      "czk_min": 1
      }
     ],
     "Lidl": [
@@ -383,7 +457,9 @@
       "max": 9999,
       "day": 13.2,
       "night": 13.2,
-      "label": "DC"
+      "label": "DC",
+      "free_min": 60,
+      "czk_min": 1
      }
     ],
     "Shell": [
@@ -391,7 +467,9 @@
       "max": 9999,
       "day": 17,
       "night": 17,
-      "label": "jedna cena"
+      "label": "jedna cena",
+      "free_min": 45,
+      "czk_min": 2
      }
     ],
     "ORLEN": [
@@ -407,13 +485,17 @@
       "max": 149,
       "day": 25,
       "night": 25,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 90,
+      "czk_min": 2
      },
      {
       "max": 9999,
       "day": 27,
       "night": 27,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 60,
+      "czk_min": 2
      }
     ]
    },
@@ -437,7 +519,9 @@
       "max": 9999,
       "day": 25,
       "night": 25,
-      "label": "jedna cena"
+      "label": "jedna cena",
+      "free_min": 60,
+      "czk_min": 3
      }
     ],
     "Shell": [
@@ -445,7 +529,9 @@
       "max": 9999,
       "day": 23,
       "night": 23,
-      "label": "jedna cena"
+      "label": "jedna cena",
+      "free_min": 45,
+      "czk_min": 2
      }
     ]
    }
@@ -461,13 +547,17 @@
       "max": 149,
       "day": 10,
       "night": 10,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 60,
+      "czk_min": 1
      },
      {
       "max": 9999,
       "day": 12,
       "night": 12,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 30,
+      "czk_min": 2
      }
     ]
    },
@@ -477,13 +567,17 @@
       "max": 149,
       "day": 18,
       "night": 18,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 60,
+      "czk_min": 3
      },
      {
       "max": 9999,
       "day": 21,
       "night": 21,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 45,
+      "czk_min": 4
      }
     ],
     "ČEZ": [
@@ -491,13 +585,17 @@
       "max": 149,
       "day": 19,
       "night": 19,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 60,
+      "czk_min": 2
      },
      {
       "max": 9999,
       "day": 26,
       "night": 26,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 60,
+      "czk_min": 2
      }
     ],
     "IONITY": [
@@ -505,7 +603,9 @@
       "max": 9999,
       "day": 25,
       "night": 25,
-      "label": "jedna cena"
+      "label": "jedna cena",
+      "free_min": 60,
+      "czk_min": 3
      }
     ],
     "Teplárny Brno": [
@@ -513,13 +613,17 @@
       "max": 149,
       "day": 17,
       "night": 17,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 60,
+      "czk_min": 1
      },
      {
       "max": 9999,
       "day": 18,
       "night": 18,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 60,
+      "czk_min": 1
      }
     ],
     "Lidl": [
@@ -527,7 +631,9 @@
       "max": 9999,
       "day": 13.2,
       "night": 13.2,
-      "label": "DC"
+      "label": "DC",
+      "free_min": 60,
+      "czk_min": 1
      }
     ],
     "Shell": [
@@ -535,7 +641,9 @@
       "max": 9999,
       "day": 17,
       "night": 17,
-      "label": "jedna cena"
+      "label": "jedna cena",
+      "free_min": 45,
+      "czk_min": 2
      }
     ],
     "ORLEN": [
@@ -551,13 +659,17 @@
       "max": 149,
       "day": 25,
       "night": 25,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 90,
+      "czk_min": 2
      },
      {
       "max": 9999,
       "day": 27,
       "night": 27,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 60,
+      "czk_min": 2
      }
     ]
    },
@@ -581,7 +693,9 @@
       "max": 9999,
       "day": 25,
       "night": 25,
-      "label": "jedna cena"
+      "label": "jedna cena",
+      "free_min": 60,
+      "czk_min": 3
      }
     ],
     "Shell": [
@@ -589,7 +703,9 @@
       "max": 9999,
       "day": 23,
       "night": 23,
-      "label": "jedna cena"
+      "label": "jedna cena",
+      "free_min": 45,
+      "czk_min": 2
      }
     ]
    }
@@ -605,13 +721,17 @@
       "max": 149,
       "day": 10,
       "night": 10,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 90,
+      "czk_min": 1
      },
      {
       "max": 9999,
       "day": 11,
       "night": 11,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 60,
+      "czk_min": 2
      }
     ]
    },
@@ -621,13 +741,17 @@
       "max": 149,
       "day": 18,
       "night": 18,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 60,
+      "czk_min": 3
      },
      {
       "max": 9999,
       "day": 21,
       "night": 21,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 45,
+      "czk_min": 4
      }
     ],
     "ČEZ": [
@@ -635,13 +759,17 @@
       "max": 149,
       "day": 19,
       "night": 19,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 60,
+      "czk_min": 2
      },
      {
       "max": 9999,
       "day": 26,
       "night": 26,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 60,
+      "czk_min": 2
      }
     ],
     "IONITY": [
@@ -649,7 +777,9 @@
       "max": 9999,
       "day": 25,
       "night": 25,
-      "label": "jedna cena"
+      "label": "jedna cena",
+      "free_min": 60,
+      "czk_min": 3
      }
     ],
     "Teplárny Brno": [
@@ -657,13 +787,17 @@
       "max": 149,
       "day": 17,
       "night": 17,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 60,
+      "czk_min": 1
      },
      {
       "max": 9999,
       "day": 18,
       "night": 18,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 60,
+      "czk_min": 1
      }
     ],
     "Lidl": [
@@ -671,7 +805,9 @@
       "max": 9999,
       "day": 13.2,
       "night": 13.2,
-      "label": "DC"
+      "label": "DC",
+      "free_min": 60,
+      "czk_min": 1
      }
     ],
     "Shell": [
@@ -679,7 +815,9 @@
       "max": 9999,
       "day": 17,
       "night": 17,
-      "label": "jedna cena"
+      "label": "jedna cena",
+      "free_min": 45,
+      "czk_min": 2
      }
     ],
     "ORLEN": [
@@ -695,13 +833,17 @@
       "max": 149,
       "day": 25,
       "night": 25,
-      "label": "DC do 149 kW"
+      "label": "DC do 149 kW",
+      "free_min": 90,
+      "czk_min": 2
      },
      {
       "max": 9999,
       "day": 27,
       "night": 27,
-      "label": "UFC od 150 kW"
+      "label": "UFC od 150 kW",
+      "free_min": 60,
+      "czk_min": 2
      }
     ]
    },
@@ -725,7 +867,9 @@
       "max": 9999,
       "day": 25,
       "night": 25,
-      "label": "jedna cena"
+      "label": "jedna cena",
+      "free_min": 60,
+      "czk_min": 3
      }
     ],
     "Shell": [
@@ -733,7 +877,9 @@
       "max": 9999,
       "day": 23,
       "night": 23,
-      "label": "jedna cena"
+      "label": "jedna cena",
+      "free_min": 45,
+      "czk_min": 2
      }
     ]
    }
@@ -1040,5 +1186,5 @@
    "note": "roaming téměř všude, cenu ukáže aplikace Mercedes"
   }
  ],
- "source": "WattBox srovnání karet (11. 11. 2026), E.ON ceník od 1. 4. 2026, PRE roaming od 1. 7. 2026, shell.cz"
+ "source": "WattBox srovnání karet (11. 11. 2026), E.ON ceník od 1. 4. 2026, PRE roaming od 1. 7. 2026, shell.cz; poplatky za minuty: E.ON ceník od 18. 6. 2026, ČEZ ceník od 1. 11. 2026, PRE POINT ceník od 1. 12. 2025 a PRE roaming od 1. 7. 2026 (ověřeno 16. 11. 2026)"
 }

@@ -465,14 +465,28 @@ def parse_fuel(elements):
             continue
         brand = t.get("brand") or t.get("name") or t.get("operator") or "pumpa"
         out.append({"lat": lat, "lon": lon, "brand": brand.strip(), "name": t.get("name"),
-                    "shop": t.get("shop") or ("yes" if t.get("compressed_air") else None)})
+                    "shop": t.get("shop") or ("yes" if t.get("compressed_air") else None),
+                    "opening_hours": (t.get("opening_hours") or "").strip() or None})
     return out
+
+
+def attach_pumps(stations, pumps):
+    """Each station gets its pump within 200 m: brand, distance and OSM opening_hours of that same pump (R35, R46)."""
+    pgrid = Grid(pumps)
+    for s in stations:
+        near = pgrid.near(s["lat"], s["lon"], 200)
+        if near:  # prefer a real brand over a generic node (CNG/LPG stand, "pumpa") up to 60 m further away
+            branded = [(d, p) for d, p in near if not GENERIC_FUEL.search(p["brand"]) and d <= near[0][0] + 60]
+            d, p = branded[0] if branded else near[0]
+            s["fuel_brand"], s["fuel_dist_m"], s["fuel_oh"] = p["brand"], round(d), p.get("opening_hours")
+        else:
+            s["fuel_brand"], s["fuel_dist_m"], s["fuel_oh"] = None, None, None
 
 
 # ---------------------------------------------------------------- main
 COLUMNS = ["id", "name", "operator", "operator_raw", "lat", "lon", "address", "city", "has_dc", "dc_kw",
            "ccs_count", "chademo_count", "ac_kw", "capacity", "usable_cla", "price_day", "price_night",
-           "price_card", "price_note", "fuel_brand", "fuel_dist_m", "opening_hours", "evse_ref", "fee",
+           "price_card", "price_note", "fuel_brand", "fuel_dist_m", "fuel_oh", "opening_hours", "evse_ref", "fee",
            "check_date", "osm_id", "ocm_id", "source", "gmaps", "cc"]
 
 
@@ -521,15 +535,8 @@ def main():
 
     n_fixed, n_added_manual = apply_overrides(stations, os.path.join(HERE, "doplnky.csv"))
 
-    pgrid = Grid(pumps)
+    attach_pumps(stations, pumps)
     for s in stations:
-        near = pgrid.near(s["lat"], s["lon"], 200)
-        if near:  # prefer a real brand over a generic node (CNG/LPG stand, "pumpa") up to 60 m further away
-            branded = [(d, p) for d, p in near if not GENERIC_FUEL.search(p["brand"]) and d <= near[0][0] + 60]
-            d, p = branded[0] if branded else near[0]
-            s["fuel_brand"], s["fuel_dist_m"] = p["brand"], round(d)
-        else:
-            s["fuel_brand"], s["fuel_dist_m"] = None, None
         s["usable_cla"] = usable_for_cla(s["operator"], s["has_dc"], s["dc_kw"])
         s["price_day"], s["price_night"], s["price_card"], s["price_note"] = card_price(
             s["operator"], s["dc_kw"], bool(s["has_dc"]))

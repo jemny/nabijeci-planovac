@@ -37,29 +37,52 @@ def _t(*bands):
 DC_UFC = lambda dc, ufc, lab_dc="DC do 149 kW", lab_ufc="UFC od 150 kW": _t(  # noqa: E731
     (149, dc, dc, lab_dc), (9999, ufc, ufc, lab_ufc))
 FLAT = lambda p, lab="jedna cena": _t((9999, p, p, lab))  # noqa: E731
-EON_REG = _t((100, 9.5, 8.0, "pásmo do 100 kW"), (200, 13.0, 10.0, "pásmo 101–200 kW"), (400, 16.9, 12.0, "pásmo 201–400 kW"))
-EON_ADHOC = _t((100, 10.5, 8.5, "pásmo do 100 kW"), (200, 14.5, 11.0, "pásmo 101–200 kW"), (400, 20.0, 14.0, "pásmo 201–400 kW"))
-# PRE customers on other operators' stations in CZ (PRE ceník platný od 1. 7. 2026), blocking fees not included
+
+
+def _fee(tiers, *fees):
+    """Time fee per tier, same order as tiers: (free_min, czk_min) or (free_min, czk_min, czk_min_night), None = no fee.
+    free_min = minutes free from the start of charging, czk_min = Kč for each further minute (R35 for R44, D10).
+    Only from verified price lists; where unknown the fields are left out."""
+    out = [dict(t) for t in tiers]
+    for t, f in zip(out, fees):
+        if f:
+            t["free_min"], t["czk_min"] = f[0], f[1]
+            if len(f) > 2:
+                t["czk_min_night"] = f[2]
+    return out
+
+
+# time fees: E.ON Drive ceník od 18. 6. 2026 (eon-drive.cz): 120 / 60 / 30 free minutes, then 2 Kč/min; up to 100 kW free at night
+EON_FEES = ((120, 2, 0), (60, 2), (30, 2))
+EON_REG = _fee(_t((100, 9.5, 8.0, "pásmo do 100 kW"), (200, 13.0, 10.0, "pásmo 101–200 kW"), (400, 16.9, 12.0, "pásmo 201–400 kW")), *EON_FEES)
+EON_ADHOC = _fee(_t((100, 10.5, 8.5, "pásmo do 100 kW"), (200, 14.5, 11.0, "pásmo 101–200 kW"), (400, 20.0, 14.0, "pásmo 201–400 kW")), *EON_FEES)
+# ČEZ ceník od 1. 11. 2026 (all tariffs): DC do 149 kW from the 91st minute, UFC from the 46th, 2 Kč/min
+CEZ_FEES = ((90, 2), (45, 2))
+# PRE POINT ceník od 1. 12. 2025 (DC do 149 kW / UFC nad 149 kW)
+PRE_START_FEES, PRE_SILVER_FEES, PRE_PLATINUM_FEES = ((60, 2), (30, 2)), ((60, 1), (30, 2)), ((90, 1), (60, 2))
+# PRE customers on other operators' stations in CZ (PRE ceník platný od 1. 7. 2026, with its time fees)
 # PRE customers abroad (same price list): Slovakia ZSE, GreenWay (SK/PL), Shell abroad
-PRE_ABROAD = {"ZSE Drive": DC_UFC(15, 15), "GreenWay": FLAT(25), "Shell": FLAT(23)}
-PRE_ROAM = {"E.ON": DC_UFC(18, 21), "ČEZ": DC_UFC(19, 26), "IONITY": FLAT(25), "Teplárny Brno": DC_UFC(17, 18),
-            "Lidl": FLAT(13.2, "DC"), "Shell": FLAT(17), "ORLEN": FLAT(13), "Chargee": DC_UFC(25, 27)}
+PRE_ABROAD = {"ZSE Drive": DC_UFC(15, 15), "GreenWay": _fee(FLAT(25), (60, 3)), "Shell": _fee(FLAT(23), (45, 2))}
+PRE_ROAM = {"E.ON": _fee(DC_UFC(18, 21), (60, 3), (45, 4)), "ČEZ": _fee(DC_UFC(19, 26), (60, 2), (60, 2)),
+            "IONITY": _fee(FLAT(25), (60, 3)), "Teplárny Brno": _fee(DC_UFC(17, 18), (60, 1), (60, 1)),
+            "Lidl": _fee(FLAT(13.2, "DC"), (60, 1)), "Shell": _fee(FLAT(17), (45, 2)), "ORLEN": FLAT(13),
+            "Chargee": _fee(DC_UFC(25, 27), (90, 2), (60, 2))}
 
 # Charging cards / tariffs available in CZ (WattBox srovnání, aktualizováno 11. 11. 2026; E.ON ceník od 1. 4. 2026;
 # PRE roaming ceník od 1. 7. 2026; Shell shell.cz). "own" = networks where the price applies,
 # "anywhere" = roams on (almost) every station: price known (tiers) or unknown (None).
 CARDS = [
-    {"id": "cez-basic", "group": "ČEZ", "name": "ČEZ Basic", "fee": 0, "own": {"ČEZ": DC_UFC(12.9, 15.9)}},
-    {"id": "cez-standard", "group": "ČEZ", "name": "ČEZ Standard", "fee": 100, "own": {"ČEZ": DC_UFC(12.4, 12.4)}},
-    {"id": "cez-premium", "group": "ČEZ", "name": "ČEZ Premium", "fee": 300, "own": {"ČEZ": DC_UFC(11.4, 11.4)}},
+    {"id": "cez-basic", "group": "ČEZ", "name": "ČEZ Basic", "fee": 0, "own": {"ČEZ": _fee(DC_UFC(12.9, 15.9), *CEZ_FEES)}},
+    {"id": "cez-standard", "group": "ČEZ", "name": "ČEZ Standard", "fee": 100, "own": {"ČEZ": _fee(DC_UFC(12.4, 12.4), *CEZ_FEES)}},
+    {"id": "cez-premium", "group": "ČEZ", "name": "ČEZ Premium", "fee": 300, "own": {"ČEZ": _fee(DC_UFC(11.4, 11.4), *CEZ_FEES)}},
     {"id": "cez-adhoc", "group": "ČEZ", "name": "ČEZ bez registrace", "fee": 0, "own": {"ČEZ": DC_UFC(16.9, 22.9)}},
     {"id": "eon", "group": "E.ON", "name": "E.ON Drive (registrace)", "fee": 0, "own": {"E.ON": EON_REG}},
     {"id": "eon-adhoc", "group": "E.ON", "name": "E.ON bez registrace (QR/terminál)", "fee": 0, "own": {"E.ON": EON_ADHOC}},
-    {"id": "pre-start", "group": "PRE", "name": "PRE Start", "fee": 0, "own": {"PRE": DC_UFC(12, 14)}, "roam": PRE_ROAM, "abroad": PRE_ABROAD},
+    {"id": "pre-start", "group": "PRE", "name": "PRE Start", "fee": 0, "own": {"PRE": _fee(DC_UFC(12, 14), *PRE_START_FEES)}, "roam": PRE_ROAM, "abroad": PRE_ABROAD},
     {"id": "pre-silver", "group": "PRE", "name": "PRE Silver", "fee": 150, "note": "0 Kč pro zákazníky PRE",
-     "own": {"PRE": DC_UFC(11, 13)}, "roam": PRE_ROAM, "abroad": PRE_ABROAD},
-    {"id": "pre-gold", "group": "PRE", "name": "PRE Gold (jen zákazníci PRE)", "fee": 150, "own": {"PRE": DC_UFC(10, 12)}, "roam": PRE_ROAM, "abroad": PRE_ABROAD},
-    {"id": "pre-platinum", "group": "PRE", "name": "PRE Platinum", "fee": 300, "own": {"PRE": DC_UFC(10, 11)}, "roam": PRE_ROAM, "abroad": PRE_ABROAD},
+     "own": {"PRE": _fee(DC_UFC(11, 13), *PRE_SILVER_FEES)}, "roam": PRE_ROAM, "abroad": PRE_ABROAD},
+    {"id": "pre-gold", "group": "PRE", "name": "PRE Gold (jen zákazníci PRE)", "fee": 150, "own": {"PRE": _fee(DC_UFC(10, 12), *PRE_SILVER_FEES)}, "roam": PRE_ROAM, "abroad": PRE_ABROAD},
+    {"id": "pre-platinum", "group": "PRE", "name": "PRE Platinum", "fee": 300, "own": {"PRE": _fee(DC_UFC(10, 11), *PRE_PLATINUM_FEES)}, "roam": PRE_ROAM, "abroad": PRE_ABROAD},
     {"id": "pre-adhoc", "group": "PRE", "name": "PRE bez registrace", "fee": 0, "own": {"PRE": DC_UFC(13, 15)}},
     {"id": "mol", "group": "MOL", "name": "MOL Plugee (registrace)", "fee": 0, "own": {"MOL": DC_UFC(13, 14)}},
     {"id": "mol-adhoc", "group": "MOL", "name": "MOL bez registrace", "fee": 0, "own": {"MOL": DC_UFC(14.5, 15.5)}},
@@ -90,16 +113,13 @@ DEFAULT_CARDS = ["cez-basic", "eon", "chargee", "lidl-noapp", "mbcharge", "orlen
 PRICES = {  # legacy single-card table (CLI / query.py); the app uses CARDS
     "night_hours": [20, 8],
     "networks": {
-        "E.ON": {"card": "E.ON Drive", "tiers": [
-            {"max": 100, "day": 9.5, "night": 8.0, "label": "pásmo do 100 kW"},
-            {"max": 200, "day": 13.0, "night": 10.0, "label": "pásmo 101–200 kW"},
-            {"max": 400, "day": 16.9, "night": 12.0, "label": "pásmo 201–400 kW"}]},
-        "ČEZ": {"card": "ČEZ Basic", "tiers": [
+        "E.ON": {"card": "E.ON Drive", "tiers": EON_REG},
+        "ČEZ": {"card": "ČEZ Basic", "tiers": _fee([
             {"max": 149, "day": 12.9, "night": 12.9, "label": "DC 50–149 kW"},
-            {"max": 9999, "day": 15.9, "night": 15.9, "label": "UFC od 150 kW"}]},
-        "PRE": {"card": "PRE Start", "tiers": [
+            {"max": 9999, "day": 15.9, "night": 15.9, "label": "UFC od 150 kW"}], *CEZ_FEES)},
+        "PRE": {"card": "PRE Start", "tiers": _fee([
             {"max": 149, "day": 12.0, "night": 12.0, "label": "DC (hranice pásma neověřena)"},
-            {"max": 9999, "day": 14.0, "night": 14.0, "label": "UFC (hranice pásma neověřena)"}]},
+            {"max": 9999, "day": 14.0, "night": 14.0, "label": "UFC (hranice pásma neověřena)"}], *PRE_START_FEES)},
         "MOL": {"card": "MOL", "tiers": [
             {"max": 149, "day": 13.0, "night": 13.0, "label": "DC (hranice pásma neověřena)"},
             {"max": 9999, "day": 14.0, "night": 14.0, "label": "UFC (hranice pásma neověřena)"}]},
@@ -114,7 +134,8 @@ PRICES = {  # legacy single-card table (CLI / query.py); the app uses CARDS
             {"max": 9999, "day": 20.3, "night": 10.3, "label": "špička / mimo špičku (orientačně)"}]},
         "Lidl": {"card": "Lidl", "tiers": [{"max": 9999, "day": 11.9, "night": 11.9, "label": "DC"}]},
     },
-    "source": "ceníky ověřené 2026-11-14 (E.ON od 1. 4. 2026, ČEZ dle Autohledu, ostatní WattBox, Shell shell.cz)",
+    "source": "ceníky ověřené 2026-11-14 (E.ON od 1. 4. 2026, ČEZ dle Autohledu, ostatní WattBox, Shell shell.cz); "
+              "poplatky za minuty: E.ON ceník od 18. 6. 2026, ČEZ ceník od 1. 11. 2026, PRE POINT ceník od 1. 12. 2025 a PRE roaming od 1. 7. 2026 (ověřeno 2026-11-16)",
 }
 
 REF_CURVE = [[0, 200], [5, 300], [10, 330], [11, 336], [15, 322], [20, 316], [25, 310], [30, 278], [35, 245],
@@ -142,7 +163,7 @@ def main():
     con = sqlite3.connect(a.db)
     con.row_factory = sqlite3.Row
     meta = dict(con.execute("SELECT key, value FROM meta").fetchall())
-    cols = ["lat", "lon", "op", "name", "kw", "ccs", "fuel", "fd", "use", "place", "src", "cc"]
+    cols = ["lat", "lon", "op", "name", "kw", "ccs", "fuel", "fd", "use", "place", "src", "cc", "oh"]
     rows = []
     for r in con.execute("SELECT * FROM stations WHERE has_dc = '1' OR has_dc = 1"):
         if (r["cc"] or "CZ") not in ("CZ", "SK") and not (r["dc_kw"] and r["dc_kw"] >= 100):
@@ -151,7 +172,8 @@ def main():
         rows.append([round(r["lat"], 5), round(r["lon"], 5), r["operator"], r["name"],
                      round(r["dc_kw"]) if r["dc_kw"] else None, int(r["ccs_count"] or 0) or None,
                      fuel_brand(r["fuel_brand"]), int(r["fuel_dist_m"]) if r["fuel_dist_m"] is not None else None,
-                     r["usable_cla"], place, r["source"], r["cc"] or "CZ"])
+                     r["usable_cla"], place, r["source"], r["cc"] or "CZ",
+                     (r["fuel_oh"] if "fuel_oh" in r.keys() else None) if r["fuel_brand"] else None])
     with open(os.path.join(APP_DATA, "stations.json"), "w", encoding="utf-8") as f:
         json.dump({"cols": cols, "rows": rows}, f, ensure_ascii=False, separators=(",", ":"))
 
@@ -159,7 +181,8 @@ def main():
         json.dump(PRICES, f, ensure_ascii=False, indent=1)
     with open(os.path.join(APP_DATA, "cards.json"), "w", encoding="utf-8") as f:
         json.dump({"night_hours": [20, 8], "default": DEFAULT_CARDS, "cards": CARDS,
-                   "source": "WattBox srovnání karet (11. 11. 2026), E.ON ceník od 1. 4. 2026, PRE roaming od 1. 7. 2026, shell.cz"},
+                   "source": "WattBox srovnání karet (11. 11. 2026), E.ON ceník od 1. 4. 2026, PRE roaming od 1. 7. 2026, shell.cz; "
+                             "poplatky za minuty: E.ON ceník od 18. 6. 2026, ČEZ ceník od 1. 11. 2026, PRE POINT ceník od 1. 12. 2025 a PRE roaming od 1. 7. 2026 (ověřeno 16. 11. 2026)"},
                   f, ensure_ascii=False, indent=1)
 
     cal = {"k_median": 0.72, "bands": [], "updated": None}
