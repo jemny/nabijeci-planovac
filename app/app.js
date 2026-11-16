@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16j';
+  const APP_VERSION = '2026-11-16k';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -1235,7 +1235,6 @@
     const s = st.c.s;
     const charge = st.kwh > 0;
     const name = stopName(s);
-    const opKw = [s.op, s.kw ? `${s.kw} kW` : 'výkon ?'].filter(Boolean).join(' ');
     const fav = favs.has(s.fuel);
     const flags = [
       st.note === 'mimo okno' ? 'mimo okno (v okně nic)' : null,
@@ -1247,11 +1246,12 @@
       st.note === 'oblíbená objížďka' ? 'malá objížďka' : null,
       s.fuel ? null : 'bez pumpy',
       warn800(s)].filter(Boolean);
-    const sub = [st.c.n.dist < 300 ? 'přímo u trasy' : `${fmt(st.c.n.dist / 1000, 1)} km od trasy`, s.ccs ? `${s.ccs}× CCS` : null,
-      s.fuel && s.fd != null ? `pumpa ${s.fd} m` : null, s.cc && s.cc !== 'CZ' ? s.cc : null, `po ${hm(st.tDrive)} jízdy · ${fmt(st.km)} km`].filter(Boolean).join(' · ');
+    const subParts = [st.c.n.dist < 300 ? 'přímo u trasy' : `${fmt(st.c.n.dist / 1000, 1)} km od trasy`, s.ccs ? [icon('plug'), `${s.ccs}× CCS`] : null,
+      s.fuel && s.fd != null ? `pumpa ${s.fd} m` : null, s.cc && s.cc !== 'CZ' ? s.cc : null, `po ${hm(st.tDrive)} jízdy · ${fmt(st.km)} km`].filter(Boolean);
+    const sub = subParts.flatMap((p, i) => (i ? [' · ', p] : [p])).flat();
     const adv = st.done ? null : advice(st);
     const tiles = charge ? el('div', { class: 'tiles3' },
-      el('div', { class: 'tile' }, el('b', { text: `${st.done ? '' : '~'}${fmt(st.chargeMin)} min` }), el('span', { text: 'nabíjení' })),
+      el('div', { class: 'tile' }, el('b', { text: `${st.done ? '' : '~'}${fmt(st.chargeMin)} min` }), el('span', {}, icon('clock'), 'nabíjení')),
       el('div', { class: 'tile' }, el('b', { text: st.cost != null ? `${fmt(st.cost)} Kč` : '? Kč' }), el('span', { text: `${fmt(st.kwh, 1)} kWh` })),
       el('div', { class: 'tile' }, el('b', { text: st.pr && st.pr.czk != null ? fmt(st.pr.czk, 2) : '–' }), el('span', { text: 'Kč/kWh' }))) : null;
     const alts = st.alts && st.alts.length ? el('div', { class: 'alts' }, el('p', { class: 'lbl', text: `Jiné možnosti v tomhle okně (${st.alts.length})` }),
@@ -1277,11 +1277,11 @@
       el('div', { class: 'stop-head' },
         el('div', { class: 'stop-title' },
           el('span', { class: 'eyebrow', text: `Zastávka ${k}${st.leg === 'B' ? ' · zpět' : ''} · ${st.done ? 'zapsáno' : charge ? 'nabíjení' : 'bez nabíjení'}` }),
-          el('h3', {}, `${name} `, el('span', { class: 'op', text: `· ${opKw}` }))),
+          el('h3', {}, `${name} `, el('span', { class: 'op' }, `· ${s.op ? `${s.op} ` : ''}`, s.kw ? icon('bolt') : null, s.kw ? `${s.kw} kW` : 'výkon ?'))),
         fav ? el('span', { class: 'fav-tag', text: '★ oblíbená' }) : null),
-      el('p', { class: 'stop-sub', text: sub }),
+      el('p', { class: 'stop-sub' }, sub),
       flags.length ? el('div', { class: 'badges' }, flags.map((f) => el('span', { class: 'badge warn', text: f }))) : null,
-      charge ? batteryBar(st.arrive, st.target, st.done) : el('p', { class: 'stop-line', text: `Přijedeš s ~${fmt(st.arrive)} % · nabíjet nemusíš` }),
+      charge ? batteryBar(st.arrive, st.target, st.done) : el('p', { class: 'stop-line' }, icon('batt'), `Přijedeš s ~${fmt(st.arrive)} % · nabíjet nemusíš`),
       st.done ? null : chargeTo(st),
       tiles,
       (st.why || []).length ? el('ul', { class: 'why' }, st.why.map((t) => el('li', { text: t }))) : null,
@@ -1296,6 +1296,16 @@
       curTrip ? actualBox(st) : null,
       more);
   }
+
+  // R43 (D13 = B): small icons next to the facts in a stop card; the words stay, the icons are decoration only
+  const ICONS = {
+    bolt: [['path', { d: 'M13 2 4 14h7l-1 8 9-12h-7z', fill: 'currentColor', stroke: 'none' }]],
+    plug: [['path', { d: 'M9 2v5M15 2v5M6 7h12v3a6 6 0 0 1-12 0zM12 16v6' }]],
+    clock: [['circle', { cx: 12, cy: 12, r: 9 }], ['path', { d: 'M12 7v5l3 2' }]],
+    batt: [['rect', { x: 2, y: 7, width: 18, height: 10, rx: 2 }], ['path', { d: 'M22 10v4' }], ['rect', { x: 4, y: 9, width: 7, height: 6, fill: 'currentColor', stroke: 'none' }]],
+  };
+  const icon = (name) => sv('svg', { class: `ic ic-${name}`, viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' },
+    ICONS[name].map(([tag, attrs]) => sv(tag, attrs)));
 
   // R39 (D12 = A): "Nabít do" slider; letting it go recomputes the rest of the plan (D5)
   function chargeTo(st) {
