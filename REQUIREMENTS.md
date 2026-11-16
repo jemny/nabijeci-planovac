@@ -82,7 +82,15 @@ Po návratu do appky ukáže „Je tu nová verze“ a tlačítko Načíst. Star
 Co appka rozhodne sama, to řekne: proč vybrala tuhle stanici, proč nabíjí právě tolik (minimum 8 %, strop 80 %, jen káva), že nabízí stanice mimo okno a jak daleko, že je zastávka navíc kvůli baterii, že počítá se spotřebou naměřenou v autě, že některé stanice skryla nebo vynechala (protisměr), že posunula odjezd zpět. (Uživatel 15. 11. 2026: „žádné rozhodnutí za něj nesmí být tiché“.)
 
 ### R25 — Souhrn
-Km, minuty nabíjení, Kč za proud, baterie podle plánu v cíli → doma, rezerva.
+Km, minuty nabíjení, Kč za proud na cestě (a celková cena cesty, R37), baterie podle plánu v cíli → doma, rezerva.
+
+### R37 — Každá koruna se dá dohledat
+Nahlášená chyba (uživatel 16. 11. 2026): „na druhé natankuju za 455, ale na konci píšeš, že celá cesta bude stát 953 Kč, tzn. někde počítáš s tím, že budu ještě nabíjet, ale neukazuješ to“. Rozdíl byla elektřina z domu, appka ale neřekla, odkud je.
+- **Srovnání** rozepíše cenu elektra: nabíjení na zastávkách (každá nabíjecí zastávka jménem a cenou, stejnou jako v kartě) + elektřina z domu. Součet je cena v tabulce.
+- **Elektřina z domu** se vysvětlí: baterie na startu → na konci (v cíli, doma nebo zapsaná), kolik % a kWh to je v baterii, kolik kWh ze zásuvky i se ztrátami a za kolik Kč/kWh.
+- **Souhrn nahoře** u Kč za proud napíše, že je to jen nabíjení na cestě, a uvede celou cenu cesty i s elektřinou z domu, stejnou jako ve srovnání.
+
+Hlídá to tests/costs.test.mjs.
 
 ### R36 — Formulář ve třech krocích
 Zadání je ve třech očíslovaných, podbarvených blocích pod sebou:

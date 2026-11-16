@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-15o';
+  const APP_VERSION = '2026-11-16a';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -981,6 +981,7 @@
     const p = String(s.place || '').split(',').map((x) => x.trim()).filter(Boolean);
     return (p.length ? p[p.length - 1] : '').replace(/^\d{3}\s?\d{2}\s+/, '').replace(/\s*--\s*$/, '');
   };
+  const stopName = (s) => { const town = townOf(s); return `${s.fuel || 'Stanice'}${town && !(s.fuel || '').includes(town) ? ` ${town}` : ''}`; };
   function renderSummary(rt, o, plan) {
     const box = $('summary'); box.textContent = ''; box.className = 'summary';
     const nStops = plan.stops.filter((s) => !s.empty).length, nCharge = plan.stops.filter((s) => !s.empty && s.kwh > 0).length;
@@ -990,7 +991,7 @@
     box.append(
       tile(fmt(plan.D), o.roundTrip ? 'km tam' : 'km'),
       tile(`${fmt(plan.totalMin)} min`, 'nabíjení'),
-      tile(`${fmt(plan.totalCzk)} Kč`, plan.priceUnknown ? 'za proud, část bez ceny' : 'za proud'),
+      tile(`${fmt(plan.totalCzk)} Kč`, plan.priceUnknown ? 'za proud na cestě, část bez ceny' : 'za proud na cestě'),
       el('div', { class: `battery-strip${low(plan.socDest) || (o.roundTrip && low(plan.socEnd)) ? ' warn' : ''}` },
         el('div', { class: 'bs-head' }, el('span', { text: 'Baterie podle plánu' }), el('span', { text: `rezerva ${fmt(o.reserve)} %` })),
         el('div', { class: 'bs-vals' },
@@ -1002,6 +1003,7 @@
         `Jízda tam ${hm(plan.T)} bez zastávek · ${nStops} ${nStops === 1 ? 'zastávka' : nStops < 5 ? 'zastávky' : 'zastávek'}, nabíjení na ${nCharge}. ` +
         (plan.noChargeEnd >= o.reserve ? `Bez nabíjení bys ${o.roundTrip ? 'domů' : 'do cíle'} dojel s ~${fmt(plan.noChargeEnd)} %, takže zastávky jsou hlavně na kávu. `
           : `Cestou potřebuješ dobít asi ${fmt(o.reserve - plan.noChargeEnd)} % (~${fmt((o.reserve - plan.noChargeEnd) * (CAL.battery_kwh || 85) / 100)} kWh), na každé zastávce jen na další úsek. `) +
+        wholePrice(o, plan) +
         (plan.short ? 'Pozor: některý úsek je na jedno nabití moc dlouhý, zkrať interval. ' : '') +
         (() => { const n = plan.stops.filter((s) => !s.empty && !s.done && s.kwh > 0 && s.target > effLimit(o)).length;
           return n ? `Na ${n} ${n === 1 ? 'zastávce' : 'zastávkách'} nabíjíš nad limit v autě ${fmt(effLimit(o))} %, před nabíjením ho zvedni. ` : ''; })() +
@@ -1016,6 +1018,13 @@
     );
   }
 
+  // R37: the tile says what you pay on the way; the whole trip also uses the battery charged at home
+  function wholePrice(o, plan) {
+    const r = comparison(o, plan);
+    if (!(r.homeCzk >= 0.5)) return '';
+    return `Celá cesta vyjde na ${fmt(r.ev)} Kč: ${fmt(r.pubCzk)} Kč za nabíjení na cestě + ${fmt(r.homeCzk)} Kč za elektřinu z domu ` +
+      `(baterie ${fmt(r.soc0)} % na startu → ${fmt(r.socEnd)} % ${r.where}), rozpis ve srovnání dole. `;
+  }
   const tlRow = (time, kind, content) => el('li', { class: `tl ${kind}` }, el('span', { class: 'tl-time', text: time || '' }), content);
   const tlText = (head, sub) => el('span', { class: 'tl-text' }, el('b', { text: head }), sub ? el('span', { class: 'muted', text: ` · ${sub}` }) : null);
   function renderPlan(o, plan) {
@@ -1095,8 +1104,7 @@
   function stopCard(st, k, idx, o) {
     const s = st.c.s;
     const charge = st.kwh > 0;
-    const town = townOf(s);
-    const name = `${s.fuel || 'Stanice'}${town && !(s.fuel || '').includes(town) ? ` ${town}` : ''}`;
+    const name = stopName(s);
     const opKw = [s.op, s.kw ? `${s.kw} kW` : 'výkon ?'].filter(Boolean).join(' ');
     const fav = favs.has(s.fuel);
     const flags = [
@@ -1677,14 +1685,17 @@
     const pubCzk = h.czk + real.reduce((a, s) => a + (s.cost || 0), 0);
     const pubPct = h.pct + real.reduce((a, s) => a + Math.max(0, s.target - s.arrive), 0);
     const soc0 = h.soc0 != null ? h.soc0 : o.soc0;                  // battery when the whole trip started
-    const homeCzk = Math.max(0, soc0 - socEnd) / 100 * CAP / (1 - c.loss) * c.home;
+    const kwhBat = Math.max(0, soc0 - socEnd) / 100 * CAP, kwhSocket = kwhBat / (1 - c.loss);
+    const homeCzk = kwhSocket * c.home;
+    const where = fin ? 'na konci (zapsané)' : o.roundTrip ? 'po návratu domů' : 'v cíli';
+    const charges = real.filter((s) => s.kwh > 0).map((s) => ({ name: stopName(s.c.s), czk: s.cost }));
     const ev = pubCzk + homeCzk;
     const allHome = Math.max(0, soc0 - socEnd + pubPct) / 100 * CAP / (1 - c.loss) * c.home;
     const driveMin = h.driveMin + (o.roundTrip ? 2 : 1) * plan.T;
     let evStops = 0, iceStops = 0;
     [...h.stopMins, ...real.map((s) => s.chargeMin || 0)].forEach((m, i) => { const brk = i === 0 ? BREAK_FIRST : BREAK_NEXT; iceStops += brk; evStops += Math.max(brk, m); });
     const cars = c.cars.map((car) => { const litres = km * car.l / 100; return { ...car, litres, czk: litres * (car.fuel === 'diesel' ? c.diesel : c.petrol) }; });
-    return { fin, km, socEnd, pubCzk, homeCzk, ev, allHome, evTotal: driveMin + evStops, iceTotal: driveMin + iceStops, wait: evStops - iceStops, cars, c };
+    return { fin, km, soc0, socEnd, where, kwhBat, kwhSocket, charges, histCzk: h.czk, pubCzk, homeCzk, ev, allHome, evTotal: driveMin + evStops, iceTotal: driveMin + iceStops, wait: evStops - iceStops, cars, c };
   }
   function compareCard(o, plan) {
     const r = comparison(o, plan);
@@ -1698,8 +1709,15 @@
       el('div', { class: 'table-wrap' }, el('table', { class: 'cmp' },
         el('thead', {}, el('tr', {}, el('th', { scope: 'col', text: 'Auto' }), el('th', { scope: 'col', text: 'Cena' }), el('th', { scope: 'col', text: 'Kč/km' }), el('th', { scope: 'col', text: 'Na cestě' }))),
         el('tbody', {},
-          row('Elektro', `veřejně ${fmt(r.pubCzk)} Kč + doma ${fmt(r.homeCzk)} Kč`, r.ev, r.evTotal, 'ev'),
+          row('Elektro', `na cestě ${fmt(r.pubCzk)} Kč + z domu ${fmt(r.homeCzk)} Kč`, r.ev, r.evTotal, 'ev'),
           r.cars.map((x) => row(x.name, `${fmt(x.l, 1)} l/100 km · ${fmt(x.litres, 1)} l`, x.czk, r.iceTotal))))),
+      el('p', { class: 'small cmp-sum', text: `Elektro ${fmt(r.ev)} Kč = nabíjení na cestě ${fmt(r.pubCzk)} Kč (` +
+        [...r.charges.map((x) => `${x.name} ${x.czk != null ? fmt(x.czk) + ' Kč' : 'cena ?'}`), r.histCzk ? `už odjeto ${fmt(r.histCzk)} Kč` : null]
+          .filter(Boolean).join(', ') + (r.charges.length || r.histCzk ? '' : 'nikde nenabíjíš') + ') + ' +
+        (r.homeCzk >= 0.5
+          ? `elektřina z domu ${fmt(r.homeCzk)} Kč: baterie ${fmt(r.soc0)} % na startu → ${fmt(r.socEnd)} % ${r.where} = ${fmt(r.soc0 - r.socEnd)} % ` +
+            `= ${fmt(r.kwhBat)} kWh v baterii, ${fmt(r.kwhSocket)} kWh ze zásuvky (${fmt(r.c.loss * 100)} % se ztratí) × ${fmt(r.c.home, 2)} Kč/kWh.`
+          : `elektřina z domu 0 Kč: baterie ${fmt(r.socEnd)} % ${r.where} není pod ${fmt(r.soc0)} % na startu.`) }),
       el('p', { class: 'small', text: `Elektro vychází o ${cheaper.map((d, i) => `${fmt(Math.abs(d))} Kč ${d >= 0 ? 'levněji' : 'dráž'} než ${r.cars[i].name}`).join(', ')}. ` +
         `Čekáním na nabíječce navíc ${fmt(Math.max(0, r.wait))} min. Kdyby se všechno nabilo doma: ${fmt(r.allHome)} Kč.` }),
       el('p', { class: 'small muted', text: `Doma ${fmt(r.c.home, 2)} Kč/kWh + ${fmt(r.c.loss * 100)} % ztráty, nafta ${fmt(r.c.diesel, 2)}, benzín ${fmt(r.c.petrol, 2)} Kč/l. Změníš v ☰ → Srovnání s palivem.` }));
