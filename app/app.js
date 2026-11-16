@@ -13,7 +13,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16u';
+  const APP_VERSION = '2026-11-16v';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -1436,6 +1436,8 @@
     const subParts = [st.c.n.dist < 300 ? 'přímo u trasy' : `${fmt(st.c.n.dist / 1000, 1)} km od trasy`, s.ccs ? [icon('plug'), `${s.ccs}× CCS`] : null,
       s.fuel && s.fd != null ? `pumpa ${s.fd} m` : null, s.cc && s.cc !== 'CZ' ? s.cc : null, `po ${hm(st.tDrive)} jízdy · ${fmt(st.km)} km`].filter(Boolean);
     const sub = subParts.flatMap((p, i) => (i ? [' · ', p] : [p])).flat();
+    const svc = s.fuel ? svcIcons(s.svc) : null;
+    if (svc) sub.push(' ', svc);
     const adv = st.done ? null : advice(st);
     const tiles = charge ? el('div', { class: 'tiles3' },
       el('div', { class: 'tile' }, el('b', { text: `${st.done ? '' : '~'}${fmt(st.chargeMin)} min` }), el('span', {}, icon('clock'), 'nabíjení')),
@@ -1495,6 +1497,15 @@
     plug: [['path', { d: 'M9 2v5M15 2v5M6 7h12v3a6 6 0 0 1-12 0zM12 16v6' }]],
     clock: [['circle', { cx: 12, cy: 12, r: 9 }], ['path', { d: 'M12 7v5l3 2' }]],
     batt: [['rect', { x: 2, y: 7, width: 18, height: 10, rx: 2 }], ['path', { d: 'M22 10v4' }], ['rect', { x: 4, y: 9, width: 7, height: 6, fill: 'currentColor', stroke: 'none' }]],
+    wc: [['circle', { cx: 8, cy: 4.5, r: 1.8 }], ['circle', { cx: 16, cy: 4.5, r: 1.8 }], ['path', { d: 'M8 8v13M6 9h4M16 8l-3 8h6l-3-8M16 16v5' }]],
+    food: [['path', { d: 'M7 3v7M5 3v4a2 2 0 0 0 4 0V3M7 10v11M17 3c-2.5 2-2.5 7 0 9v9' }]],
+    shop: [['path', { d: 'M5 8h14l-1.2 12H6.2zM9 8V6.5a3 3 0 0 1 6 0V8' }]],
+  };
+  // R51 (D27 N3, data D28): services at the station's pump as icons only (R47); a screen reader hears their names
+  const SVC = { w: ['wc', 'WC'], f: ['food', 'jídlo'], s: ['shop', 'obchod'] };
+  const svcIcons = (svc) => {
+    const list = [...String(svc || '')].filter((c) => SVC[c]);
+    return list.length ? el('span', { class: 'svc', role: 'img', 'aria-label': list.map((c) => SVC[c][1]).join(', ') }, list.map((c) => icon(SVC[c][0]))) : null;
   };
   const icon = (name) => sv('svg', { class: `ic ic-${name}`, viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' },
     ICONS[name].map(([tag, attrs]) => sv(tag, attrs)));

@@ -372,3 +372,6 @@ a.btn.primary{color:var(--ev-ink)}
 .pump-closed{border:1px dashed var(--warn);background:var(--warn-soft);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;font-size:.9rem}
 .pump-closed .alt{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .pump-closed .linkish{min-height:38px;flex:none}
+/* R51 services at the pump */
+.svc{display:inline-flex;gap:4px;vertical-align:-.12em;color:var(--muted)}
+.svc .ic{margin:0}

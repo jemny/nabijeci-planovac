@@ -176,12 +176,12 @@ U nabíjecí zastávky, kam přijedeš pod 50 % na stojan od 100 kW, rada dopln�
 ### R50 — Nabíječky poblíž zastávky
 Pod „Víc o zastávce“ jsou až 3 nejbližší další nabíječky do 5 km od zastávky (i mimo okno, podle tvých filtrů) se vzdáleností a Vybrat, pro případ, že je stojan obsazený nebo nejde. (D27, N2, ze srovnání s ABRP)
 
+### R51 — Služby u stanice ikonou
+V kartě zastávky malé ikony služeb do 300 m (WC, jídlo, obchod) ze sloupce `svc` v `stations.json`, bez textu. Bez údaje nic. Data jsou jen ze služeb pumpy (D28 = C), takže chybějící ikona neznamená, že služba není. Hlídá to tests/station-services.test.mjs. (D27, N3, ze srovnání s ABRP a WattBoxem)
+
 ## Rozpracované
 
 Schválený požadavek, na kterém se pracuje, je tady i se svým rozhodnutím, dokud nemá testy; pak se přesune do „Požadavky“ a „Rozhodnutí“.
-
-#### R51 — Služby u stanice ikonou
-V kartě zastávky malé ikony služeb do 300 m (WC, jídlo, obchod) ze sloupce `svc` v `stations.json`, bez textu. Bez údaje nic. Data dodá datové vlákno (D28). (D27, N3, ze srovnání s ABRP a WattBoxem)
 
 ## Rozhodnutí
 
