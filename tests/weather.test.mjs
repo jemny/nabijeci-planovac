@@ -35,9 +35,11 @@ test('[R45] dotaz na počasí: body zaokrouhlené na 0,01°, žádný blíž ne�
   assert.equal(q.get('start_date') <= '2026-11-16' && q.get('end_date') >= '2026-11-16', true, 'datum cesty');
 });
 
-test('[R45] bez mlhy, sněhu a náledí souhrn řekne, že je počasí v pořádku', async () => {
+// D23 (uživatel 16. 11. 2026, review textů U3): když je počasí v pořádku, souhrn o něm mlčí. Dřív test čekal větu
+// „bez mlhy, sněhu a náledí“.
+test('[R45] bez mlhy, sněhu a náledí souhrn o počasí mlčí', async () => {
   const { d } = await search({ 'round-trip': false });
-  assert.match(await settled(d), /bez mlhy, sněhu a náledí/);
+  assert.equal(await settled(d), '');
 });
 
 test('[R45] mlha a náledí: souhrn řekne co, kde (km) a kdy; plán se nezmění', async () => {

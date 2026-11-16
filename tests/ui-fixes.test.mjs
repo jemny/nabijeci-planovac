@@ -67,13 +67,11 @@ test('[R43] nabíjecí zastávka: baterie u příjezdu i v pruhu baterie', async
   assert.match(text(arr), /přijedeš\s*\d+ %/);
 });
 
-test('[R41] objížďka: pod tlačítky je vysvětlení vybrané hodnoty', async () => {
+// D23 (uživatel 16. 11. 2026, review textů F6): objížďka má jen tlačítka. Dřív test čekal vysvětlivku pod nimi.
+test('[R41] objížďka má jen tlačítka, bez vysvětlivky pod nimi', async () => {
   const { w } = await loadApp({ prefs: { places: praha } }), d = w.document;
-  const hint = d.querySelector('.presets[data-for="detour"] ~ .preset-hint');
-  assert.ok(hint, 'vysvětlení objížďky');
-  assert.match(text(hint), /sjezdy z dálnice/);
-  [...d.querySelectorAll('.presets[data-for="detour"] .chip')].find((c) => /^0,5 km$/.test(text(c))).click();
-  assert.match(text(hint), /jen přímo u trasy/);
+  assert.equal(d.querySelector('.preset-hint'), null);
+  assert.equal([...d.querySelectorAll('.presets[data-for="detour"] .chip')].length, 5);
 });
 
 test('[R41] posuvníky ve formuláři čtečka pojmenuje podle nadpisu pole (i při Jedu jinudy)', async () => {

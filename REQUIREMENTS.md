@@ -80,7 +80,7 @@ Nastavení i cesty se ukládají v zařízení. Záloha do souboru a načtení (
 Po návratu do appky ukáže „Je tu nová verze“ a tlačítko Načíst. Stará cache nesmí držet starou verzi.
 
 ### R24 — Žádné tiché rozhodnutí
-Co appka rozhodne sama, to řekne: proč vybrala tuhle stanici, proč nabíjí právě tolik (minimum 8 %, strop 80 %, jen přestávka), že nabízí stanice mimo okno a jak daleko, že je zastávka navíc kvůli baterii, že počítá se spotřebou naměřenou v autě, že některé stanice skryla nebo vynechala (protisměr), že posunula odjezd zpět. (Uživatel 15. 11. 2026: „žádné rozhodnutí za něj nesmí být tiché“.)
+Co appka rozhodne sama, to řekne: proč vybrala tuhle stanici, proč nabíjí právě tolik (minimum 8 %, strop 80 %, jen přestávka), že nabízí stanice mimo okno a jak daleko, že je zastávka navíc kvůli baterii, že počítá se spotřebou naměřenou v autě, že některé stanice skryla nebo vynechala (protisměr), že posunula odjezd zpět. (Uživatel 15. 11. 2026: „žádné rozhodnutí za něj nesmí být tiché“.) U zastávky jsou vysvětlení pod „Víc o zastávce“; hned vidět je jen to, co jsi nastavil sám (Nabít do), a poplatek za minuty (D23).
 
 **Jak daleko je nabízená stanice** se píše normální češtinou: „je o 9 minut dále“, „o 3 minuty dříve“, „o 8 km dále“, „o 8 km blíže“, „2,4 km od trasy“ (uživatel 16. 11. 2026: „je 9 min za oknem“ není dobrá čeština).
 ### R25 — Souhrn
@@ -148,13 +148,22 @@ Baterie na startu, Na zastávku přijet s alespoň a Do cíle dojet s mají posu
 V kartě zastávky jsou u údajů ikony: výkon bleskem, počet stojanů zástrčkou, doba nabíjení hodinami, baterie při příjezdu baterií. Text u nich zůstává. Na mapě se nic nemění. (D13 = B)
 
 ### R45 — Varování před počasím na trase
-Appka zjistí předpověď na trase v čase, kdy tam pojedeš (Open-Meteo, zdarma, bez klíče): mlha, sníh, mrznoucí déšť a náledí (teplota do 1 °C se srážkami). Spotřebu nemění. Varování je v souhrnu s místem a časem. Body na trase jsou zaokrouhlené na 0,01° a žádný není blíž než 3 km vzdušnou čarou od startu, cíle a míst „přes“, aby se neposílala adresa domova. Na cestě zpět se km počítají od cíle, stejně jako v kartách zastávek. Když předpověď nejde načíst (nebo nepřijde do 10 s) nebo je cesta dál než 16 dní, souhrn to řekne. (D7 = B)
+Appka zjistí předpověď na trase v čase, kdy tam pojedeš (Open-Meteo, zdarma, bez klíče): mlha, sníh, mrznoucí déšť a náledí (teplota do 1 °C se srážkami). Spotřebu nemění. Varování je v souhrnu s místem a časem. Když je počasí v pořádku, souhrn o něm mlčí (D23). Body na trase jsou zaokrouhlené na 0,01° a žádný není blíž než 3 km vzdušnou čarou od startu, cíle a míst „přes“, aby se neposílala adresa domova. Na cestě zpět se km počítají od cíle, stejně jako v kartách zastávek. Když předpověď nejde načíst (nebo nepřijde do 10 s) nebo je cesta dál než 16 dní, souhrn to řekne. (D7 = B)
 
 ### R44 — Poplatek za minuty na stojanu
 Když síť účtuje poplatek za čas nad volné minuty (údaj v ceníku `prices.json`) a nabíjení podle plánu trvá déle, cena zastávky ho započítá a karta napíše, kolik to je a za kolik minut. Bez údaje v ceníku jen cena energie. (D10 = A)
 
 ### R46 — Zavřená pumpa v čase příjezdu
 Když má obchod pumpy u zastávky v čase příjezdu podle otevírací doby zavřeno, karta to řekne a nabídne pumpu v okně, která má otevřeno, s tlačítkem Vybrat. Sama nic nemění. Bez otevírací doby v datech nic neříká. (D9 = B)
+
+### R47 — Co nejméně textu
+Na stránce je jen text, který je nutný (uživatel 16. 11. 2026: „snažím se co to jde mít co nejméně textu na té stránce, takže odstraňuju, co kde není nutné“). Podle review textů (D23):
+- **Formulář:** bez řádku s autem nad nadpisem, bez vysvětlivek pod rezervami, pod „Počítat i cestu zpět“, pod „Jen na pumpách“ a pod objížďkou; nápověda okna jen „První zastávka … od startu.“; zdroje dat jsou v ☰ → O appce.
+- **☰ Moje nastavení:** u bloku nejvýš jedna krátká věta, prázdný seznam jen „Zatím žádné.“
+- **Souhrn:** celá cena jednou větou (R37), vynechaná odpočívadla krátce (R18); počasí jen když varuje (R45).
+- **Karta zastávky:** vysvětlení pod „Víc o zastávce“ (R24), rada ke stojanu a placení heslovitě, bez nabíjení jen „Přijedeš s ~X %“, prázdné okno krátce.
+- **Do navigace, Dokončit cestu, Srovnání:** Mercedes jedním řádkem, bez věty nad poli dokončení, pod nadpisem srovnání jen km a baterie na konci, rozpis ceny elektra na klepnutí.
+Ponechané: krátká věta o počasí (nahrazená mlčením), věta o Waze, věty pod tabulkou srovnání. Hlídá to tests/less-text.test.mjs.
 
 ## Rozpracované
 
@@ -190,6 +199,7 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 - **D9 (16. 11. 2026, uživatel vybral B):** zavřená pumpa se jen hlásí a nabídne otevřenou, appka sama nevybírá (R46). Data otevírací doby dodá datové vlákno.
 - **D21 (16. 11. 2026, uživatel):** světlá varianta je schválená („ano, později uděláme pár změn“). Její barvy hlídá test jako u tmavé (R34). Změny, které uživatel chystá, přijdou jako nové zadání a test se upraví s nimi.
 - **D22 (16. 11. 2026, uživatel vybral C):** „Do cíle dojet s“ zůstane bez předvoleb, jen posuvník a číslo (R41). Nevybráno: A (10 / 15 / 20 % jako zastávky), B (10 / 20 / 30 / 50 %).
+- **D23 (16. 11. 2026, uživatel vybral z review textů):** odstranit nebo zkrátit F1–F7, S1, U1, U3, C1–C4, E2, X1, P1, P2; ponechat U2, E1, P3 (R47). Mění R24 (vysvětlení u zastávky na klepnutí) a R45 (počasí v pořádku = ticho). Kvůli tomu se změnily testy: `[R45] bez mlhy, sněhu a náledí souhrn řekne…` teď čeká, že souhrn mlčí, a `[R41] objížďka: pod tlačítky je vysvětlení…` teď čeká, že vysvětlivka není.
 
 ## Otevřené rozpory
 

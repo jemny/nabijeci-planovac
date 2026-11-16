@@ -13,7 +13,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16q';
+  const APP_VERSION = '2026-11-16r';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -382,7 +382,7 @@
     $('row-time').hidden = byKm; $('row-km').hidden = !byKm;
     const I = byKm ? +$('int-km').value : +intTime.value, T = byKm ? +$('tol-km').value : +tolTime.value;
     const f = (v) => (byKm ? `${fmt(Math.max(0, v))} km` : hm(Math.max(0, v)));
-    $('win-hint').textContent = `První zastávka ${f(I - T)}–${f(I + T)} od startu, každá další zase zhruba po ${f(I)}. Na každé se dobije jen na další úsek.`;
+    $('win-hint').textContent = `První zastávka ${f(I - T)}–${f(I + T)} od startu.`;
     $('ret-field').hidden = !$('round-trip').checked;
   }
   ['by-time', 'by-km', 'int-time', 'tol-time', 'int-km', 'tol-km', 'round-trip'].forEach((id) => $(id).addEventListener('input', syncStopUi));
@@ -403,8 +403,6 @@
       chips.forEach((c) => c.setAttribute('aria-pressed', String(+c.dataset.v === v)));
       const other = box.querySelector('.chip[data-other]');
       if (other) other.setAttribute('aria-pressed', String(!hit));
-      const hint = box.parentElement.querySelector('.preset-hint');   // e.g. the detour: what the chosen value means
-      if (hint && ctl.tagName === 'SELECT') hint.textContent = ctl.options[ctl.selectedIndex] ? ctl.options[ctl.selectedIndex].textContent : '';
       if (wrap) wrap.hidden = !(other && (!hit || box.dataset.open === '1'));
     });
   }
@@ -473,11 +471,10 @@
 
   function renderConsHint() {
     const r = CAL && CAL.cons_recent;
-    $('cons-hint').textContent = (r && r.kwh_100km
-      ? `Naměřeno v autě za posledních ${r.days} dní na dálnici: ${fmt(r.kwh_100km, 1)} kWh/100 km (${fmt(r.km)} km). ` +
-        (prefs.consCustom ? 'Teď počítám s tvou ručně zadanou hodnotou. ' : 'Appka s ní počítá sama. ')
-      : 'Spotřeba 23,8 kWh/100 km je horší případ v zimě při 130 km/h. Reálně naměřeno v listopadu: 22,4. ') +
-      (CAL && CAL.car_limit ? `Limit nabití podle auta: ${fmt(CAL.car_limit)} %.` : '');
+    // R47: one short sentence
+    $('cons-hint').textContent = r && r.kwh_100km
+      ? `Naměřeno v autě: ${fmt(r.kwh_100km, 1)} kWh/100 km (${r.days} dní)${prefs.consCustom ? ', počítám s tvou hodnotou' : ''}.`
+      : 'Zimní horší případ při 130 km/h.';
   }
   function renderPeek() {
     const parts = [favs.size ? `★ ${[...favs].join(', ')}` : 'bez oblíbených pump'];
@@ -538,11 +535,12 @@
     try { persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : null; } catch (e) { /* ignore */ }
     const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
     let txt;
-    if (standalone) txt = 'Nastavení zůstává v téhle appce i po restartu telefonu. Smaže se, jen když appku odstraníš z plochy.';
-    else if (isIOS) txt = 'Pozor: v Safari se nastavení smaže, když stránku týden neotevřeš. Přidej appku na plochu (Sdílet → Přidat na plochu) nebo si ulož zálohu.';
-    else txt = `Nastavení zůstává v tomhle zařízení i po restartu${persisted ? ', prohlížeč ho nesmaže ani při nedostatku místa' : ''}. Smaže se jen s daty prohlížeče.`;
+    // R47: one short sentence; the Safari warning stays, it is the one that matters
+    if (standalone) txt = 'Uloženo v appce.';
+    else if (isIOS) txt = 'Safari po týdnu bez otevření nastavení smaže, přidej appku na plochu.';
+    else txt = `Uloženo v tomhle zařízení${persisted ? ' natrvalo' : ''}.`;
     const lb = prefs.lastBackup ? Math.floor((Date.now() - new Date(prefs.lastBackup)) / 86400000) : null;
-    txt += ` Poslední záloha: ${lb == null ? 'žádná' : lb < 1 ? 'dnes' : lb === 1 ? 'včera' : `před ${lb} dny`}.`;
+    txt += ` Záloha: ${lb == null ? 'žádná' : lb < 1 ? 'dnes' : lb === 1 ? 'včera' : `před ${lb} dny`}.`;
     $('storage-info').textContent = txt;
   }
   $('btn-export').addEventListener('click', async () => {
@@ -1112,7 +1110,6 @@
   const stopName = (s) => { const town = townOf(s); return `${s.fuel || 'Stanice'}${town && !(s.fuel || '').includes(town) ? ` ${town}` : ''}`; };
   function renderSummary(rt, o, plan) {
     const box = $('summary'); box.textContent = ''; box.className = 'summary';
-    const nStops = plan.stops.filter((s) => !s.empty).length, nCharge = plan.stops.filter((s) => !s.empty && s.kwh > 0).length;
     const low = (v) => v < resDest(o) - 0.5;
     const tile = (big, small) => el('div', { class: 'tile' }, el('b', { text: big }), el('span', { text: small }));
     const destN = shortName(lastRun.pts[lastRun.pts.length - 1].label, 'cíl');
@@ -1129,9 +1126,6 @@
           o.roundTrip ? el('span', { text: 'doma' }) : null)),
       socChart(rt, o, plan, destN),
       el('p', { class: 'summary-note', text:
-        `Jízda tam ${hm(plan.T)} bez zastávek · ${nStops} ${nStops === 1 ? 'zastávka' : nStops < 5 ? 'zastávky' : 'zastávek'}, nabíjení na ${nCharge}. ` +
-        (plan.noChargeEnd >= resDest(o) ? `Bez nabíjení bys ${o.roundTrip ? 'domů' : 'do cíle'} dojel s ~${fmt(plan.noChargeEnd)} %, takže zastávky jsou hlavně přestávky. `
-          : `Cestou potřebuješ dobít asi ${fmt(resDest(o) - plan.noChargeEnd)} % (~${fmt((resDest(o) - plan.noChargeEnd) * (CAL.battery_kwh || 85) / 100)} kWh), na každé zastávce jen na další úsek. `) +
         wholePrice(o, plan) +
         (plan.short ? 'Pozor: některý úsek je na jedno nabití moc dlouhý, zkrať interval. ' : '') +
         (() => { const n = plan.stops.filter((s) => !s.empty && !s.done && s.kwh > 0 && s.target > effLimit(o)).length;
@@ -1142,7 +1136,7 @@
         (() => { const n = (lastRun.excluded || {}).hidden || 0;
           return n ? `${n} ${n === 1 ? 'skrytou stanici' : n < 5 ? 'skryté stanice' : 'skrytých stanic'} u trasy appka nenabízí (☰ → Skryté stanice). ` : ''; })() +
         (() => { const n = (lastRun.excluded || {}).wrongSide || 0;
-          return n ? `${n} ${n === 1 ? 'odpočívadlo' : n < 5 ? 'odpočívadla' : 'odpočívadel'} přímo u dálnice je pro cestu tam v protisměru, appka ${n === 1 ? 'ho' : 'je'} tam nenabízí${o.roundTrip ? ' (na cestě zpět ano)' : ''}. ` : ''; })() +
+          return n ? `${n} ${n === 1 ? 'odpočívadlo' : n < 5 ? 'odpočívadla' : 'odpočívadel'} v protisměru appka na cestě tam vynechala. ` : ''; })() +
         (plan.retLate ? `Zpátky v ${clock(o.retDepart)} nestihneš, do cíle dojedeš až v ${clock(plan.arriveDest)}. Počítám s odjezdem ${clock(plan.retDepart)}.` : '') }),
       wxNote(lastRun.wx),
     );
@@ -1234,7 +1228,7 @@
     else if (w.state === 'far') t = `Předpověď počasí na trase bude až ${WX_DAYS} dní před cestou.`;
     else if (w.state === 'error') t = 'Předpověď počasí na trase se nepodařilo načíst.';
     else if (w.state === 'none') t = '';
-    else if (!w.hits.length) t = 'Počasí na trase: podle předpovědi Open-Meteo bez mlhy, sněhu a náledí (ani mrznoucího deště).';
+    else if (!w.hits.length) t = '';                    // R47 / D23: fine weather → the summary stays silent
     else {
       warn = true;
       // on the way back the km count from the destination, as in the stop cards
@@ -1289,8 +1283,7 @@
   function wholePrice(o, plan) {
     const r = comparison(o, plan);
     if (!(r.homeCzk >= 0.5)) return '';
-    return `Celá cesta vyjde na ${fmt(r.ev)} Kč: ${fmt(r.pubCzk)} Kč za nabíjení na cestě + ${fmt(r.homeCzk)} Kč za elektřinu z domu ` +
-      `(baterie ${fmt(r.soc0)} % na startu → ${fmt(r.socEnd)} % ${r.where}), rozpis ve srovnání dole. `;
+    return `Celá cesta ${fmt(r.ev)} Kč, z toho ${fmt(r.homeCzk)} Kč elektřina z domu. `;   // R47: the breakdown is in the comparison
   }
   const tlRow = (time, kind, content) => el('li', { class: `tl ${kind}` }, el('span', { class: 'tl-time', text: time || '' }), content);
   const tlText = (head, sub) => el('span', { class: 'tl-text' }, el('b', { text: head }), sub ? el('span', { class: 'muted', text: ` · ${sub}` }) : null);
@@ -1332,9 +1325,8 @@
     const f = (v) => (o.byKm ? `${fmt(v)} km` : hm(v));
     const sug = st.suggest || [];
     return el('div', { class: 'status err empty-window' },
-      el('p', { text: `${st.leg === 'B' ? 'Zpět: ' : ''}v okně ${f(st.lo)}–${f(st.hi)} není nabíječka podle tvých filtrů, takže tu appka zastávku nevybrala.` +
-        (sug.length ? ' Nabízím nejbližší stanice před oknem a za ním, i když jsou daleko. Vyber si, nebo uprav interval či toleranci:'
-          : ' Zkus delší toleranci, větší objížďku, nebo vypnout „Jen na pumpách“.') }),
+      el('p', { text: `${st.leg === 'B' ? 'Zpět: v' : 'V'} okně ${f(st.lo)}–${f(st.hi)} není nabíječka.` +
+        (sug.length ? ' Tady jsou nejbližší, i když jsou daleko:' : ' Zkus delší toleranci nebo objížďku.') }),
       st.widen ? el('button', { type: 'button', class: 'linkish strong widen-btn', onclick: () => widenWindow(idx),
         text: `Rozšířit tohle okno na ${f(st.center - st.widen)}–${f(st.center + st.widen)} (± ${o.byKm ? `${fmt(st.widen)} km` : `${fmt(st.widen)} min`})` }) : null,
       sug.length ? el('div', { class: 'alts' }, sug.map((opt) => el('div', { class: 'alt' },
@@ -1448,8 +1440,11 @@
             el('small', { class: 'muted', text: `za ${hm(measureT(a, st.leg, lastRun.rt))} · ${p && p.czk != null ? fmt(p.czk, 2) + ' Kč/kWh (' + p.card + ')' : p ? p.card : 'bez karty'}${a.n.dist >= 300 ? ` · ${fmt(a.n.dist / 1000, 1)} km od trasy` : ''}` })),
           el('button', { type: 'button', class: 'linkish', text: 'Vybrat', onclick: () => swapStop(idx, a) }));
       })) : null;
+    // R47 / D23 (C1): why the app chose this lives under "Víc o zastávce"; what you set yourself and money stay in sight
+    const own = (st.why || []).filter((t) => /nastavil jsi|min zdarma/.test(t));
     const more = el('details', { class: 'more-export stop-more' },
       el('summary', { text: 'Víc o zastávce' }),
+      (st.why || []).length ? el('ul', { class: 'why' }, st.why.map((t) => el('li', { text: t }))) : null,
       el('dl', { class: 'facts' },
         el('dt', { text: 'Místo' }), el('dd', { text: [s.name, s.place].filter(Boolean).join(' – ') || '–' }),
         el('dt', { text: 'Cena' }), el('dd', { text: priceText(st) }),
@@ -1466,10 +1461,10 @@
         fav ? el('span', { class: 'fav-tag', text: '★ oblíbená' }) : null),
       el('p', { class: 'stop-sub' }, sub),
       flags.length ? el('div', { class: 'badges' }, flags.map((f) => el('span', { class: 'badge warn', text: f }))) : null,
-      charge ? batteryBar(st.arrive, st.target, st.done) : el('p', { class: 'stop-line' }, icon('batt'), `Přijedeš s ~${fmt(st.arrive)} % · nabíjet nemusíš`),
+      charge ? batteryBar(st.arrive, st.target, st.done) : el('p', { class: 'stop-line' }, icon('batt'), `Přijedeš s ~${fmt(st.arrive)} %`),
       st.done ? null : chargeTo(st),
       tiles,
-      (st.why || []).length ? el('ul', { class: 'why' }, st.why.map((t) => el('li', { text: t }))) : null,
+      own.length ? el('ul', { class: 'why-own' }, own.map((t) => el('li', { text: t }))) : null,
       adv ? el('p', { class: `advice${adv.warn ? ' warn' : ''}`, text: adv.text }) : null,
       loggedNote(st, o),
       st.done ? null : pumpClosed(st, idx, o),
@@ -1576,17 +1571,17 @@
     const lim = lastRun && effLimit(lastRun.o);
     if (lim && st.kwh > 0 && st.target > lim) { parts.push(`Nabíjíš na ${fmt(st.target)} %, ale limit v autě je ${fmt(lim)} %. Před nabíjením ho zvedni (v autě Nabíjení → max. nabití, nebo v aplikaci Mercedes), jinak nabíjení skončí na ${fmt(lim)} %.`); warn = true; }
     if (st.arrive < 5) { parts.push('Sem dojedeš skoro na nulu, zkrať interval nebo zastav dřív.'); warn = true; }
-    if (st.kwh > 0) {
-      if (st.arrive >= 50) parts.push('Přijedeš nad 50 %, auto tu vezme nejvýš ~110–140 kW. Stačí 150kW stojan.');
-      else parts.push('Přijedeš pod 50 %, ber nejrychlejší volný stojan.');
-    }
+    // R47: the routine advice in short phrases; warnings above stay sentences
+    const tips = [];
+    if (st.kwh > 0) tips.push(st.arrive >= 50 ? 'Stačí 150kW stojan' : 'Nejrychlejší volný stojan');
     if (st.alt && st.alt.kind === 'cheaper') {
-      parts.push(`Je-li tu i stojan E.ON do 200 kW, vezmi ten: ~${fmt(st.alt.min)} min místo ~${fmt(st.chargeMin)} min, o ${fmt(st.cost - st.alt.czk)} Kč levněji (${fmt(st.alt.unit, 2)} Kč/kWh).`);
+      tips.push(`stojan E.ON do 200 kW: ~${fmt(st.alt.min)} min, o ${fmt(st.cost - st.alt.czk)} Kč levněji`);
     } else if (st.alt && st.alt.kind === 'faster' && st.chargeMin - st.alt.min > 1) {
-      parts.push(`Na stojanu nad 200 kW by to bylo o ~${fmt(st.chargeMin - st.alt.min)} min rychlejší za ${fmt(st.alt.czk - st.cost)} Kč navíc.`);
+      tips.push(`stojan nad 200 kW: o ~${fmt(st.chargeMin - st.alt.min)} min rychleji, o ${fmt(st.alt.czk - st.cost)} Kč dráž`);
     }
-    if (st.kwh > 0 && st.pr && !/MB\.CHARGE/.test(st.pr.card) && st.c.s.op !== 'Tesla') parts.push(`Plať kartou ${st.pr.card} a vypni Plug & Charge, jinak to naúčtuje MB.CHARGE.`);
-    if (st.kwh > 0 && st.pr && /Shell/.test(st.pr.card)) parts.push('Shell: zaplať kartou u stojanu (blokace 500 Kč). Když neprojde, je hned vedle často ČEZ.');
+    if (st.kwh > 0 && st.pr && !/MB\.CHARGE/.test(st.pr.card) && st.c.s.op !== 'Tesla') tips.push(`karta ${st.pr.card}`, 'vypni Plug & Charge');
+    if (st.kwh > 0 && st.pr && /Shell/.test(st.pr.card)) tips.push('Shell: kartou u stojanu, blokace 500 Kč');
+    if (tips.length) parts.push(tips.join(' · '));
     return parts.length ? { text: parts.join(' '), warn } : null;
   }
 
@@ -1625,7 +1620,7 @@
       el('p', { class: 'small muted', text: 'Waze přes odkaz neumí víc zastávek najednou. Klepni na krok, po zastávce na další:' }),
       el('div', { class: 'cand-actions multi' }, waze),
       el('details', { class: 'more-export' }, el('summary', { text: 'Mercedes, GPX, sdílení' }),
-        el('p', { class: 'small muted', text: 'Do Mercedesu: otevři trasu v Google Mapách, dej Sdílet → Mercedes-Benz → Odeslat do vozidla (Send2Car). Mercedes převezme cíl. Když nevezme mezizastávky, pošli si zastávky postupně tlačítkem „Google Mapy → sem“ u každé zastávky.' }),
+        el('p', { class: 'small muted', text: 'Do Mercedesu: Google Mapy → Sdílet → Mercedes-Benz → Odeslat do vozidla.' }),
         el('div', { class: 'cand-actions multi' },
           el('button', { type: 'button', class: 'linkish', onclick: downloadGpx, text: 'Stáhnout GPX' }),
           navigator.share ? el('button', { type: 'button', class: 'linkish', onclick: shareTrip, text: 'Sdílet plán…' }) : null)));
@@ -2098,19 +2093,19 @@
     const cheaper = r.cars.map((x) => x.czk - r.ev);
     return el('section', { class: 'card compare' },
       el('h2', { text: `Srovnání s auty na palivo${r.fin ? '' : ' (podle plánu)'}` }),
-      el('p', { class: 'small muted', text: `${fmt(r.km)} km · baterie na konci ${fmt(r.socEnd)} % · zastávky: první ${BREAK_FIRST} min, další ${BREAK_NEXT} min, stejně pro všechna auta` }),
+      el('p', { class: 'small muted', text: `${fmt(r.km)} km · na konci ${fmt(r.socEnd)} %` }),
       el('div', { class: 'table-wrap' }, el('table', { class: 'cmp' },
         el('thead', {}, el('tr', {}, el('th', { scope: 'col', text: 'Auto' }), el('th', { scope: 'col', text: 'Cena' }), el('th', { scope: 'col', text: 'Kč/km' }), el('th', { scope: 'col', text: 'Na cestě' }))),
         el('tbody', {},
           row('Elektro', `na cestě ${fmt(r.pubCzk)} Kč + z domu ${fmt(r.homeCzk)} Kč`, r.ev, r.evTotal, 'ev'),
           r.cars.map((x) => row(x.name, `${fmt(x.l, 1)} l/100 km · ${fmt(x.litres, 1)} l`, x.czk, r.iceTotal))))),
-      el('p', { class: 'small cmp-sum', text: `Elektro ${fmt(r.ev)} Kč = nabíjení na cestě ${fmt(r.pubCzk)} Kč (` +
+      el('details', { class: 'more-export cmp-more' }, el('summary', { text: 'Rozpis ceny elektra' }), el('p', { class: 'small cmp-sum', text: `Elektro ${fmt(r.ev)} Kč = nabíjení na cestě ${fmt(r.pubCzk)} Kč (` +
         [...r.charges.map((x) => `${x.name} ${x.czk != null ? fmt(x.czk) + ' Kč' : 'cena ?'}`), r.histCzk ? `už odjeto ${fmt(r.histCzk)} Kč` : null]
           .filter(Boolean).join(', ') + (r.charges.length || r.histCzk ? '' : 'nikde nenabíjíš') + ') + ' +
         (r.homeCzk >= 0.5
           ? `elektřina z domu ${fmt(r.homeCzk)} Kč: baterie ${fmt(r.soc0)} % na startu → ${fmt(r.socEnd)} % ${r.where} = ${fmt(r.soc0 - r.socEnd)} % ` +
             `= ${fmt(r.kwhBat)} kWh v baterii, ${fmt(r.kwhSocket)} kWh ze zásuvky (${fmt(r.c.loss * 100)} % se ztratí) × ${fmt(r.c.home, 2)} Kč/kWh.`
-          : `elektřina z domu 0 Kč: baterie ${fmt(r.socEnd)} % ${r.where} není pod ${fmt(r.soc0)} % na startu.`) }),
+          : `elektřina z domu 0 Kč: baterie ${fmt(r.socEnd)} % ${r.where} není pod ${fmt(r.soc0)} % na startu.`) })),
       el('p', { class: 'small', text: `Elektro vychází o ${cheaper.map((d, i) => `${fmt(Math.abs(d))} Kč ${d >= 0 ? 'levněji' : 'dráž'} než ${r.cars[i].name}`).join(', ')}. ` +
         `Čekáním na nabíječce navíc ${fmt(Math.max(0, r.wait))} min. Kdyby se všechno nabilo doma: ${fmt(r.allHome)} Kč.` }),
       el('p', { class: 'small muted', text: `Doma ${fmt(r.c.home, 2)} Kč/kWh + ${fmt(r.c.loss * 100)} % ztráty, nafta ${fmt(r.c.diesel, 2)}, benzín ${fmt(r.c.petrol, 2)} Kč/l. Změníš v ☰ → Srovnání s palivem.` }));
@@ -2134,7 +2129,7 @@
     };
     return el('section', { class: 'card finish' },
       el('h2', { text: fin ? `Dokončeno ${new Date(fin.at || Date.now()).toLocaleDateString('cs-CZ')}` : 'Dokončit cestu' }),
-      el('p', { class: 'small muted', text: fin ? 'Čísla níž počítají se skutečností. Můžeš je opravit.' : 'Až dojedeš, zapiš baterii a km. Cesta se uloží i se srovnáním.' }),
+      fin ? el('p', { class: 'small muted', text: 'Čísla níž počítají se skutečností. Můžeš je opravit.' }) : null,
       el('div', { class: 'grid2 even' },
         el('label', { class: 'field' }, el('span', { text: o.roundTrip ? 'Baterie doma' : 'Baterie v cíli' }), el('span', { class: 'suffix' }, socIn, el('i', { text: '%' }))),
         el('label', { class: 'field' }, el('span', { text: 'Najeto' }), el('span', { class: 'suffix' }, kmIn, el('i', { text: 'km' })))),
