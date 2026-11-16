@@ -46,7 +46,7 @@ Uložit cestu do telefonu, seznam v ☰ a rozjeté cesty nahoře na hlavní obra
 Odkaz s cestou (místa a vybrané stanice v `#cesta=`, neposílá se na server), QR kód, kopírovat a sdílet. Odkaz otevře stejnou cestu se stejnými zastávkami.
 
 ### R13 — Kolik nabíjet
-Na každé zastávce jen tolik, abys na další (nebo domů / do cíle) přijel s alespoň „Přijet s alespoň“ %. Chybí-li ≤ 2 %, jen přestávka bez nabíjení. Když už nabíjíš, tak aspoň o 8 %, ale kvůli tomu minimu nikdy nad 80 %. Nad 80 % jen když to další úsek opravdu potřebuje, nejvýš 90 %. Zastávka navíc mimo okno jen když by jinak baterie nestačila, a je tak označená.
+Na každé zastávce jen tolik, abys na další přijel s alespoň „Na zastávku přijet s alespoň“ % a do cíle (při cestě zpět i domů) s alespoň „Do cíle dojet s“ % (R42). Chybí-li ≤ 2 %, jen přestávka bez nabíjení. Když už nabíjíš, tak aspoň o 8 %, ale kvůli tomu minimu nikdy nad 80 %. Nad 80 % jen když to další úsek opravdu potřebuje, nejvýš 90 %. Zastávka navíc mimo okno jen když by jinak baterie nestačila, a je tak označená.
 
 ### R14 — Dokončit cestu a srovnání
 Po cestě zapsat baterii na konci a km. Srovnání s auty na palivo (Talisman 6,5 l a benzín 8 l, ceny se dají upravit): elektro = veřejné nabíjení + dobití doma (6,61 Kč/kWh + 10 % ztráty), čas navíc na nabíječkách.
@@ -100,7 +100,7 @@ Appka nepíše, co uživatel dělá na zastávce. Jsou to jeho soukromé poznám
 ### R36 — Formulář ve třech krocích
 Zadání je ve třech očíslovaných, podbarvených blocích pod sebou:
 - **1 Trasa:** odkud, přes, kam, + přidat místo.
-- **2 Kdy a baterie:** odjezd, baterie na startu, přijet s alespoň, počítat i cestu zpět, zpátky vyrážím v.
+- **2 Kdy a baterie:** odjezd, baterie na startu, na zastávku přijet s alespoň, do cíle dojet s, počítat i cestu zpět, zpátky vyrážím v.
 - **3 Zastávky:** po čase nebo po km, interval ± tolerance, objížďka, jen na pumpách.
 
 **Všechny tři bloky jsou pořád rozbalené**, nic v nich není schované a nadpis bloku je jen nadpis, ťuknutím se nic nesbalí (D17). Když chybí odkud nebo kam, appka řekne, co chybí, a posune se ke kroku 1. (Uživatel 15. 11. 2026, D6 = B: „když dáš těm blokům nějaké podbarvení, takže bude lépe vidět, že tam jsou“. Uživatel 16. 11. 2026: „těch boxů není vidět, že by něco skrývaly, dokud se na ně neťukne… drž je rozbalené“.)
@@ -136,15 +136,15 @@ U každé zastávky, která ještě není zapsaná, je posuvník „Nabít do“
 ### R40 — Graf baterie po trase
 V souhrnu je graf: % baterie podle km od startu po cíl (při cestě zpět až domů). U nabíjecí zastávky svislý skok z příjezdu na odjezd, okna zastávek jako podbarvené pruhy, čárkovaně rezerva na zastávky a „Do cíle dojet s“. Graf má i popis slovy (pro čtečku obrazovky). (D14 = A)
 
+### R42 — Rezerva na zastávky a do cíle zvlášť
+„Na zastávku přijet s alespoň“ (výchozí 10 %) platí pro příjezd na každou zastávku. „Do cíle dojet s“ (výchozí 10 %, u starého nastavení stejně jako rezerva, aby se uložené plány samy nezměnily) platí pro příjezd do cíle, a když jedeš i zpátky, i pro příjezd domů. (D19 = A)
+
 ## Rozpracované
 
 Schválené požadavky, na kterých se pracuje. Do „Požadavky“ se přesunou s testy, až budou hotové.
 
 #### R41 — Posuvníky a tlačítka ve formuláři
 Baterie na startu, Na zastávku přijet s alespoň a Do cíle dojet s mají posuvník. Číslo vedle posuvníku je pole, do kterého jde napsat přesně, a oba se drží stejné hodnoty. U rezervy jsou předvolby 10 / 15 / 20 %. Interval, tolerance a objížďka jsou tlačítka s předvolbami. Tlačítko „Jiný“ ukáže dosavadní pole pro jinou hodnotu. Pole mají stejná `id` jako dřív. (D11 = A)
-
-#### R42 — Rezerva na zastávky a do cíle zvlášť
-„Na zastávku přijet s alespoň“ (výchozí 10 %) platí pro příjezd na každou zastávku. „Do cíle dojet s“ (výchozí 10 %, u starého nastavení stejně jako rezerva, aby se uložené plány samy nezměnily) platí pro příjezd do cíle, a když jedeš i zpátky, i pro příjezd domů. (D19 = A)
 
 #### R43 — Ikony v kartě zastávky
 V kartě zastávky jsou u údajů ikony: výkon bleskem, počet stojanů zástrčkou, doba nabíjení hodinami, baterie při příjezdu baterií. Text u nich zůstává. Na mapě se nic nemění. (D13 = B)
@@ -165,7 +165,6 @@ Rozhodnutí k nim (přesunou se do „Rozhodnutí“, až bude požadavek hotov�
 - **D10 (16. 11. 2026, uživatel vybral A):** poplatek za minuty nad volné minuty se započítá do ceny a napíše (R44). Data dodá datové vlákno do `prices.json`.
 - **D11 (16. 11. 2026, uživatel vybral A):** posuvníky a tlačítka ve formuláři (R41). Rozhodl jsem k tomu sám: předvolby intervalu 0:45, 1:00, 1:15, 1:30, 2:00 (po km 100, 130, 150, 200), tolerance 0, 10, 15, 20, 30 min (po km 10, 20, 30), objížďka všech pět dosavadních hodnot. Ostatní hodnoty přes „Jiný“.
 - **D13 (16. 11. 2026, uživatel vybral B):** ikony jen v kartách, ne na mapě (R43). Rozhodl jsem k tomu sám: text u ikon zůstává, ikony ho jen doplní.
-- **D19 (16. 11. 2026, uživatel vybral A, v relaci „Posuvník úrovně nabití do cíle“):** dva posuvníky, „Na zastávku přijet s alespoň“ a zvlášť „Do cíle dojet s“; když jedeš i zpátky, platí cíl i pro příjezd domů (R42). Mění R13, kde dřív platilo jedno číslo pro všechno. Rozhodl jsem k tomu sám: výchozí „Do cíle dojet s“ je 10 % jako rezerva (obrázek ukazoval 30 % jen pro ilustraci), u uloženého nastavení se převezme rezerva. „I pro příjezd domů“ chápu tak, že platí v cíli i doma.
 
 ## Rozhodnutí
 
@@ -189,6 +188,7 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 - **D12 (16. 11. 2026, uživatel vybral A):** posuvník „Nabít do“ v kartě zastávky (R39). Rozhodl jsem k tomu sám: tvoje číslo platí přesně (bez minima 8 % a stropu 90 %), posuvník jde do 100 %.
 - **D20 (16. 11. 2026, uživatel vybral A):** pondělní aktualizace dat selhala, protože hlavní server OpenStreetMap 19 minut vracel chyby 502/504. Teď se při výpadku zkusí záložní servery (R35). Nevybráno: B (navíc použít minulá data státu, který nejde stáhnout nikde, a ukázat v appce jejich datum) a C (jen zopakovat běh v úterý). Rozhodl jsem k tomu sám: záložní jsou overpass.private.coffee a overpass.kumi.systems (veřejné servery ze seznamu na wiki OSM). Zkouší se 4 kola po všech serverech, mezi koly pauza 30, 60 a 90 s, jeden dotaz čeká nejvýš 5 minut. Odpověď „runtime error“ (vypršel čas, chybí data) se bere jako výpadek, aby se neuložil stát bez stanic.
 - **D14 (16. 11. 2026, uživatel vybral A):** graf baterie po trase v souhrnu (R40).
+- **D19 (16. 11. 2026, uživatel vybral A, v relaci „Posuvník úrovně nabití do cíle“):** dva posuvníky, „Na zastávku přijet s alespoň“ a zvlášť „Do cíle dojet s“; když jedeš i zpátky, platí cíl i pro příjezd domů (R42). Mění R13, kde dřív platilo jedno číslo pro všechno. Rozhodl jsem k tomu sám: výchozí „Do cíle dojet s“ je 10 % jako rezerva (obrázek ukazoval 30 % jen pro ilustraci), u uloženého nastavení se převezme rezerva. „I pro příjezd domů“ chápu tak, že platí v cíli i doma.
 
 ## Otevřené rozpory
 

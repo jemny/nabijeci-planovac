@@ -60,10 +60,12 @@
         <div class="grid2 even">
           <label class="field"><span>Baterie na startu</span>
             <span class="suffix"><input type="number" id="soc0" min="5" max="100" step="1" inputmode="numeric" value="100"><i>%</i></span></label>
-          <label class="field"><span id="reserve-label">Přijet s alespoň</span>
+          <label class="field"><span id="reserve-label">Na zastávku přijet s alespoň</span>
             <span class="suffix"><input type="number" id="reserve" min="0" max="80" step="1" inputmode="numeric" value="10"><i>%</i></span></label>
+          <label class="field"><span>Do cíle dojet s</span>
+            <span class="suffix"><input type="number" id="reserve-dest" min="0" max="80" step="1" inputmode="numeric" value="10"><i>%</i></span></label>
         </div>
-        <p class="small muted hint-top">„Přijet s alespoň“ platí pro každou zastávku i pro cíl a cestu domů.</p>
+        <p class="small muted hint-top">Rezerva na zastávky a do cíle se nastaví každá zvlášť. Když jedeš i zpátky, platí „Do cíle dojet s“ i pro příjezd domů.</p>
         <label class="check"><input type="checkbox" id="round-trip" checked><span><b>Počítat i cestu zpět</b><small>stejnou trasou, ten samý den</small></span></label>
         <label class="field" id="ret-field"><span>Zpátky vyrážím v</span><input type="time" id="ret-time" value="16:00"></label>
       </div>

@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16h';
+  const APP_VERSION = '2026-11-16i';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -318,8 +318,11 @@
   if (prefs.carLimit) $('car-limit').value = String(prefs.carLimit);
   // before a long trip the user charges to 100 % (start stays 100); leaving above the limit means it was raised
   const effLimit = (o) => Math.max(o.carLimit || 100, o.soc0 || 0);
+  const resDest = (o) => (Number.isFinite(o.reserveDest) ? o.reserveDest : o.reserve);   // R42: arrive at the destination (and home) with
   if (prefs.tempo) $('tempo').value = String(prefs.tempo);
   $('reserve').value = String(prefs.reserve != null ? prefs.reserve : RESERVE_DEFAULT);
+  // R42: older settings have one reserve for everything → the destination starts with the same number
+  $('reserve-dest').value = String(prefs.reserveDest != null ? prefs.reserveDest : prefs.reserve != null ? prefs.reserve : RESERVE_DEFAULT);
   let favs = new Set(prefs.favs || DEFAULT_FAVS);
 
   const stopBy = () => (document.querySelector('input[name="stop-by"]:checked') || {}).value || 'time';
@@ -555,8 +558,10 @@
       minKw: +$('min-kw').value, cons: Math.min(35, Math.max(12, parseFloat(String($('cons').value).replace(',', '.')) || 23.8)),
       tempo: parseFloat($('tempo').value) || 0.93, carLimit: carLimit(),
       reserve: Math.max(0, Math.min(80, parseFloat($('reserve').value))),
+      reserveDest: Math.max(0, Math.min(80, parseFloat($('reserve-dest').value))),
     };
     if (!Number.isFinite(o.reserve)) o.reserve = RESERVE_DEFAULT;
+    if (!Number.isFinite(o.reserveDest)) o.reserveDest = o.reserve;
     return o;
   }
   // OSRM is ~7 % slower than Google at ~130 km/h → scale its times by the chosen tempo
@@ -610,7 +615,7 @@
     Object.assign(prefs, { places, stopBy: o.byKm ? 'km' : 'time', intTime: +intTime.value, tolTime: +tolTime.value,
       intKm: +$('int-km').value, tolKm: +$('tol-km').value, retTime: $('ret-time').value, detour: o.detourKm,
       'at-pump': o.atPump, 'round-trip': o.roundTrip, 'only-fav': o.onlyFav, 'my-cards': o.myCards, 'unknown-kw': o.unknownKw,
-      minKw: o.minKw, tempo: o.tempo, reserve: o.reserve, favs: [...favs] });
+      minKw: o.minKw, tempo: o.tempo, reserve: o.reserve, reserveDest: o.reserveDest, favs: [...favs] });
     savePrefs();
 
     setStatus('Počítám trasu…'); $('btn-go').disabled = true;
@@ -831,9 +836,13 @@
           prob = { key, from, reach: from + ((p ? p.target : o.soc0) - o.reserve) / ppk };
         }
       }
-      if (!prob && !skip.has('end') && (o.roundTrip ? plan.socEnd : plan.socDest) < o.reserve - 3) {
+      if (!prob && !skip.has('dest') && o.roundTrip && plan.socDest < resDest(o) - 3) {   // R42: the destination of a round trip
+        const before = real.filter((s) => s.leg === 'A'), p = before[before.length - 1], from = p ? tripX(p, rt) : 0;
+        prob = { key: 'dest', from, reach: Math.min(D, from + ((p ? p.target : o.soc0) - resDest(o)) / ppk) };
+      }
+      if (!prob && !skip.has('end') && (o.roundTrip ? plan.socEnd : plan.socDest) < resDest(o) - 3) {
         const p = real[real.length - 1], from = p ? tripX(p, rt) : 0;
-        prob = { key: 'end', from, reach: from + ((p ? p.target : o.soc0) - o.reserve) / ppk };
+        prob = { key: 'end', from, reach: from + ((p ? p.target : o.soc0) - resDest(o)) / ppk };
       }
       if (!prob) break;
       const used = new Set(real.map((s) => `${s.leg}:${stationKey(s.c.s)}`));
@@ -895,14 +904,16 @@
         st.arrive = act.socFrom;
       } else st.arrive = st.planArrive;
       const nextX = next ? xOf(next) : endX;
-      st.need = pct(nextX - x) + pct(st.c.detourKm / 2) + o.reserve + (next ? pct(next.c.detourKm / 2) : 0);
+      st.need = pct(nextX - x) + pct(st.c.detourKm / 2) + (next ? o.reserve + pct(next.c.detourKm / 2) : resDest(o));
+      // R42: on a round trip, the last stop before the destination also has to get you there with "Do cíle dojet s"
+      if (o.roundTrip && st.leg === 'A' && (!next || next.leg === 'B')) st.need = Math.max(st.need, pct(D - x) + pct(st.c.detourKm / 2) + resDest(o));
       st.done = !!(act && Number.isFinite(act.socTo));
       if (st.done) {
         st.target = act.socTo;
         st.kwh = Number.isFinite(act.kwh) ? act.kwh : Math.max(0, st.target - st.arrive) * KPP;
         st.chargeMin = Number.isFinite(act.min) ? act.min : (st.target > st.arrive ? chargeMinutes(Math.max(0, st.arrive), st.target, st.c.s.kw || 100) : 0);
         st.short = false;
-        st.nextArrive = st.target - (st.need - o.reserve);            // what the logged charge leaves for the next leg
+        st.nextArrive = st.target - (st.need - (next ? o.reserve : resDest(o)));   // what the logged charge leaves for the next leg
         logged += 1;
       } else {
         const whyAuto = [];
@@ -985,7 +996,7 @@
   function renderSummary(rt, o, plan) {
     const box = $('summary'); box.textContent = ''; box.className = 'summary';
     const nStops = plan.stops.filter((s) => !s.empty).length, nCharge = plan.stops.filter((s) => !s.empty && s.kwh > 0).length;
-    const low = (v) => v < o.reserve - 0.5;
+    const low = (v) => v < resDest(o) - 0.5;
     const tile = (big, small) => el('div', { class: 'tile' }, el('b', { text: big }), el('span', { text: small }));
     const destN = shortName(lastRun.pts[lastRun.pts.length - 1].label, 'cíl');
     box.append(
@@ -993,7 +1004,7 @@
       tile(`${fmt(plan.totalMin)} min`, 'nabíjení'),
       tile(`${fmt(plan.totalCzk)} Kč`, plan.priceUnknown ? 'za proud na cestě, část bez ceny' : 'za proud na cestě'),
       el('div', { class: `battery-strip${low(plan.socDest) || (o.roundTrip && low(plan.socEnd)) ? ' warn' : ''}` },
-        el('div', { class: 'bs-head' }, el('span', { text: 'Baterie podle plánu' }), el('span', { text: `rezerva ${fmt(o.reserve)} %` })),
+        el('div', { class: 'bs-head' }, el('span', { text: 'Baterie podle plánu' }), el('span', { text: resDest(o) !== o.reserve ? `rezerva: zastávky ${fmt(o.reserve)} %, cíl ${fmt(resDest(o))} %` : `rezerva ${fmt(o.reserve)} %` })),
         el('div', { class: 'bs-vals' },
           el('b', { class: 'acc', text: `${fmt(plan.socDest)} %` }), el('span', { text: destN }),
           o.roundTrip ? el('span', { class: 'arrow', 'aria-hidden': 'true', text: '→' }) : null,
@@ -1002,8 +1013,8 @@
       socChart(rt, o, plan, destN),
       el('p', { class: 'summary-note', text:
         `Jízda tam ${hm(plan.T)} bez zastávek · ${nStops} ${nStops === 1 ? 'zastávka' : nStops < 5 ? 'zastávky' : 'zastávek'}, nabíjení na ${nCharge}. ` +
-        (plan.noChargeEnd >= o.reserve ? `Bez nabíjení bys ${o.roundTrip ? 'domů' : 'do cíle'} dojel s ~${fmt(plan.noChargeEnd)} %, takže zastávky jsou hlavně přestávky. `
-          : `Cestou potřebuješ dobít asi ${fmt(o.reserve - plan.noChargeEnd)} % (~${fmt((o.reserve - plan.noChargeEnd) * (CAL.battery_kwh || 85) / 100)} kWh), na každé zastávce jen na další úsek. `) +
+        (plan.noChargeEnd >= resDest(o) ? `Bez nabíjení bys ${o.roundTrip ? 'domů' : 'do cíle'} dojel s ~${fmt(plan.noChargeEnd)} %, takže zastávky jsou hlavně přestávky. `
+          : `Cestou potřebuješ dobít asi ${fmt(resDest(o) - plan.noChargeEnd)} % (~${fmt((resDest(o) - plan.noChargeEnd) * (CAL.battery_kwh || 85) / 100)} kWh), na každé zastávce jen na další úsek. `) +
         wholePrice(o, plan) +
         (plan.short ? 'Pozor: některý úsek je na jedno nabití moc dlouhý, zkrať interval. ' : '') +
         (() => { const n = plan.stops.filter((s) => !s.empty && !s.done && s.kwh > 0 && s.target > effLimit(o)).length;
@@ -1037,7 +1048,7 @@
     pts.push([KM, end]);
     const r = (v) => Math.round(Math.max(0, Math.min(100, v)));
     const label = `Baterie po trase: start ${r(o.soc0)} %, ` + stops.map((st, i) => `zastávka ${i + 1} ${st.target > st.arrive + 0.5 ? `${r(st.arrive)} % → ${r(st.target)} %` : `${r(st.arrive)} %`}`).join(', ') +
-      `, ${o.roundTrip ? `v cíli ${r(plan.socDest)} %, doma` : 'v cíli'} ${r(end)} %. Rezerva ${r(o.reserve)} %.`;
+      `, ${o.roundTrip ? `v cíli ${r(plan.socDest)} %, doma` : 'v cíli'} ${r(end)} %. Rezerva na zastávky ${r(o.reserve)} %, do cíle ${r(resDest(o))} %.`;
     const svg = sv('svg', { class: 'soc-chart', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': label, 'data-plot': `${x0} ${y0} ${x1} ${y1}`, 'data-km': KM.toFixed(2) },
       plan.stops.filter((s) => s.win != null && s.lo != null).map((st) => {
         const a = X(winKm(st.leg, st.lo)), b = X(winKm(st.leg, st.hi));
@@ -1048,6 +1059,7 @@
       o.roundTrip ? [sv('line', { class: 'soc-dest-mark', x1: X(D), x2: X(D), y1: y0 - 6, y2: y1 }),
         sv('text', { class: 'soc-ax', x: X(D), y: y0 - 8 + 2, 'text-anchor': 'middle', text: destN })] : null,
       sv('line', { class: 'soc-reserve', x1: x0, x2: x1, y1: Y(o.reserve), y2: Y(o.reserve), 'stroke-dasharray': '4 3' }),
+      resDest(o) !== o.reserve ? sv('line', { class: 'soc-dest', x1: x0, x2: x1, y1: Y(resDest(o)), y2: Y(resDest(o)), 'stroke-dasharray': '1 3' }) : null,
       sv('polyline', { class: 'soc-line', points: pts.map(([k, p]) => `${X(k)},${Y(p)}`).join(' ') }),
       stops.filter((st) => st.kwh > 0).map((st) => sv('circle', { class: 'soc-dot', cx: X(tripX(st, rt)), cy: Y(st.target), r: 2.5 })),
       [[0, 'start'], [KM, 'end']].map(([k, anchor]) => sv('text', { class: 'soc-ax', x: X(k), y: H - 6, 'text-anchor': anchor, text: `${fmt(k)} km` })));
@@ -1398,7 +1410,7 @@
   const r5 = (v) => Math.round(+v * 1e5) / 1e5;
   function tripInput(o, pts) {
     return { places: pts.map((p) => ({ label: String(p.label || '').slice(0, 60), lat: r5(p.lat), lon: r5(p.lon) })),
-      depart: $('depart').value, soc0: o.soc0, reserve: o.reserve, stopBy: o.byKm ? 'km' : 'time',
+      depart: $('depart').value, soc0: o.soc0, reserve: o.reserve, reserveDest: resDest(o), stopBy: o.byKm ? 'km' : 'time',
       intTime: +intTime.value, tolTime: +tolTime.value, intKm: +$('int-km').value, tolKm: +$('tol-km').value,
       detour: o.detourKm, atPump: o.atPump, roundTrip: o.roundTrip, retTime: $('ret-time').value };
   }
@@ -1455,6 +1467,7 @@
     if (inp.depart) $('depart').value = inp.depart;
     if (Number.isFinite(+inp.soc0)) $('soc0').value = String(inp.soc0);
     if (Number.isFinite(+inp.reserve)) $('reserve').value = String(inp.reserve);
+    $('reserve-dest').value = String(Number.isFinite(+inp.reserveDest) && inp.reserveDest != null ? inp.reserveDest : $('reserve').value);
     $(inp.stopBy === 'km' ? 'by-km' : 'by-time').checked = true;
     intTime.value = String(inp.intTime || 60); if (!intTime.value) intTime.value = '60';
     tolTime.value = String(inp.tolTime != null ? inp.tolTime : 15); if (!tolTime.value) tolTime.value = '15';
@@ -1527,6 +1540,7 @@
       if (pl.length < 2) return null;
       const i = d.i;
       const input = { places: pl, depart: typeof i.depart === 'string' ? i.depart.slice(0, 16) : '', soc0: +i.soc0 || 100, reserve: Number.isFinite(+i.reserve) ? +i.reserve : 10,
+        reserveDest: i.reserveDest != null && Number.isFinite(+i.reserveDest) ? Math.max(0, Math.min(80, +i.reserveDest)) : (Number.isFinite(+i.reserve) ? +i.reserve : 10),
         stopBy: i.stopBy === 'km' ? 'km' : 'time', intTime: +i.intTime || 60, tolTime: Number.isFinite(+i.tolTime) ? +i.tolTime : 15,
         intKm: +i.intKm || 130, tolKm: Number.isFinite(+i.tolKm) ? +i.tolKm : 20, detour: +i.detour || 1.5,
         atPump: i.atPump !== false, roundTrip: !!i.roundTrip, retTime: /^\d{2}:\d{2}$/.test(i.retTime) ? i.retTime : '16:00' };

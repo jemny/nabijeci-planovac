@@ -350,6 +350,7 @@ a.btn.primary{color:var(--ev-ink)}
 .soc-grid{stroke:var(--line);stroke-width:1}
 .soc-dest-mark{stroke:var(--dim);stroke-width:1;stroke-dasharray:2 3}
 .soc-reserve{stroke:var(--warn);stroke-width:1.2}
+.soc-dest{stroke:var(--ev);stroke-width:1.4}
 .soc-line{fill:none;stroke:var(--ev);stroke-width:2.2;stroke-linejoin:round}
 .soc-dot{fill:var(--ev)}
 .soc-ax{fill:var(--muted);font-size:9.5px;font-family:var(--font-mono)}
