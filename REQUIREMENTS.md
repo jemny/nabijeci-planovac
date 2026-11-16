@@ -98,7 +98,7 @@ Zadání je ve třech očíslovaných, podbarvených blocích pod sebou:
 - **2 Kdy a baterie:** odjezd, baterie na startu, přijet s alespoň, počítat i cestu zpět, zpátky vyrážím v.
 - **3 Zastávky:** po čase nebo po km, interval ± tolerance, objížďka, jen na pumpách.
 
-Otevřený je vždy jen jeden krok, ten, na který klepneš. Zavřené ukazují shrnutí toho, co je v nich nastavené. Když chybí odkud nebo kam, otevře se krok 1. (Uživatel 15. 11. 2026, D6 = B: „když dáš těm blokům nějaké podbarvení, takže bude lépe vidět, že tam jsou“.)
+**Všechny tři bloky jsou pořád rozbalené**, nic v nich není schované a nadpis bloku je jen nadpis, ťuknutím se nic nesbalí (D17). Když chybí odkud nebo kam, appka řekne, co chybí, a posune se ke kroku 1. (Uživatel 15. 11. 2026, D6 = B: „když dáš těm blokům nějaké podbarvení, takže bude lépe vidět, že tam jsou“. Uživatel 16. 11. 2026: „těch boxů není vidět, že by něco skrývaly, dokud se na ně neťukne… drž je rozbalené“.)
 
 ### R29 — Nabíjecí model
 Doba nabíjení podle křivky (fdrive.cz) × k z vlastních měření. Čím plnější baterie, tím pomaleji. Data z auta (Home Assistant) model zpřesňují.
@@ -135,10 +135,11 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 
 - **D5 (15. 11. 2026, uživatel vybral A):** rozšíří se jen to jedno prázdné okno, tvoje nastavení (např. 100 ± 20 km) zůstane. „Musí se tím pádem přepočítat i vše potom.“ Další okna navazují na novou zastávku. Platí pro každou změnu zastávky (R2). Starší test `[R3] … po Vybrat … „mimo okno, vybral jsi“` čekal, že ubude právě jedno prázdné okno. Podle D5 je upravený: kontroluje, že vybrané okno má tvou stanici (uživatel: „to rozhodnutí už bylo udělané dřív“).
 
-- **D6 (15. 11. 2026, uživatel vybral B):** formulář ve třech krocích (R36) s podbarvenými bloky. Rozdělení polí do kroků je odvozené z nakreslené varianty (krok 2 i cesta zpět, krok 3 i objížďka a pumpy). Další krok se sám neotevírá.
+- **D6 (15. 11. 2026, uživatel vybral B):** formulář ve třech krocích (R36) s podbarvenými bloky. Rozdělení polí do kroků je odvozené z nakreslené varianty (krok 2 i cesta zpět, krok 3 i objížďka a pumpy). Další krok se sám neotevírá. Sbalování kroků nahradilo D17.
 
 - **D15 (16. 11. 2026, uživatel vybral A):** dlaždice s Kč nahoře ukazuje jen nabíjení na cestě („za proud na cestě“, to, co zaplatíš kartou na zastávkách). Celá cena i s elektřinou z domu je ve větě pod ní a rozepsaná ve srovnání (R37). Varianta B (celá cena v dlaždici) nevybrána.
 - **D16 (16. 11. 2026, uživatel):** u pruhu baterie „přijedeš 30 % dej doleva před [čárku] a odjedeš 71 % doprava za čárku, jinak to vypadá dobře“. Slovo a číslo jsou pod sebou, aby se nápis vešel i na užším telefonu. Kvůli tomu se změnil test `[R32] pruh baterie: přijedeš X %, nabiješ +Y %, odjedeš Z %…`: dřív dovoloval nápis na kterékoli straně čárky a odjezd chtěl o řádek níž. Teď chce příjezd před čárkou a odjezd za ní na stejném řádku. Nový test hlídá případ, kdy se nápis nevejde.
+- **D17 (16. 11. 2026, uživatel):** bloky 1, 2, 3 formuláře jsou pořád rozbalené („těch boxů není vidět, že by něco skrývaly, dokud se na ně neťukne… drž je rozbalené“). Rozhodl jsem k tomu sám: nadpisy bloků už nejsou tlačítka a zmizelo shrnutí u zavřeného bloku, protože žádný zavřený blok není. Celý formulář se po hledání dál sbalí do řádku s cestou (R1). Kvůli tomu se změnily testy v tests/form-steps.test.mjs: `[R36] na začátku je otevřený krok 1, klepnutí na jiný krok ho otevře a ostatní zavře` je nahrazený testem, že jsou všechny tři pořád rozbalené. `[R36] zavřené kroky ukazují shrnutí…` je smazaný. Pomocná kontrola „krok je otevřený“ už nečte `aria-expanded`, protože nadpis není tlačítko.
 
 ## Otevřené rozpory
 

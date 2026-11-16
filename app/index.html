@@ -43,10 +43,8 @@
   </button>
 
   <form id="form" class="card form" novalidate autocomplete="off">
-    <section class="form-step open" data-step="1">
-      <button type="button" class="step-head" aria-expanded="true" aria-controls="step-1">
-        <span class="step-num">1</span><span class="step-title">Trasa</span><span class="step-sum"></span>
-      </button>
+    <section class="form-step" data-step="1">
+      <h2 class="step-head"><span class="step-num">1</span><span class="step-title">Trasa</span></h2>
       <div class="step-body" id="step-1">
         <div class="places" id="places">
           <!-- place rows are rendered by app.js: Odkud, Přes…, Kam -->
@@ -56,10 +54,8 @@
     </section>
 
     <section class="form-step" data-step="2">
-      <button type="button" class="step-head" aria-expanded="false" aria-controls="step-2">
-        <span class="step-num">2</span><span class="step-title">Kdy a baterie</span><span class="step-sum"></span>
-      </button>
-      <div class="step-body" id="step-2" hidden>
+      <h2 class="step-head"><span class="step-num">2</span><span class="step-title">Kdy a baterie</span></h2>
+      <div class="step-body" id="step-2">
         <label class="field"><span>Odjezd</span><input type="datetime-local" id="depart"></label>
         <div class="grid2 even">
           <label class="field"><span>Baterie na startu</span>
@@ -74,10 +70,8 @@
     </section>
 
     <section class="form-step" data-step="3">
-      <button type="button" class="step-head" aria-expanded="false" aria-controls="step-3">
-        <span class="step-num">3</span><span class="step-title">Zastávky</span><span class="step-sum"></span>
-      </button>
-      <div class="step-body" id="step-3" hidden>
+      <h2 class="step-head"><span class="step-num">3</span><span class="step-title">Zastávky</span></h2>
+      <div class="step-body" id="step-3">
         <fieldset class="field window">
           <legend>Zastavovat</legend>
           <div class="seg" role="radiogroup" aria-label="Zastavovat podle">

@@ -1,4 +1,5 @@
-// R36 / D6 = B (user, 15. 11. 2026): the form is three numbered, tinted steps; one open at a time; closed show a summary.
+// R36 / D6 = B (user, 15. 11. 2026): the form is three numbered, tinted steps.
+// D17 (user, 16. 11. 2026): "drž je rozbalené" – all three stay open, the heading is only a heading.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -11,7 +12,7 @@ const praha = [{ role: 'from', ...ROUTES['ostrava-praha'].from }, { role: 'to', 
 const steps = (d) => [...d.querySelectorAll('#form .form-step')];
 const head = (st) => st.querySelector('.step-head');
 const body = (st) => st.querySelector('.step-body');
-const isOpen = (st) => !body(st).hidden && head(st).getAttribute('aria-expanded') === 'true';
+const isOpen = (st) => !st.hidden && !body(st).hidden;
 
 test('[R36] formulář má tři očíslované kroky: 1 Trasa, 2 Kdy a baterie, 3 Zastávky', async () => {
   const { w } = await loadApp({ prefs: { places: praha } }), d = w.document;
@@ -28,30 +29,18 @@ test('[R36][R1] pole jsou ve správných krocích', async () => {
   for (const id of ['by-time', 'by-km', 'int-time', 'tol-time', 'int-km', 'tol-km', 'detour', 'at-pump']) assert.ok(body(s3).contains(d.getElementById(id)), `${id} je v kroku 3`);
 });
 
-test('[R36] na začátku je otevřený krok 1, klepnutí na jiný krok ho otevře a ostatní zavře', async () => {
+test('[R36] všechny tři kroky jsou pořád rozbalené, ťuknutí na nadpis nic neschová (D17)', async () => {
   const { w } = await loadApp({ prefs: { places: praha } }), d = w.document;
-  const [s1, s2, s3] = steps(d);
-  assert.ok(isOpen(s1)); assert.ok(!isOpen(s2)); assert.ok(!isOpen(s3));
-  head(s3).click();
-  assert.ok(!isOpen(s1)); assert.ok(!isOpen(s2)); assert.ok(isOpen(s3));
-  head(s2).click();
-  assert.ok(!isOpen(s1)); assert.ok(isOpen(s2)); assert.ok(!isOpen(s3));
-});
-
-test('[R36] zavřené kroky ukazují shrnutí a mění se s nastavením', async () => {
-  const { w } = await loadApp({ prefs: { places: praha, stopBy: 'time', intTime: 60, tolTime: 15, detour: 1.5 } }), d = w.document;
-  const [s1, s2, s3] = steps(d);
-  d.getElementById('depart').value = '2026-11-16T08:00';
-  d.getElementById('depart').dispatchEvent(new w.Event('input', { bubbles: true }));
-  assert.match(text(s1.querySelector('.step-sum')), /Ostrava → Praha/);
-  assert.match(text(s2.querySelector('.step-sum')), /8:00/); assert.match(text(s2.querySelector('.step-sum')), /100 %/);
-  assert.match(text(s3.querySelector('.step-sum')), /1:00 ± 15/);
-  d.getElementById('soc0').value = '80';
-  d.getElementById('soc0').dispatchEvent(new w.Event('input', { bubbles: true }));
-  assert.match(text(s2.querySelector('.step-sum')), /80 %/);
-  d.getElementById('by-km').checked = true;
-  d.getElementById('by-km').dispatchEvent(new w.Event('change', { bubbles: true }));
-  assert.match(text(s3.querySelector('.step-sum')), /130 ± 20 km/);
+  const s = steps(d);
+  assert.ok(s.every(isOpen), 'na začátku jsou otevřené všechny tři');
+  for (const st of s) {
+    head(st).click();
+    assert.ok(s.every(isOpen), `po ťuknutí na „${text(head(st))}“ jsou dál otevřené všechny tři`);
+  }
+  for (const st of s) {
+    assert.notEqual(head(st).tagName, 'BUTTON', `nadpis „${text(head(st))}“ není tlačítko, nic neslibuje`);
+    assert.equal(head(st).getAttribute('aria-expanded'), null, `nadpis „${text(head(st))}“ se netváří jako rozbalovací`);
+  }
 });
 
 test('[R36][R1] když chybí cíl, otevře se krok 1 a appka řekne, co chybí', async () => {

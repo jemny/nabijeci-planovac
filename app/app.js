@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16c';
+  const APP_VERSION = '2026-11-16d';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -211,12 +211,10 @@
       });
       placesBox.append(node);
     });
-    renderStepSums();
   }
   function showPicked(picked, p) {
     picked.textContent = p.lat ? `✓ ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}` : '';
     picked.classList.toggle('ok', !!p.lat);
-    if (formSteps.length) renderStepSums();
   }
   $('add-via').addEventListener('click', () => { places.splice(places.length - 1, 0, { role: 'via' }); renderPlaces(); });
 
@@ -323,34 +321,12 @@
   ['by-time', 'by-km', 'round-trip'].forEach((id) => $(id).addEventListener('change', syncStopUi));
   syncStopUi();
 
-  // ---- R36 (D6 = B): the form in three steps; one open at a time, the closed ones show what is set in them
+  // ---- R36: the form in three steps, all of them always open (D17: "drž je rozbalené")
   const formSteps = [...document.querySelectorAll('#form .form-step')];
-  function openStep(n) {
-    formSteps.forEach((st) => {
-      const on = st.dataset.step === String(n);
-      st.querySelector('.step-body').hidden = !on;
-      st.querySelector('.step-head').setAttribute('aria-expanded', String(on));
-      st.classList.toggle('open', on);
-    });
+  function showStep(n) {
+    const st = formSteps.find((x) => x.dataset.step === String(n));
+    if (st) st.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
-  formSteps.forEach((st) => st.querySelector('.step-head').addEventListener('click', () => openStep(st.dataset.step)));
-  const kmText = (v) => (Number.isInteger(+v) ? fmt(+v) : fmt(+v, 1));
-  function renderStepSums() {
-    const [s1, s2, s3] = formSteps.map((st) => st.querySelector('.step-sum'));
-    const a = places[0], b = places[places.length - 1];
-    const nVia = places.slice(1, -1).filter((p) => p.lat != null).length;
-    const short = (p, f) => String((p && p.label) || f).split(',')[0].replace(/^Moje poloha.*/, 'Moje poloha');
-    s1.textContent = a && b && a.lat != null && b.lat != null
-      ? `${short(a, 'Start')} → ${short(b, 'Cíl')}${nVia ? ` · přes ${nVia} ${nVia === 1 ? 'místo' : nVia < 5 ? 'místa' : 'míst'}` : ''}` : 'vyber odkud a kam';
-    const d = $('depart').value ? new Date($('depart').value) : null, ok = d && !isNaN(d);
-    const day = ok ? d.toLocaleDateString('cs-CZ', { weekday: 'short', day: 'numeric', month: 'numeric' }) : '';
-    s2.textContent = [ok ? `${day.charAt(0).toUpperCase()}${day.slice(1)} ${clock(d)}` : null, `${$('soc0').value || '?'} %`,
-      `přijet s ${$('reserve').value || '?'} %`, $('round-trip').checked ? `zpět ${$('ret-time').value}` : 'jen tam'].filter(Boolean).join(' · ');
-    s3.textContent = [stopBy() === 'km' ? `každých ${$('int-km').value} ± ${$('tol-km').value} km` : `každou ${hm(+intTime.value)} ± ${tolTime.value}`,
-      `objížďka do ${kmText(parseFloat($('detour').value) || 1.5)} km`, $('at-pump').checked ? 'jen pumpy' : null].filter(Boolean).join(' · ');
-  }
-  $('form').addEventListener('input', renderStepSums);
-  $('form').addEventListener('change', renderStepSums);
 
   function renderBrands() {
     const counts = {};
@@ -615,7 +591,7 @@
     await dataReady;
     if (!STATIONS.length) return;
     const pts = places.filter((p) => p.lat != null);
-    if (!places[0].lat || !places[places.length - 1].lat) { openStep(1); setStatus('Vyber místo v poli Odkud i Kam (ze seznamu, polohou nebo souřadnicemi).', true); return; }
+    if (!places[0].lat || !places[places.length - 1].lat) { showStep(1); setStatus('Vyber místo v poli Odkud i Kam (ze seznamu, polohou nebo souřadnicemi).', true); return; }
     const o = readOptions();
     Object.assign(prefs, { places, stopBy: o.byKm ? 'km' : 'time', intTime: +intTime.value, tolTime: +tolTime.value,
       intKm: +$('int-km').value, tolKm: +$('tol-km').value, retTime: $('ret-time').value, detour: o.detourKm,
@@ -1397,7 +1373,7 @@
     $('detour').value = String(inp.detour || 1.5); if (!$('detour').value) $('detour').value = '1.5';
     $('at-pump').checked = inp.atPump !== false; $('round-trip').checked = !!inp.roundTrip;
     $('ret-time').value = inp.retTime || '16:00';
-    syncStopUi(); renderStepSums();
+    syncStopUi();
   }
   async function openTrip(t, fromLink) {
     await dataReady;
@@ -1680,7 +1656,6 @@
     reroute = { tripId: curTrip.id, old: { rt, o, plan, pts } };
     setFormCollapsed(false);
     const st = $('status'); st.textContent = ''; st.classList.remove('err');
-    openStep(1);
     st.append('Přeplánuj zbytek cesty. V kroku 1 zkontroluj, odkud jedeš (◎ = kde jsi teď), a přidej místo, kudy pojedeš nebo kde se zastavíte. V kroku 2 nastav baterii teď. Už odjetá část zůstane uložená v cestě. ',
       el('button', { type: 'button', class: 'link-btn', text: 'Zrušit', onclick: () => { applyInput(curTrip.input); endReroute(); setFormCollapsed(true); setStatus(''); } }));
     st.scrollIntoView({ behavior: 'smooth', block: 'start' });
