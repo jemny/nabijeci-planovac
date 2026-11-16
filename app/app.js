@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16b';
+  const APP_VERSION = '2026-11-16c';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -1045,6 +1045,7 @@
     box.append(ol, planExport());
     if (curTrip) box.append(finishCard(o, plan));
     box.append(compareCard(o, plan));
+    fitBarLabels(); watchBars();
   }
   function destRow(o, plan) {
     return tlRow(clock(plan.arriveDest), 'dest', tlText(`Cíl · ${shortName(lastRun.pts[lastRun.pts.length - 1].label, 'Cíl')}`,
@@ -1094,21 +1095,53 @@
     const st = lastRun.plan.stops[idx];
     changeStop(st, { tol: st.widen });
   }
-  // R32: each number sits at its own place on the bar. "nabiješ" above the light part, "přijedeš" at the end of the
-  // dark part, "odjedeš" at the end of the light part one row lower, so labels never overlap. Near the card's edge
-  // a label flips to the other side of its boundary, but it always touches it (the line at the label's side).
+  // R32: each number sits at its own place on the bar: "nabiješ" above the light part, "přijedeš" before the line at
+  // the end of the dark part, "odjedeš" after the line at the end of the light part (D16).
   function batteryBar(from, to, done) {
     const a = Math.max(0, Math.min(100, Math.round(from))), b = Math.max(a, Math.min(100, Math.round(to))), mid = (a + b) / 2;
     const w = done ? ['příjezd', 'nabito', 'odjezd'] : ['přijedeš', 'nabiješ', 'odjedeš'];
-    const label = (cls, pos, word, val) => el('span', { class: cls, style: pos }, `${word} `, el('b', { text: val }));
-    const side = (p, endFirst) => (endFirst ? [`right:${100 - p}%`, 'bl-end'] : [`left:${p}%`, 'bl-start']);
-    const [arrPos, arrCls] = side(a, a >= 35), [depPos, depCls] = side(b, b > 65);
-    const [chgPos, chgCls] = mid < 15 ? side(a, false) : mid > 85 ? side(b, true) : [`left:${mid}%`, 'bl-mid'];
+    const [chgPos, chgCls] = mid < 15 ? [`left:${a}%`, 'bl-start'] : mid > 85 ? [`right:${100 - b}%`, 'bl-end'] : [`left:${mid}%`, 'bl-mid'];
+    const label = (cls, p, word, val) => el('span', { class: cls, 'data-p': p }, el('small', { text: word }), el('b', { text: val }));
+    const arr = label('bl-arr', a, w[0], `${a} %`), dep = label('bl-dep', b, w[2], `${b} %`);
+    placeLabel(arr, 'end'); placeLabel(dep, 'start');
     return el('div', { class: 'bar-wrap' },
-      el('div', { class: 'bar-top' }, label(`bl-chg ${chgCls}`, chgPos, w[1], `+${b - a} %`)),
+      el('div', { class: 'bar-top' }, el('span', { class: `bl-chg ${chgCls}`, style: chgPos }, `${w[1]} `, el('b', { text: `+${b - a} %` }))),
       el('div', { class: 'bar', role: 'img', 'aria-label': `Baterie: ${w[0]} ${a} %, ${w[1]} ${b - a} %, ${w[2]} ${b} %` },
         el('span', { class: 'bar-base', style: `width:${a}%` }), el('span', { class: 'bar-add', style: `left:${a}%;width:${b - a}%` })),
-      el('div', { class: 'bar-legend' }, label(`bl-arr ${arrCls}`, arrPos, w[0], `${a} %`), label(`bl-dep ${depCls}`, depPos, w[2], `${b} %`)));
+      el('div', { class: 'bar-legend', 'data-rows': '1' }, arr, dep));
+  }
+  // side 'end': the label ends at its line (text before it); 'start': it begins at its line (text after it)
+  function placeLabel(lab, side, row = 0) {
+    const p = Number(lab.getAttribute('data-p'));
+    lab.setAttribute('style', side === 'end' ? `right:${100 - p}%` : `left:${p}%`);
+    lab.classList.toggle('bl-end', side === 'end'); lab.classList.toggle('bl-start', side !== 'end');
+    lab.setAttribute('data-row', String(row));
+  }
+  // D16: a label that would stick out of its card goes to the other side of its own line, and one row lower if it
+  // then covers the other label. Needs the real layout, so it runs after rendering and when the size changes.
+  function fitBarLabels() {
+    for (const leg of document.querySelectorAll('.bar-legend')) {
+      const card = leg.closest('.stop-card'), box = card && card.getBoundingClientRect();
+      if (!box || !(box.width > 0)) continue;                                  // hidden, or no layout (tests)
+      const placed = [];
+      [[leg.children[0], 'end', 'start'], [leg.children[1], 'start', 'end']].forEach(([lab, pref, other]) => {
+        placeLabel(lab, pref);
+        let r = lab.getBoundingClientRect();
+        if (r.left < box.left || r.right > box.right) { placeLabel(lab, other); r = lab.getBoundingClientRect(); }
+        let row = 0;
+        while (placed.some((q) => q.row === row && q.r.left < r.right + 4 && r.left < q.r.right + 4)) row += 1;
+        lab.setAttribute('data-row', String(row));
+        placed.push({ row, r });
+      });
+      leg.setAttribute('data-rows', String(Math.max(...placed.map((q) => q.row)) + 1));
+    }
+  }
+  let barsWatched = false;
+  function watchBars() {
+    if (barsWatched) return;
+    barsWatched = true;
+    window.addEventListener('resize', fitBarLabels);
+    if (window.ResizeObserver) new window.ResizeObserver(() => fitBarLabels()).observe($('results'));
   }
   function stopCard(st, k, idx, o) {
     const s = st.c.s;

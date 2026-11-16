@@ -1,5 +1,5 @@
 /* Offline fallback: same-origin files network-first with a cache copy; external APIs untouched. */
-const VERSION = 'np-v20';
+const VERSION = 'np-v21';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 const NET_TIMEOUT = 3500;   // weak signal in the car: after this, show the cached copy instead of a white screen
 

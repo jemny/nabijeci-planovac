@@ -290,19 +290,23 @@ a.btn.primary{color:var(--ev-ink)}
 .bar{position:relative;height:12px;border-radius:6px;background:var(--line);overflow:hidden}
 .bar-base{position:absolute;left:0;top:0;bottom:0;background:var(--base)}
 .bar-add{position:absolute;top:0;bottom:0;background:var(--ev)}
-/* R32: each label at its own boundary on the bar; departure one row lower so labels never overlap */
+/* R32, D16: "přijedeš" before the line at the end of the dark part, "odjedeš" after the line at the end of the
+   light part, word above number. A label moved one row lower keeps its line up to the bar (behind the upper one). */
 .bar-top,.bar-legend{position:relative;font-size:.78rem;line-height:1.35;color:var(--muted)}
 .bar-top{height:1.35em;margin-bottom:-4px}
-.bar-legend{height:2.7em;margin-top:-5px}
-.bar-top>span,.bar-legend>span{position:absolute;top:0;white-space:nowrap}
+.bar-top>span{position:absolute;top:0;white-space:nowrap}
 .bar-top b,.bar-legend b{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink)}
 .bar-top .bl-chg,.bar-top .bl-chg b{color:var(--ev)}
-.bl-start{border-left:1px solid var(--muted);padding-left:5px;text-align:left}
-.bl-end{border-right:1px solid var(--muted);padding-right:5px;text-align:right}
-.bl-mid{transform:translateX(-50%);text-align:center}
-.bar-top .bl-start,.bar-top .bl-end{border:0;padding:0}
-.bl-arr{height:1.35em;background:var(--surface);z-index:1}
-.bl-dep{height:2.7em;display:flex;align-items:flex-end;gap:.3em}
+.bl-mid{transform:translateX(-50%)}
+.bar-legend{height:2.7em;margin-top:-5px}
+.bar-legend[data-rows="2"]{height:5.4em}
+.bar-legend[data-rows="3"]{height:8.1em}
+.bar-legend>span{position:absolute;top:0;display:flex;flex-direction:column;white-space:nowrap;background:var(--surface);z-index:2}
+.bar-legend>span[data-row="1"]{padding-top:2.7em;z-index:1}
+.bar-legend>span[data-row="2"]{padding-top:5.4em;z-index:0}
+.bar-legend small{font-size:.72rem}
+.bar-legend .bl-end{border-right:1px solid var(--muted);padding-right:5px;align-items:flex-end;text-align:right}
+.bar-legend .bl-start{border-left:1px solid var(--muted);padding-left:5px;align-items:flex-start;text-align:left}
 .tiles3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;text-align:center}
 .tiles3 .tile{background:var(--surface-2);border:0;border-radius:10px;padding:8px 4px}
 .tiles3 .tile b{font-size:.95rem}

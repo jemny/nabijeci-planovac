@@ -111,7 +111,7 @@ Google Mapy tam a zpět přes zastávky (pro Send2Car do Mercedesu), Waze po kro
 
 ### R32 — Karta zastávky
 Waze a Google Mapy přímo na stanici, rada ke stojanu a k placení (vypnout Plug & Charge).
-**Pruh baterie** u nabíjecí zastávky ukáže tři věci, každou pod svým kusem pruhu: pod tmavou částí s kolika % přijedeš, pod světlou kolik % nabiješ, na konci světlé části s kolika % odjedeš. Čísla na sebe sedí (přijedeš + nabiješ = odjedeš). U zapsané zastávky „příjezd, nabito, odjezd“. (Nahlášená chyba, uživatel 16. 11. 2026: vlevo 23 %, úplně vpravo 50 %, mezi tím +27 %, „ty modré čáry prostě nejsou dobře, musí tam být vidět, s kolika % přijedu, kolik % načerpám a kolik budu mít při odjezdu“.)
+**Pruh baterie** u nabíjecí zastávky ukáže tři věci, každou pod svým kusem pruhu: nad světlou částí kolik % nabiješ, „přijedeš X %“ vlevo před čárkou na konci tmavé části, „odjedeš Z %“ vpravo za čárkou na konci světlé části (D16). Když se nápis do karty nevejde, je hned na druhé straně své čárky, a kdyby se pak překrýval s druhým nápisem, posune se o řádek níž. Čísla na sebe sedí (přijedeš + nabiješ = odjedeš). U zapsané zastávky „příjezd, nabito, odjezd“. (Nahlášená chyba, uživatel 16. 11. 2026: vlevo 23 %, úplně vpravo 50 %, mezi tím +27 %, „ty modré čáry prostě nejsou dobře, musí tam být vidět, s kolika % přijedu, kolik % načerpám a kolik budu mít při odjezdu“.)
 
 ### R33 — Jiné možnosti v okně
 U zastávky seznam dalších stanic v okně s tlačítkem Vybrat.
@@ -137,10 +137,10 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 
 - **D6 (15. 11. 2026, uživatel vybral B):** formulář ve třech krocích (R36) s podbarvenými bloky. Rozdělení polí do kroků je odvozené z nakreslené varianty (krok 2 i cesta zpět, krok 3 i objížďka a pumpy). Další krok se sám neotevírá.
 
-## Otevřené rozpory
+- **D15 (16. 11. 2026, uživatel vybral A):** dlaždice s Kč nahoře ukazuje jen nabíjení na cestě („za proud na cestě“, to, co zaplatíš kartou na zastávkách). Celá cena i s elektřinou z domu je ve větě pod ní a rozepsaná ve srovnání (R37). Varianta B (celá cena v dlaždici) nevybrána.
+- **D16 (16. 11. 2026, uživatel):** u pruhu baterie „přijedeš 30 % dej doleva před [čárku] a odjedeš 71 % doprava za čárku, jinak to vypadá dobře“. Slovo a číslo jsou pod sebou, aby se nápis vešel i na užším telefonu. Kvůli tomu se změnil test `[R32] pruh baterie: přijedeš X %, nabiješ +Y %, odjedeš Z %…`: dřív dovoloval nápis na kterékoli straně čárky a odjezd chtěl o řádek níž. Teď chce příjezd před čárkou a odjezd za ní na stejném řádku. Nový test hlídá případ, kdy se nápis nevejde.
 
-### D15 Co ukazuje dlaždice „Kč“ nahoře (16. 11. 2026, rozhodl jsem sám, čeká na potvrzení)
-Při opravě R37 jsem nechal dlaždici ukazovat jen nabíjení na cestě („za proud na cestě“, to, co zaplatíš na zastávkách). Celá cena i s elektřinou z domu je ve větě pod ní a rozepsaná ve srovnání. Varianty jsou nakreslené v rozhovoru: A takhle (doporučuju), B dlaždice ukáže celou cenu cesty a pod ní „na cestě X + z domu Y“.
+## Otevřené rozpory
 
 ### Návrhy z WattBoxu k rozhodnutí (15. 11. 2026, čekají na uživatele)
 Prošel jsem wattbox.cz (plánovač, mapa, detail stanice, aplikace). Varianty jsou nakreslené v rozhovoru, doporučená je u každého A.

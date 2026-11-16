@@ -33,19 +33,14 @@ function checkBar(card, words, label) {
   const wBase = pct(base, 'width'), left = pct(add, 'left'), wAdd = pct(add, 'width');
   assert.ok(Math.abs(wBase - arr) <= 0.5 && Math.abs(left - arr) <= 0.5, `${label}: tmavá část končí na ${arr} % (${wBase} %, ${left} %)`);
   assert.ok(Math.abs(left + wAdd - dep) <= 0.5, `${label}: světlá část končí na ${dep} % (${left + wAdd} %)`);
-  // each number sits at its own place: arrival at the end of the dark part, departure at the end of the light part,
-  // "nabiješ" over the light part (centred on it, or at one of its ends near the card edge)
-  assert.ok(touches(elArr, arr), `${label}: „${text(elArr)}“ stojí na hranici tmavé části ${arr} % (${elArr.getAttribute('style')})`);
-  assert.ok(touches(elDep, dep), `${label}: „${text(elDep)}“ stojí na konci světlé části ${dep} % (${elDep.getAttribute('style')})`);
+  // each number sits at its own place (D16): "přijedeš" left before the line at the end of the dark part,
+  // "odjedeš" right after the line at the end of the light part, "nabiješ" over the light part
+  assert.ok(Math.abs(pct(elArr, 'right') - (100 - arr)) <= 0.5, `${label}: „${text(elArr)}“ končí čárou na ${arr} % (${elArr.getAttribute('style')})`);
+  assert.match(styleOf(elArr), /border-right/, `${label}: „${text(elArr)}“ má čáru vpravo, na hranici tmavé části`);
+  assert.ok(Math.abs(pct(elDep, 'left') - dep) <= 0.5, `${label}: „${text(elDep)}“ začíná čárou na ${dep} % (${elDep.getAttribute('style')})`);
+  assert.match(styleOf(elDep), /border-left/, `${label}: „${text(elDep)}“ má čáru vlevo, na konci světlé části`);
   const centred = Math.abs(pct(elChg, 'left') - (arr + dep) / 2) <= 0.5 && /translateX\(-50%\)/.test(styleOf(elChg));
   assert.ok(centred || touches(elChg, arr) || touches(elChg, dep), `${label}: „${text(elChg)}“ je nad světlou částí (${elChg.getAttribute('style')})`);
-  // a label that ends at its boundary is aligned to it (text to the right edge), one that starts there to the left
-  for (const x of [elArr, elDep]) {
-    if (!Number.isNaN(pct(x, 'right'))) assert.match(styleOf(x), /border-right|text-align\s*:\s*right/, `${label}: „${text(x)}“ končí čárou na hranici`);
-    else assert.match(styleOf(x), /border-left|text-align\s*:\s*left/, `${label}: „${text(x)}“ začíná čárou na hranici`);
-  }
-  // arrival and departure are on different rows, so they never overlap however close they are
-  assert.match(styleOf(elDep), /align-items\s*:\s*flex-end/, `${label}: odjezd je o řádek níž než příjezd`);
 }
 
 test('[R32] pruh baterie: přijedeš X %, nabiješ +Y %, odjedeš Z %, každé číslo pod svým kusem pruhu', async () => {
@@ -77,3 +72,46 @@ test('[R32] pruh baterie u zapsané zastávky: příjezd, nabito, odjezd podle z
   const all = text(after.querySelector('.bar-wrap'));
   for (const re of [/příjezd\s*18 %/, /nabito\s*\+43 %/, /odjezd\s*61 %/]) assert.match(all, re);
 });
+
+// A narrow card (laid out by hand: jsdom has no layout). A label that would stick out of the card goes to the other
+// side of its own line, and if it then covers the other label, one row lower.
+function narrowCard(W, LW) {
+  const PAD = 12, IN = W - 2 * PAD;
+  const rect = (l, r) => ({ left: l, right: r, width: r - l, top: 0, bottom: 20, height: 20, x: l, y: 0 });
+  return (w) => {
+    w.Element.prototype.getBoundingClientRect = function () {
+      if (this.classList.contains('stop-card')) return rect(0, W);
+      if (this.matches('.bar-legend > span')) {
+        const st = this.getAttribute('style') || '', l = st.match(/left:\s*([\d.]+)%/), r = st.match(/right:\s*([\d.]+)%/);
+        if (r) { const right = PAD + IN * (1 - r[1] / 100); return rect(right - LW, right); }
+        if (l) { const left = PAD + IN * l[1] / 100; return rect(left, left + LW); }
+      }
+      return rect(PAD, W - PAD);
+    };
+  };
+}
+for (const [W, LW] of [[240, 60], [240, 80]]) {
+  test(`[R32] pruh baterie v úzké kartě (${W} px, nápis ${LW} px): nápis zůstane v kartě, u své čárky a nic se nepřekrývá`, async () => {
+    const { d, api } = await search({ 'round-trip': true }, { soc0: 100, setup: narrowCard(W, LW) });
+    const stops = api.lastRun().plan.stops.filter((s) => !s.empty), cards = [...d.querySelectorAll('.stop-card')];
+    let flipped = 0;
+    stops.forEach((st, i) => {
+      if (!(st.kwh > 0)) return;
+      const a = Math.round(st.arrive), b = Math.round(st.target), name = `zastávka ${i + 1} (${a} → ${b} %)`;
+      const elArr = cards[i].querySelector('.bar-legend').children[0], elDep = cards[i].querySelector('.bar-legend').children[1];
+      const fitsArr = 12 + (W - 24) * a / 100 - LW >= 0, fitsDep = 12 + (W - 24) * b / 100 + LW <= W;
+      // preferred side when it fits, the other side of the same line when it does not
+      if (fitsArr) assert.ok(Math.abs(pct(elArr, 'right') - (100 - a)) <= 0.5, `${name}: přijedeš se vejde, je před čárkou`);
+      else { flipped += 1; assert.ok(Math.abs(pct(elArr, 'left') - a) <= 0.5, `${name}: přijedeš se nevejde, je hned za čárkou ${a} % (${elArr.getAttribute('style')})`); }
+      if (fitsDep) assert.ok(Math.abs(pct(elDep, 'left') - b) <= 0.5, `${name}: odjedeš se vejde, je za čárkou`);
+      else { flipped += 1; assert.ok(Math.abs(pct(elDep, 'right') - (100 - b)) <= 0.5, `${name}: odjedeš se nevejde, je hned před čárkou ${b} % (${elDep.getAttribute('style')})`); }
+      const rA = elArr.getBoundingClientRect(), rD = elDep.getBoundingClientRect();
+      for (const [el, r] of [[elArr, rA], [elDep, rD]]) assert.ok(r.left >= 0 && r.right <= W, `${name}: „${text(el)}“ je celý v kartě (${r.left}–${r.right})`);
+      const rowA = elArr.getAttribute('data-row'), rowD = elDep.getAttribute('data-row');
+      assert.ok(rowA != null && rowD != null, `${name}: nápisy mají řádek`);
+      if (rowA === rowD) assert.ok(rA.right + 4 <= rD.left || rD.right + 4 <= rA.left, `${name}: na stejném řádku se nápisy nepřekrývají`);
+      if (rowA !== '0' || rowD !== '0') assert.match(styleOf(rowA !== '0' ? elArr : elDep), /padding-top/, `${name}: nápis o řádek níž má čáru až k pruhu`);
+    });
+    assert.ok(flipped >= 1, 'v úzké kartě se aspoň jeden nápis nevešel na svou stranu');
+  });
+}
