@@ -27,6 +27,7 @@ import json
 import math
 import os
 import re
+import socket
 import sqlite3
 import subprocess
 import urllib.parse
@@ -36,7 +37,15 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 RAW = os.path.join(HERE, "raw")
-OVERPASS = "https://overpass-api.de/api/interpreter"
+# main server first, then public mirrors with the same data (wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances);
+# a mirror is asked only when the one before it fails (R35, D19)
+OVERPASS_SERVERS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+]
+OVERPASS_ROUNDS = 4        # rounds over all servers; waits 30, 60, 90 s between rounds
+OVERPASS_TIMEOUT = 300     # s per request; queries ask the server for at most 240 s
 UA = "elektroauta-chargers-db/0.1 (personal, non-commercial)"
 COUNTRIES = ["CZ", "SK", "PL", "AT", "DE"]  # neighbours for trips abroad (OSM + OCM; E.ON map only CZ/SK)
 
@@ -85,30 +94,54 @@ def overpass(query, path, refresh):
                 return json.load(open(path, encoding="utf-8"))
             except ValueError:
                 pass  # a cached error page: download again
-    data = urllib.parse.urlencode({"data": query}).encode()
-    for attempt in range(6):  # Overpass answers an HTML error page when busy: wait and retry, never cache it
-        req = urllib.request.Request(OVERPASS, data=data, headers={"User-Agent": UA})
-        try:
-            with urllib.request.urlopen(req, timeout=600) as r:
-                body = r.read()
-        except urllib.error.HTTPError as e:
-            body = b""
-            print(f"overpass HTTP {e.code}")
-        except urllib.error.URLError:  # old local Python/LibreSSL can fail the TLS handshake: fall back to curl
-            body = subprocess.run(["curl", "-s", "-m", "600", "-A", UA, "--data-urlencode", f"data={query}", OVERPASS],
-                                  capture_output=True).stdout
-        try:
-            parsed = json.loads(body)
-        except ValueError:
-            wait = 30 * (attempt + 1)
-            print(f"overpass busy for {os.path.basename(path)}, retry in {wait}s")
+    name = os.path.basename(path)
+    for rnd in range(OVERPASS_ROUNDS):
+        for server in OVERPASS_SERVERS:
+            host = urllib.parse.urlsplit(server).netloc
+            body = _overpass_post(server, query)
+            try:
+                parsed = json.loads(body)
+            except ValueError:  # a busy server answers an HTML error page: never cache it
+                parsed = None
+            if not isinstance(parsed, dict):
+                print(f"overpass {host} busy for {name}")
+                continue
+            remark = str(parsed.get("remark") or "")
+            if "error" in remark.lower():  # e.g. "runtime error: Query timed out": no or partial data
+                print(f"overpass {host} error for {name}: {remark[:120]}")
+                continue
+            with open(path, "wb") as f:
+                f.write(body)
+            print(f"overpass {name} from {host}")
+            time.sleep(3)
+            return parsed
+        if rnd + 1 < OVERPASS_ROUNDS:
+            wait = 30 * (rnd + 1)
+            print(f"overpass: no server answered {name}, retry in {wait}s")
             time.sleep(wait)
-            continue
-        with open(path, "wb") as f:
-            f.write(body)
-        time.sleep(3)
-        return parsed
-    raise RuntimeError(f"Overpass failed for {path}")
+    raise RuntimeError(f"Overpass failed for {path} (servers: {', '.join(OVERPASS_SERVERS)})")
+
+
+def _overpass_post(server, query):
+    """POST one query; returns the raw body (b"" on an HTTP error or no answer)."""
+    req = urllib.request.Request(server, data=urllib.parse.urlencode({"data": query}).encode(),
+                                 headers={"User-Agent": UA})
+    try:
+        with urllib.request.urlopen(req, timeout=OVERPASS_TIMEOUT) as r:
+            return r.read()
+    except urllib.error.HTTPError as e:
+        print(f"overpass {urllib.parse.urlsplit(server).netloc} HTTP {e.code}")
+        return b""
+    except urllib.error.URLError as e:
+        if isinstance(e.reason, socket.timeout):  # no answer in time: the next server, not a second wait via curl
+            print(f"overpass {urllib.parse.urlsplit(server).netloc} no answer: {e.reason}")
+            return b""
+        # old local Python/LibreSSL can fail the TLS handshake: fall back to curl
+        return subprocess.run(["curl", "-s", "-m", str(OVERPASS_TIMEOUT), "-A", UA,
+                               "--data-urlencode", f"data={query}", server], capture_output=True).stdout
+    except OSError as e:  # read timeout / connection reset: try the next server
+        print(f"overpass {urllib.parse.urlsplit(server).netloc} no answer: {e}")
+        return b""
 
 
 def ensure_ocm(path):

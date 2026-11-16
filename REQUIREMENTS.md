@@ -127,7 +127,8 @@ Rozvržení podle návrhu 1 (Palubní deska), barvy 1H (grafit a ocelově modrá
 Všechna pole, do kterých se píše nebo vybírá (i čas návratu a odjezd), mají stejný vzhled jako „Baterie na startu“: vlastní podbarvení, rámeček, zaoblení, i na iPhonu (uživatel 15. 11. 2026: šedé pole času „je hnusné“). Ověření: tests/look.test.mjs.
 
 ### R35 — Data nabíječek
-DC stanice v CZ, SK, PL, AT a DE z OSM, OCM, mapy E.ON a Tesly, s aktualizací každé pondělí a na vyžádání. Ověření: ručně (build v `build/`, kontroluje se počtem stanic v `meta.json`).
+DC stanice v CZ, SK, PL, AT a DE z OSM, OCM, mapy E.ON a Tesly, s aktualizací každé pondělí a na vyžádání.
+Když hlavní server OpenStreetMap (Overpass) nejede, stahování zkusí záložní servery se stejnými daty (D20). Odpověď s chybou se nikdy neuloží jako data. Když nejede žádný server, běh skončí chybou a appka zůstane s posledními daty. Ověření: tests/osm-download.test.mjs (záložní servery, falešné servery bez internetu). Počet stanic se kontroluje ručně v `meta.json`.
 
 ### R39 — Na kolik nabít u zastávky
 U každé zastávky, která ještě není zapsaná, je posuvník „Nabít do“: od % při příjezdu do 100 %, výchozí je návrh plánu. Po puštění posuvníku se zbytek plánu přepočítá (D5). Karta napíše „Plán navrhl X %, nastavil jsi Y %“ a má tlačítko „Vrátit na plán“. Tvoje číslo platí přesně, minimum 8 % a strop z R13 jsou jen pro návrh plánu. Když pak baterie na další úsek nestačí, appka přidá zastávku „kvůli dojezdu“ (R13). Nastavení patří k té stanici: když stanici vyměníš, platí zase plán. Uloží se s cestou. (D12 = A)
@@ -187,6 +188,7 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 
 - **D8 (16. 11. 2026, uživatel vybral C):** odkaz na WattBox u zastávky nebude. (bez funkce v appce)
 - **D12 (16. 11. 2026, uživatel vybral A):** posuvník „Nabít do“ v kartě zastávky (R39). Rozhodl jsem k tomu sám: tvoje číslo platí přesně (bez minima 8 % a stropu 90 %), posuvník jde do 100 %.
+- **D20 (16. 11. 2026, uživatel vybral A):** pondělní aktualizace dat selhala, protože hlavní server OpenStreetMap 19 minut vracel chyby 502/504. Teď se při výpadku zkusí záložní servery (R35). Nevybráno: B (navíc použít minulá data státu, který nejde stáhnout nikde, a ukázat v appce jejich datum) a C (jen zopakovat běh v úterý). Rozhodl jsem k tomu sám: záložní jsou overpass.private.coffee a overpass.kumi.systems (veřejné servery ze seznamu na wiki OSM). Zkouší se 4 kola po všech serverech, mezi koly pauza 30, 60 a 90 s, jeden dotaz čeká nejvýš 5 minut. Odpověď „runtime error“ (vypršel čas, chybí data) se bere jako výpadek, aby se neuložil stát bez stanic.
 
 ## Otevřené rozpory
 
