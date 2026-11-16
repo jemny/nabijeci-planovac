@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16f';
+  const APP_VERSION = '2026-11-16g';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -68,6 +68,7 @@
   if (!Array.isArray(trips)) trips = [];
   trips = trips.filter((t) => t && typeof t === 'object' && t.id && t.input && Array.isArray(t.input.places) && t.input.places.length >= 2);
   let curTrip = null;              // the trip shown in the results (saved or not)
+  let targets = {};                // R39: "Nabít do" the user set, per stop (stopKey → %); saved with the trip stops
   let reroute = null;              // "Jedu jinudy": re-planning the rest of curTrip from a new point
   const hiddenList = () => (prefs.hidden || []).map((h) => {
     if (Number.isFinite(h.lat)) return h;
@@ -623,6 +624,7 @@
       endReroute();
       curTrip = { id: newTripId(), saved: false, status: 'plan', input: tripInput(o, pts), stops: [], actual: {} };
     }
+    targets = {};
     runPlan(raw, pts, o);
     setFormCollapsed(true);
     $('summary').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -896,20 +898,29 @@
         st.nextArrive = st.target - (st.need - o.reserve);            // what the logged charge leaves for the next leg
         logged += 1;
       } else {
+        const whyAuto = [];
         st.short = st.need > MAX_TARGET;
         st.target = Math.round(Math.max(st.arrive, Math.min(st.need, MAX_TARGET)));
         const needR = st.target;
-        if (st.target - st.arrive <= 2) {                      // a 1–2 % top-up isn't worth plugging in: coffee only
-          if (st.need > st.arrive + 0.5) st.why.push(`Chybí jen ~${fmt(st.need - st.arrive)} %, nabíjení se nevyplatí: jen přestávka.`);
+        if (st.target - st.arrive <= 2) {                      // a 1–2 % top-up isn't worth plugging in: a break only
+          if (st.need > st.arrive + 0.5) whyAuto.push(`Chybí jen ~${fmt(st.need - st.arrive)} %, nabíjení se nevyplatí: jen přestávka.`);
           st.target = st.arrive;
         } else if (st.target - st.arrive < 8) {
           // if plugging in, take at least 8 % – but never push past 80 % just for that: above 80 % it charges at ~60–80 kW
           const wanted = Math.round(st.arrive + 8), cap = Math.min(80, o.carLimit || 80);
           st.target = Math.min(MAX_TARGET, Math.max(st.target, Math.min(cap, wanted)));
-          if (st.target > needR) st.why.push(wanted > cap && st.target === cap
+          if (st.target > needR) whyAuto.push(wanted > cap && st.target === cap
             ? `Minimum 8 % by šlo nad ${cap} %, kde se nabíjí pomalu: nabij jen na ${cap} % (potřeba je ${fmt(st.need)} %).`
             : `Nabíjíš aspoň o 8 %, aby se zastávka vyplatila (potřeba je jen ${fmt(st.need)} %).`);
         }
+        st.planTarget = st.target;
+        const ut = targets[stopKey(st)];
+        st.userTarget = Number.isFinite(ut);
+        if (st.userTarget) {                                   // R39: the user's number counts exactly (no 8 % minimum, up to 100 %)
+          st.target = ut > st.arrive + 0.5 ? Math.min(100, Math.round(ut)) : st.arrive;
+          st.short = false;
+          st.why.push(`Plán navrhl ${fmt(st.planTarget)} %, nastavil jsi ${fmt(st.target)} %.`);
+        } else st.why.push(...whyAuto);
         const kw = st.c.s.kw || 100;
         st.chargeMin = st.target > st.arrive ? chargeMinutes(Math.max(0, st.arrive), st.target, kw) : 0;
         st.kwh = Math.max(0, st.target - st.arrive) * KPP;
@@ -1061,6 +1072,7 @@
      A saved trip (fixed stations) first turns its stations into choices, so what comes before stays as saved. */
   function changeStop(st, ov) {
     const { rt, o, plan } = lastRun;
+    if (ov.key && st.c) delete targets[stopKey(st)];  // R39: a new station starts from the plan (an empty window has none)
     let base = lastRun.overrides || [];
     if (lastRun.fixed) {
       base = plan.stops.filter((x) => !x.empty && x.win != null && (x.leg !== st.leg || x.win < st.win))
@@ -1180,6 +1192,7 @@
       el('p', { class: 'stop-sub', text: sub }),
       flags.length ? el('div', { class: 'badges' }, flags.map((f) => el('span', { class: 'badge warn', text: f }))) : null,
       charge ? batteryBar(st.arrive, st.target, st.done) : el('p', { class: 'stop-line', text: `Přijedeš s ~${fmt(st.arrive)} % · nabíjet nemusíš` }),
+      st.done ? null : chargeTo(st),
       tiles,
       (st.why || []).length ? el('ul', { class: 'why' }, st.why.map((t) => el('li', { text: t }))) : null,
       adv ? el('p', { class: `advice${adv.warn ? ' warn' : ''}`, text: adv.text }) : null,
@@ -1194,10 +1207,32 @@
       more);
   }
 
+  // R39 (D12 = A): "Nabít do" slider; letting it go recomputes the rest of the plan (D5)
+  function chargeTo(st) {
+    const min = Math.max(0, Math.round(st.arrive)), val = Math.max(min, Math.round(st.target));
+    const out = el('b', { class: 'ct-val', text: `${val} %` });
+    const input = el('input', { type: 'range', class: 'charge-to', min, max: 100, step: 1, value: val, 'aria-label': 'Nabít do' });
+    input.addEventListener('input', () => { out.textContent = `${input.value} %`; });
+    input.addEventListener('change', () => setTarget(st, +input.value));
+    return el('div', { class: 'charge-to-row' },
+      el('label', { class: 'ct-label' }, el('span', { text: 'Nabít do' }), out, input),
+      st.userTarget ? el('button', { type: 'button', class: 'linkish', text: 'Vrátit na plán', onclick: () => setTarget(st, null) }) : null);
+  }
+  function setTarget(st, val) {
+    const key = stopKey(st);
+    if (val == null) delete targets[key]; else targets[key] = val;
+    const { rt, o } = lastRun;
+    lastRun.plan = lastRun.fixed ? energize(rt, lastRun.plan.stops, o) : makePlan(rt, lastRun.cands, o, lastRun.overrides || []);
+    if (curTrip) { curTrip.stops = tripStops(lastRun.plan); if (curTrip.saved) persistTrip(true); }
+    render();
+    if (!$('map-wrap').hidden) drawMap();
+  }
+
   function swapStop(idx, alt) {
     const { rt, o, plan } = lastRun;
     const st = plan.stops[idx];
     if (st.win != null) { changeStop(st, { key: stationKey(alt.s), why: 'Tuhle stanici jsi vybral ze seznamu v okně.' }); return; }
+    delete targets[stopKey(st)];
     st.alts = [st.c, ...st.alts.filter((a) => a !== alt)];
     st.c = alt; st.note = null; st.pickWhy = 'Tuhle stanici jsi vybral ze seznamu v okně.';
     plan.stops.sort((a, b) => tripX(a, rt) - tripX(b, rt));
@@ -1325,7 +1360,8 @@
       detour: o.detourKm, atPump: o.atPump, roundTrip: o.roundTrip, retTime: $('ret-time').value };
   }
   const tripStops = (plan) => plan.stops.filter((s) => !s.empty).map((s) => ({ leg: s.leg, lat: r5(s.c.s.lat), lon: r5(s.c.s.lon),
-    op: s.c.s.op, kw: s.c.s.kw, fuel: s.c.s.fuel, name: s.c.s.name, place: s.c.s.place, cc: s.c.s.cc, ccs: s.c.s.ccs, fd: s.c.s.fd }));
+    op: s.c.s.op, kw: s.c.s.kw, fuel: s.c.s.fuel, name: s.c.s.name, place: s.c.s.place, cc: s.c.s.cc, ccs: s.c.s.ccs, fd: s.c.s.fd,
+    to: Number.isFinite(targets[stopKey(s)]) ? targets[stopKey(s)] : undefined }));
   function tripName(inp) {
     const a = (inp.places[0].label || 'Start').split(',')[0], b = (inp.places[inp.places.length - 1].label || 'Cíl').split(',')[0];
     const d = inp.depart ? new Date(inp.depart) : null;
@@ -1389,6 +1425,7 @@
     await dataReady;
     if (!STATIONS.length) return;
     curTrip = t;
+    targets = {};
     applyInput(t.input);
     setMenu(false);
     setStatus('Počítám trasu…');
@@ -1410,7 +1447,9 @@
         const n = nearestOnRoute(rt, s);
         c = { s, n, detourMin: (2 * n.dist / 1000) / 40 * 60, detourKm: 2 * n.dist / 1000 };
       }
-      return { leg: f.leg === 'B' && o.roundTrip ? 'B' : 'A', c, alts: [], note: null, pickWhy: 'Stanice z uložené cesty.' };
+      const leg = f.leg === 'B' && o.roundTrip ? 'B' : 'A';
+      if (Number.isFinite(f.to)) targets[`${leg}:${stationKey(c.s)}`] = f.to;      // R39: the saved "Nabít do"
+      return { leg, c, alts: [], note: null, pickWhy: 'Stanice z uložené cesty.' };
     });
     stops.sort((a, b) => tripX(a, rt) - tripX(b, rt));
     const nWin = { A: 0, B: 0 };
@@ -1431,7 +1470,7 @@
     dec: (s) => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0))),
   };
   function tripLink(t) {
-    const data = { v: 1, i: t.input, s: (t.stops || []).map((s) => [s.leg, s.lat, s.lon]) };
+    const data = { v: 1, i: t.input, s: (t.stops || []).map((s) => (Number.isFinite(s.to) ? [s.leg, s.lat, s.lon, s.to] : [s.leg, s.lat, s.lon])) };
     return `${location.origin}${location.pathname}#cesta=${b64u.enc(JSON.stringify(data))}`;
   }
   function tripFromHash() {
@@ -1449,7 +1488,7 @@
         intKm: +i.intKm || 130, tolKm: Number.isFinite(+i.tolKm) ? +i.tolKm : 20, detour: +i.detour || 1.5,
         atPump: i.atPump !== false, roundTrip: !!i.roundTrip, retTime: /^\d{2}:\d{2}$/.test(i.retTime) ? i.retTime : '16:00' };
       const stops = (Array.isArray(d.s) ? d.s : []).filter((s) => Array.isArray(s) && (s[0] === 'A' || s[0] === 'B') && Number.isFinite(s[1]) && Number.isFinite(s[2]))
-        .slice(0, 30).map(([leg, lat, lon]) => ({ leg, lat, lon }));
+        .slice(0, 30).map(([leg, lat, lon, to]) => ({ leg, lat, lon, to: Number.isFinite(to) && to >= 0 && to <= 100 ? to : undefined }));
       return { id: newTripId(), saved: false, status: 'plan', input, stops, actual: {} };
     } catch (e) { return null; }
   }

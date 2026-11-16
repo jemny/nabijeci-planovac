@@ -129,12 +129,12 @@ Všechna pole, do kterých se píše nebo vybírá (i čas návratu a odjezd), m
 ### R35 — Data nabíječek
 DC stanice v CZ, SK, PL, AT a DE z OSM, OCM, mapy E.ON a Tesly, s aktualizací každé pondělí a na vyžádání. Ověření: ručně (build v `build/`, kontroluje se počtem stanic v `meta.json`).
 
+### R39 — Na kolik nabít u zastávky
+U každé zastávky, která ještě není zapsaná, je posuvník „Nabít do“: od % při příjezdu do 100 %, výchozí je návrh plánu. Po puštění posuvníku se zbytek plánu přepočítá (D5). Karta napíše „Plán navrhl X %, nastavil jsi Y %“ a má tlačítko „Vrátit na plán“. Tvoje číslo platí přesně, minimum 8 % a strop z R13 jsou jen pro návrh plánu. Když pak baterie na další úsek nestačí, appka přidá zastávku „kvůli dojezdu“ (R13). Nastavení patří k té stanici: když stanici vyměníš, platí zase plán. Uloží se s cestou. (D12 = A)
+
 ## Rozpracované
 
 Schválené požadavky, na kterých se pracuje. Do „Požadavky“ se přesunou s testy, až budou hotové.
-
-#### R39 — Na kolik nabít u zastávky
-U každé zastávky, která ještě není zapsaná, je posuvník „Nabít do“: od % při příjezdu do 100 %, výchozí je návrh plánu. Po puštění posuvníku se zbytek plánu přepočítá (D5). Karta napíše „Plán navrhl X %, nastavil jsi Y %“ a má tlačítko „Vrátit na plán“. Tvoje číslo platí přesně, minimum 8 % a strop z R13 jsou jen pro návrh plánu. Když pak baterie na další úsek nestačí, appka přidá zastávku „kvůli dojezdu“ (R13). Nastavení patří k té stanici: když stanici vyměníš, platí zase plán. Uloží se s cestou. (D12 = A)
 
 #### R40 — Graf baterie po trase
 V souhrnu je graf: % baterie podle km od startu po cíl (při cestě zpět až domů). U nabíjecí zastávky svislý skok z příjezdu na odjezd, okna zastávek jako podbarvené pruhy, čárkovaně rezerva na zastávky a „Do cíle dojet s“. Graf má i popis slovy (pro čtečku obrazovky). (D14 = A)
@@ -163,7 +163,6 @@ Rozhodnutí k nim (přesunou se do „Rozhodnutí“, až bude požadavek hotov�
 - **D9 (16. 11. 2026, uživatel vybral B):** zavřená pumpa se jen hlásí a nabídne otevřenou, appka sama nevybírá (R46). Data otevírací doby dodá datové vlákno.
 - **D10 (16. 11. 2026, uživatel vybral A):** poplatek za minuty nad volné minuty se započítá do ceny a napíše (R44). Data dodá datové vlákno do `prices.json`.
 - **D11 (16. 11. 2026, uživatel vybral A):** posuvníky a tlačítka ve formuláři (R41). Rozhodl jsem k tomu sám: předvolby intervalu 0:45, 1:00, 1:15, 1:30, 2:00 (po km 100, 130, 150, 200), tolerance 0, 10, 15, 20, 30 min (po km 10, 20, 30), objížďka všech pět dosavadních hodnot. Ostatní hodnoty přes „Jiný“.
-- **D12 (16. 11. 2026, uživatel vybral A):** posuvník „Nabít do“ v kartě zastávky (R39). Rozhodl jsem k tomu sám: tvoje číslo platí přesně (bez minima 8 % a stropu 90 %), posuvník jde do 100 %.
 - **D13 (16. 11. 2026, uživatel vybral B):** ikony jen v kartách, ne na mapě (R43). Rozhodl jsem k tomu sám: text u ikon zůstává, ikony ho jen doplní.
 - **D14 (16. 11. 2026, uživatel vybral A):** graf baterie po trase v souhrnu (R40).
 - **D19 (16. 11. 2026, uživatel vybral A, v relaci „Posuvník úrovně nabití do cíle“):** dva posuvníky, „Na zastávku přijet s alespoň“ a zvlášť „Do cíle dojet s“; když jedeš i zpátky, platí cíl i pro příjezd domů (R42). Mění R13, kde dřív platilo jedno číslo pro všechno. Rozhodl jsem k tomu sám: výchozí „Do cíle dojet s“ je 10 % jako rezerva (obrázek ukazoval 30 % jen pro ilustraci), u uloženého nastavení se převezme rezerva. „I pro příjezd domů“ chápu tak, že platí v cíli i doma.
@@ -187,6 +186,7 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 - **D18 (16. 11. 2026, uživatel):** jedno ze srovnávaných aut je vyřazené ze srovnání i se svými údaji („odstraň odevšad … a jeho údaje“). Rozhodl jsem k tomu sám: seznam aut uložený v telefonu před 16. 11. 2026 se nahradí výchozím (Talisman a benzínové auto), protože obsahoval i tohle auto. Ceny paliv a elektřiny zůstanou. Kdo si pak auta přejmenuje, tomu zůstanou. Ve zdrojích ani v testech jméno auta není. Kvůli tomu se změnily testy `[R14] dokončit cestu + srovnání…` a `[R14] Srovnání s palivem: změna ceny nafty…`: počítají s Talismanem (6,5 l) místo vyřazeného auta. U nového textu „o 9 minut dále“ jsem pro stanici před oknem zvolil „o 3 minuty dříve“ (čas) a „o 8 km blíže“ (km). Test `[R24][R3] prázdné okno…` teď čeká nové znění místo „před oknem / za oknem“.
 
 - **D8 (16. 11. 2026, uživatel vybral C):** odkaz na WattBox u zastávky nebude. (bez funkce v appce)
+- **D12 (16. 11. 2026, uživatel vybral A):** posuvník „Nabít do“ v kartě zastávky (R39). Rozhodl jsem k tomu sám: tvoje číslo platí přesně (bez minima 8 % a stropu 90 %), posuvník jde do 100 %.
 
 ## Otevřené rozpory
 

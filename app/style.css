@@ -44,12 +44,14 @@ a{color:var(--ev)}
 
 /* inputs */
 input,select,button{font:inherit;color:inherit}
-input[type=text],input[type=number],input[type=datetime-local],input[type=time],select{
+input[type=text],input[type=number],input[type=datetime-local],input[type=time],input[type=range],select{
   width:100%;min-height:46px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
 /* iPhone Safari otherwise draws its own grey date/time box (R34) */
 input[type=datetime-local],input[type=time]{-webkit-appearance:none;appearance:none;display:block}
 input::-webkit-date-and-time-value{text-align:left}
 input[type=checkbox]{width:22px;height:22px;accent-color:var(--ev);flex:none;margin:0}
+/* R39/R41 sliders: the same field box as the other fields (R34), the track in the EV colour */
+input[type=range]{accent-color:var(--ev);cursor:pointer;padding:0 12px;margin:0}
 .field{display:flex;flex-direction:column;gap:5px;min-width:0;border:0;padding:0;margin:0}
 .field > span,.field legend,.lbl{font-size:.82rem;font-weight:600}
 .grid2{display:grid;grid-template-columns:1.35fr 1fr;gap:10px}
@@ -334,3 +336,9 @@ a.btn.primary{color:var(--ev-ink)}
 .step-num{width:26px;height:26px;border-radius:50%;background:var(--ev);color:var(--ev-ink);display:grid;place-items:center;font-weight:700;font-size:.85rem}
 .step-title{font-family:var(--font-display);font-weight:600;font-size:1rem;white-space:nowrap}
 .step-body{display:flex;flex-direction:column;gap:12px}
+/* R39 "Nabít do" slider in a stop card */
+.charge-to-row{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
+.ct-label{flex:1 1 220px;display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:4px 10px;font-size:.9rem;color:var(--muted)}
+.ct-label .ct-val{font-family:var(--font-mono);color:var(--ink)}
+.ct-label input{grid-column:1/-1}
+.charge-to-row .linkish{min-height:46px;flex:none}
