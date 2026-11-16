@@ -35,3 +35,23 @@ test('[R0] požadavky: každý požadavek má aspoň jeden test (kromě ověřov
   const missing = ids.filter((id) => !manual.has(id) && !covered.has(id));
   assert.deepEqual(missing, [], `požadavky bez testu: ${missing.join(', ')}`);
 });
+
+// Decisions (uživatel 16. 11. 2026: „doufám, že všechna ta rozhodnutí zase bereš jako requirementy -> TDD“):
+// every decision in „## Rozhodnutí“ points to a requirement that has a test, or says it has no function in the app.
+const section = (title) => (md.split(new RegExp(`^## ${title}\\s*$`, 'm'))[1] || '').split(/^## /m)[0];
+const decisions = [...section('Rozhodnutí').matchAll(/^- \*\*(D\d+)\b([^\n]*)/gm)].map((m) => ({ id: m[1], text: m[2] }));
+const NO_FUNCTION = /\(bez funkce v appce\b/;
+
+test('[R0] rozhodnutí: každé odkazuje na požadavek s testem, nebo je označené „(bez funkce v appce)“', () => {
+  assert.ok(decisions.length >= 10, `rozhodnutí: ${decisions.length}`);
+  const covered = new Set(titles.flatMap((t) => tagsOf(t.title)));
+  const bad = decisions.filter((d) => !NO_FUNCTION.test(d.text)
+    && !(d.text.match(/\bR\d+\b/g) || []).some((r) => ids.includes(r) && covered.has(r)));
+  assert.deepEqual(bad.map((d) => d.id), [], `rozhodnutí bez požadavku s testem: ${bad.map((d) => d.id).join(', ')}`);
+});
+
+test('[R0] rozhodnutí: stejné číslo D není v souboru dvakrát', () => {
+  const all = [...md.matchAll(/^- \*\*(D\d+)\b/gm)].map((m) => m[1]);
+  const twice = all.filter((d, i) => all.indexOf(d) !== i);
+  assert.deepEqual(twice, [], `číslo rozhodnutí je dvakrát: ${twice.join(', ')}`);
+});

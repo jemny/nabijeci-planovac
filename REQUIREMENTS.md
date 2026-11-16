@@ -7,7 +7,7 @@ Požadavek se mění jen zadáním uživatele. Postup změn je v [CLAUDE.md](CLA
 ## Požadavky
 
 ### R0 — Každý požadavek má test
-Každý požadavek tady má aspoň jeden test se štítkem `[Rn]` a každý test patří k požadavku. Testy jsou závazné: nemění se, aby kód prošel. Nasazuje se jen přes zelené testy (GitHub Actions). Kontroluje `tests/requirements.test.mjs`.
+Každý požadavek tady má aspoň jeden test se štítkem `[Rn]` a každý test patří k požadavku. Testy jsou závazné: nemění se, aby kód prošel. Nasazuje se jen přes zelené testy (GitHub Actions). Totéž platí pro rozhodnutí: každé rozhodnutí v „Rozhodnutí“ odkazuje na požadavek, který má test, nebo je výslovně označené „(bez funkce v appce)“, a stejné číslo D není v souboru dvakrát (uživatel 16. 11. 2026). Rozhodnutí, na kterém se ještě pracuje, je v „Rozpracované“ i se svým požadavkem. Kontroluje `tests/requirements.test.mjs`.
 
 ### R1 — Trasa a hledání
 Odkud, Přes (víc míst za sebou, přidat, odebrat, posunout) a Kam. Místo jde najít vyhledáním (našeptávač), vzít z GPS (◎), napsat jako souřadnice nebo vzít uložený Domov (⌂). Bez Odkud nebo Kam appka řekne, co chybí. Po hledání se formulář sbalí do řádku s cestou a „Upravit“ ho otevře.
@@ -129,14 +129,53 @@ Všechna pole, do kterých se píše nebo vybírá (i čas návratu a odjezd), m
 ### R35 — Data nabíječek
 DC stanice v CZ, SK, PL, AT a DE z OSM, OCM, mapy E.ON a Tesly, s aktualizací každé pondělí a na vyžádání. Ověření: ručně (build v `build/`, kontroluje se počtem stanic v `meta.json`).
 
+## Rozpracované
+
+Schválené požadavky, na kterých se pracuje. Do „Požadavky“ se přesunou s testy, až budou hotové.
+
+#### R39 — Na kolik nabít u zastávky
+U každé zastávky, která ještě není zapsaná, je posuvník „Nabít do“: od % při příjezdu do 100 %, výchozí je návrh plánu. Po puštění posuvníku se zbytek plánu přepočítá (D5). Karta napíše „Plán navrhl X %, nastavil jsi Y %“ a má tlačítko „Vrátit na plán“. Tvoje číslo platí přesně, minimum 8 % a strop z R13 jsou jen pro návrh plánu. Když pak baterie na další úsek nestačí, appka přidá zastávku „kvůli dojezdu“ (R13). Nastavení patří k té stanici: když stanici vyměníš, platí zase plán. Uloží se s cestou. (D12 = A)
+
+#### R40 — Graf baterie po trase
+V souhrnu je graf: % baterie podle km od startu po cíl (při cestě zpět až domů). U nabíjecí zastávky svislý skok z příjezdu na odjezd, okna zastávek jako podbarvené pruhy, čárkovaně rezerva na zastávky a „Do cíle dojet s“. Graf má i popis slovy (pro čtečku obrazovky). (D14 = A)
+
+#### R41 — Posuvníky a tlačítka ve formuláři
+Baterie na startu, Na zastávku přijet s alespoň a Do cíle dojet s mají posuvník. Číslo vedle posuvníku je pole, do kterého jde napsat přesně, a oba se drží stejné hodnoty. U rezervy jsou předvolby 10 / 15 / 20 %. Interval, tolerance a objížďka jsou tlačítka s předvolbami. Tlačítko „Jiný“ ukáže dosavadní pole pro jinou hodnotu. Pole mají stejná `id` jako dřív. (D11 = A)
+
+#### R42 — Rezerva na zastávky a do cíle zvlášť
+„Na zastávku přijet s alespoň“ (výchozí 10 %) platí pro příjezd na každou zastávku. „Do cíle dojet s“ (výchozí 10 %, u starého nastavení stejně jako rezerva, aby se uložené plány samy nezměnily) platí pro příjezd do cíle, a když jedeš i zpátky, i pro příjezd domů. (D19 = A)
+
+#### R43 — Ikony v kartě zastávky
+V kartě zastávky jsou u údajů ikony: výkon bleskem, počet stojanů zástrčkou, doba nabíjení hodinami, baterie při příjezdu baterií. Text u nich zůstává. Na mapě se nic nemění. (D13 = B)
+
+#### R44 — Poplatek za minuty na stojanu
+Když síť účtuje poplatek za čas nad volné minuty (údaj v ceníku `prices.json`) a nabíjení podle plánu trvá déle, cena zastávky ho započítá a karta napíše, kolik to je a za kolik minut. Bez údaje v ceníku jen cena energie. (D10 = A)
+
+#### R45 — Varování před počasím na trase
+Appka zjistí předpověď na trase v čase, kdy tam pojedeš (Open-Meteo, zdarma, bez klíče): mlha, sníh, mrznoucí déšť a náledí (teplota do 1 °C se srážkami). Spotřebu nemění. Varování je v souhrnu s místem a časem. Body na trase jsou zaokrouhlené na 0,01° a bez prvních a posledních 3 km trasy, aby se neposílala adresa domova. Když předpověď nejde načíst nebo je cesta dál než 16 dní, souhrn to řekne. (D7 = B)
+
+#### R46 — Zavřená pumpa v čase příjezdu
+Když má obchod pumpy u zastávky v čase příjezdu podle otevírací doby zavřeno, karta to řekne a nabídne pumpu v okně, která má otevřeno, s tlačítkem Vybrat. Sama nic nemění. Bez otevírací doby v datech nic neříká. (D9 = B)
+
+Rozhodnutí k nim (přesunou se do „Rozhodnutí“, až bude požadavek hotový):
+
+- **D7 (16. 11. 2026, uživatel vybral B):** jen varování před počasím, spotřeba zůstane (R45). Varianty A (spotřeba podle počasí a kopců) a C (nic) nevybrány.
+- **D9 (16. 11. 2026, uživatel vybral B):** zavřená pumpa se jen hlásí a nabídne otevřenou, appka sama nevybírá (R46). Data otevírací doby dodá datové vlákno.
+- **D10 (16. 11. 2026, uživatel vybral A):** poplatek za minuty nad volné minuty se započítá do ceny a napíše (R44). Data dodá datové vlákno do `prices.json`.
+- **D11 (16. 11. 2026, uživatel vybral A):** posuvníky a tlačítka ve formuláři (R41). Rozhodl jsem k tomu sám: předvolby intervalu 0:45, 1:00, 1:15, 1:30, 2:00 (po km 100, 130, 150, 200), tolerance 0, 10, 15, 20, 30 min (po km 10, 20, 30), objížďka všech pět dosavadních hodnot. Ostatní hodnoty přes „Jiný“.
+- **D12 (16. 11. 2026, uživatel vybral A):** posuvník „Nabít do“ v kartě zastávky (R39). Rozhodl jsem k tomu sám: tvoje číslo platí přesně (bez minima 8 % a stropu 90 %), posuvník jde do 100 %.
+- **D13 (16. 11. 2026, uživatel vybral B):** ikony jen v kartách, ne na mapě (R43). Rozhodl jsem k tomu sám: text u ikon zůstává, ikony ho jen doplní.
+- **D14 (16. 11. 2026, uživatel vybral A):** graf baterie po trase v souhrnu (R40).
+- **D19 (16. 11. 2026, uživatel vybral A, v relaci „Posuvník úrovně nabití do cíle“):** dva posuvníky, „Na zastávku přijet s alespoň“ a zvlášť „Do cíle dojet s“; když jedeš i zpátky, platí cíl i pro příjezd domů (R42). Mění R13, kde dřív platilo jedno číslo pro všechno. Rozhodl jsem k tomu sám: výchozí „Do cíle dojet s“ je 10 % jako rezerva (obrázek ukazoval 30 % jen pro ilustraci), u uloženého nastavení se převezme rezerva. „I pro příjezd domů“ chápu tak, že platí v cíli i doma.
+
 ## Rozhodnutí
 
 Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 
-- **D1 (15. 11. 2026, uživatel vybral C):** „prázdné okno nabídne tlačítko na rozšíření okna a nejbližší stanice“. Tlačítko okno roztáhne tak, aby nejbližší stanice padla dovnitř, a plán přepočítá. Pod ním zůstanou nejbližší stanice před oknem a za ním (i daleko) s Vybrat. Varianty byly nakreslené: A jen nabídka, B jen kousek mimo okno, C nabídka + rozšíření.
+- **D1 (15. 11. 2026, uživatel vybral C):** „prázdné okno nabídne tlačítko na rozšíření okna a nejbližší stanice“. Tlačítko okno roztáhne tak, aby nejbližší stanice padla dovnitř, a plán přepočítá. Pod ním zůstanou nejbližší stanice před oknem a za ním (i daleko) s Vybrat. Varianty byly nakreslené: A jen nabídka, B jen kousek mimo okno, C nabídka + rozšíření. Požadavek R3.
 - **D2 (15. 11. 2026):** oblíbená pumpa mimo okno se jen nabízí, nikdy se nevybere sama (R2, R5). Nahradilo dřívější „oblíbená vyhraje i kousek mimo okno“.
-- **D3 (15. 11. 2026):** spotřeba pro plán se počítá z poklesu baterie, ne z palubního počítače, který ukazuje méně.
-- **D4 (15. 11. 2026):** živé čtení baterie z auta v telefonu (varianta C) zatím ne. Data z auta jdou přes noční sběrač.
+- **D3 (15. 11. 2026):** spotřeba pro plán se počítá z poklesu baterie, ne z palubního počítače, který ukazuje méně. (bez funkce v appce: spotřebu z poklesu baterie počítá noční sběrač do `calibration.json`, appka ji jen čte, R7.)
+- **D4 (15. 11. 2026):** živé čtení baterie z auta v telefonu (varianta C) zatím ne. Data z auta jdou přes noční sběrač. (bez funkce v appce)
 
 - **D5 (15. 11. 2026, uživatel vybral A):** rozšíří se jen to jedno prázdné okno, tvoje nastavení (např. 100 ± 20 km) zůstane. „Musí se tím pádem přepočítat i vše potom.“ Další okna navazují na novou zastávku. Platí pro každou změnu zastávky (R2). Starší test `[R3] … po Vybrat … „mimo okno, vybral jsi“` čekal, že ubude právě jedno prázdné okno. Podle D5 je upravený: kontroluje, že vybrané okno má tvou stanici (uživatel: „to rozhodnutí už bylo udělané dřív“).
 
@@ -147,22 +186,12 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 - **D17 (16. 11. 2026, uživatel):** bloky 1, 2, 3 formuláře jsou pořád rozbalené („těch boxů není vidět, že by něco skrývaly, dokud se na ně neťukne… drž je rozbalené“). Rozhodl jsem k tomu sám: nadpisy bloků už nejsou tlačítka a zmizelo shrnutí u zavřeného bloku, protože žádný zavřený blok není. Celý formulář se po hledání dál sbalí do řádku s cestou (R1). Kvůli tomu se změnily testy v tests/form-steps.test.mjs: `[R36] na začátku je otevřený krok 1, klepnutí na jiný krok ho otevře a ostatní zavře` je nahrazený testem, že jsou všechny tři pořád rozbalené. `[R36] zavřené kroky ukazují shrnutí…` je smazaný. Pomocná kontrola „krok je otevřený“ už nečte `aria-expanded`, protože nadpis není tlačítko.
 - **D18 (16. 11. 2026, uživatel):** jedno ze srovnávaných aut je vyřazené ze srovnání i se svými údaji („odstraň odevšad … a jeho údaje“). Rozhodl jsem k tomu sám: seznam aut uložený v telefonu před 16. 11. 2026 se nahradí výchozím (Talisman a benzínové auto), protože obsahoval i tohle auto. Ceny paliv a elektřiny zůstanou. Kdo si pak auta přejmenuje, tomu zůstanou. Ve zdrojích ani v testech jméno auta není. Kvůli tomu se změnily testy `[R14] dokončit cestu + srovnání…` a `[R14] Srovnání s palivem: změna ceny nafty…`: počítají s Talismanem (6,5 l) místo vyřazeného auta. U nového textu „o 9 minut dále“ jsem pro stanici před oknem zvolil „o 3 minuty dříve“ (čas) a „o 8 km blíže“ (km). Test `[R24][R3] prázdné okno…` teď čeká nové znění místo „před oknem / za oknem“.
 
+- **D8 (16. 11. 2026, uživatel vybral C):** odkaz na WattBox u zastávky nebude. (bez funkce v appce)
+
 ## Otevřené rozpory
 
-### Návrhy z WattBoxu k rozhodnutí (15. 11. 2026, čekají na uživatele)
-Prošel jsem wattbox.cz (plánovač, mapa, detail stanice, aplikace). Varianty jsou nakreslené v rozhovoru, doporučená je u každého A.
-- **D7 Počasí a kopce v plánu:** A spotřeba po úsecích podle teploty, větru a stoupání + varování (mlha, sníh, náledí); B jen varování, spotřeba zůstane; C nic. Data: Open-Meteo (zdarma, bez klíče), bez prvních a posledních 3 km trasy. **Doporučení změněno 16. 11. 2026 z A na B:** spotřeba se bere ze skutečných jízd auta (D3), takže už obsahuje dnešní zimu; přepočet podle teploty by ji započítal dvakrát. Varování (náledí, mlha, sníh) je levné a nic nepokazí.
-- **D8 Odkaz na WattBox u zastávky:** A tlačítko „Volno a fotky na WattBoxu“ v kartě zastávky (živé volno, fotky, zkušenosti, kdy bývá plno); B i u každé jiné možnosti; C nic. Živé volno sami získat nejde: veřejná mapa E.ON stav nemá, volné API není.
-- **D9 Otevřená pumpa v čase příjezdu:** A když je obchod pumpy v čase příjezdu zavřený, appka vybere jinou v okně a napíše proč; B jen varuje a nabídne otevřenou; C nic. OSM má otevírací dobu u 84 % pump MOL, OMV, Shell, Benzina a EuroOil. Potřebuje export v datovém vlákně.
-- **D10 Poplatky za minuty na stojanu:** A cena zastávky započítá poplatek za čas nad volné minuty (E.ON od 201 kW po 30 min 2 Kč/min) a napíše to; B jen cena energie jako dnes.
+Žádné. Návrhy z WattBoxu a ABRP (D7–D14) jsou rozhodnuté výše, celé srovnání je v [docs/srovnani-abrp-wattbox.md](docs/srovnani-abrp-wattbox.md).
 - **Nedoporučuju:** nejlevnější a nejkratší trasa (pravidlo jen nejrychlejší), CarPlay, widgety a upozornění do telefonu (webová appka bez serveru to neumí), Apple Mapy a Mapy.com (pravidlo Google Mapy), katalog aut, STK, doklady.
-
-### Návrhy z ABRP k rozhodnutí (15. 11. 2026, čekají na uživatele)
-Prošel jsem ABRP bez přihlášení. Celé srovnání ABRP, WattBoxu a našeho plánovače je v [docs/srovnani-abrp-wattbox.md](docs/srovnani-abrp-wattbox.md). Uživatel chce grafické prvky místo textu („např. nastavení, na kolik nabíjet, je posuvník“). Varianty jsou nakreslené v rozhovoru, doporučená je u každého A.
-- **D11 Formulář s posuvníky a tlačítky:** A baterie a rezerva posuvníkem (ťuknutím na číslo jde napsat přesně), interval, tolerance a objížďka jako tlačítka; B posuvník jen u baterie a rezervy; C jako dnes. Pole si nechají stejné `id`, takže testy zůstanou.
-- **D12 Na kolik nabít u zastávky:** A posuvník „Nabít do“ v kartě zastávky, zbytek plánu se přepočítá (D5) a karta napíše „plán navrhl X %, nastavil jsi Y %“ (R24); B jako A a k tomu „Zůstanu 30 min / 45 min / 1 h“; C jako dnes (R13 určí sám).
-- **D13 Ikony místo textu:** A výkon bleskem, počet stojanů, baterie a minuty ikonou, na mapě % baterie u každého bodu; B ikony jen v kartách; C jako dnes.
-- **D14 Graf baterie po trase:** A graf v souhrnu (% podle km, okna zastávek, čára rezervy); B graf až na klepnutí; C jako dnes.
 
 ## Fronta (až bude vše hotové a popsané)
 
