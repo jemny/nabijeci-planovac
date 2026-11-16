@@ -42,3 +42,51 @@ test('[R39] posuvník Nabít do v kartě zastávky jede až na konec čáry (100
   assert.ok(sliders.length >= 1, 'aspoň jedna zastávka má posuvník Nabít do');
   sliders.forEach((r, i) => assertEdgeToEdge(w, r, `zastávka ${i + 1}`));
 });
+
+// Uživatel 16. 11. 2026 („Ano, rozšiř“): hlídat každý posuvník v appce, i ty, které přibudou později.
+// Posuvníky vznikají na dvou místech: napevno v index.html, nebo až za běhu v app.js. Oba zdroje test čte sám,
+// takže nový posuvník nemůže projít bez kontroly.
+const appDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'app');
+const noComments = (src) => src.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+test('[R41] každý posuvník napevno ve stránce (i nově přidaný do index.html) jede až na konec čáry', async () => {
+  const html = noComments(readFileSync(path.join(appDir, 'index.html'), 'utf8'));
+  const inHtml = (html.match(/<input\b[^>]*\btype\s*=\s*["']?range\b/gi) || []).length;
+  assert.ok(inHtml >= 3, 'index.html má aspoň tři posuvníky (baterie a obě rezervy)');
+  const { w } = await loadApp({ prefs: { places: praha } }), d = w.document;
+  withStyles(w);
+  const all = [...d.querySelectorAll('input[type=range]')];
+  assert.ok(all.length >= inHtml, `všech ${inHtml} posuvníků z index.html je na stránce (našel jsem ${all.length})`);
+  all.forEach((r, i) => assertEdgeToEdge(w, r, r.dataset.for || r.className || `posuvník ${i + 1}`));
+});
+
+// Jak v appce ukázat posuvník, který app.js vytváří až za běhu. Nový posuvník = nový řádek tady (kontrolu nemazat).
+const SHOW = {
+  'charge-to': () => search({ 'round-trip': true }, { soc0: 100 }), // R39 Nabít do: karta zastávky po naplánování
+};
+// every place in app.js that makes an <input type=range>, with its class (selectors like input[type=range] are skipped)
+function rangeSitesInApp() {
+  const src = noComments(readFileSync(path.join(appDir, 'app.js'), 'utf8'));
+  const re = /(?<!\[)\btype\s*[:=]\s*['"]?range\b|['"]type['"]\s*,\s*['"]range['"]/g;
+  return [...src.matchAll(re)].map((m) => {
+    // the class is read only from the same object literal, el('input', { type: 'range', class: … }); x.type = 'range' has none
+    const literal = /^type\s*:/.test(m[0]);
+    const obj = literal ? src.slice(src.lastIndexOf('{', m.index), src.indexOf('}', m.index)) : '';
+    const cls = (obj.match(/\bclass\s*:\s*['"]([\w-]+)/) || [])[1] || null;
+    return { line: src.slice(0, m.index).split('\n').length, cls };
+  });
+}
+
+test('[R41] každý posuvník, který appka vytváří až za běhu (i nový v app.js), jede až na konec čáry', async () => {
+  const sites = rangeSitesInApp();
+  assert.ok(sites.some((s) => s.cls === 'charge-to'), 'test najde v app.js posuvník Nabít do (R39)');
+  for (const s of sites) {
+    assert.ok(s.cls, `app.js (asi řádek ${s.line}): posuvník nemá u sebe class, test ho nepozná. Vytvoř ho jako el('input', { type: 'range', class: '…' }) a přidej ho do SHOW.`);
+    assert.ok(SHOW[s.cls], `app.js (asi řádek ${s.line}): nový posuvník .${s.cls}. Přidej do SHOW v tomhle testu, jak ho v appce ukázat (kontrolu nemaž).`);
+    const { w, d } = await SHOW[s.cls]();
+    withStyles(w);
+    const own = d.querySelectorAll(`input[type=range].${s.cls}`);
+    assert.ok(own.length >= 1, `posuvník .${s.cls} se v ukázce opravdu objevil`);
+    [...d.querySelectorAll('input[type=range]')].forEach((r, i) => assertEdgeToEdge(w, r, `.${s.cls} ukázka, ${r.dataset.for || r.className || `posuvník ${i + 1}`}`));
+  }
+});
