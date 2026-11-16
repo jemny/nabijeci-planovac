@@ -2,7 +2,7 @@ name: Aktualizace dat nabíječek
 
 on:
   schedule:
-    - cron: "0 3 * * 1"   # každé pondělí 03:00 UTC (4:00/5:00 v ČR)
+    - cron: "17 3 * * 1"  # každé pondělí 03:17 UTC (4:17/5:17 v ČR); ne v celou hodinu, tehdy GitHub běhy zdržuje
   workflow_dispatch: {}    # tlačítko „Run workflow“ (i z mobilní appky GitHub)
   push:
     branches: [main]
@@ -12,16 +12,16 @@ permissions:
   contents: write
   pages: write
   id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
+  actions: read   # data OSM z minulého běhu (artefakt osm-raw, D24)
 
 jobs:
   build-data:
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    concurrency:   # one data download at a time; deploys of the app are not blocked by it (only deploy holds "pages")
+      group: data
+      cancel-in-progress: false
     env:
       PYTHONUNBUFFERED: "1"   # the download log shows up live, also when a run is cancelled or times out
     steps:
@@ -29,8 +29,28 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Data OSM z minulého běhu
+        # a file that no Overpass server delivers is taken from here (D24); the first run has none
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p build/raw
+          id=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=osm-raw&per_page=30" \
+               --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | last | .id // empty') || id=""
+          if [ -z "$id" ]; then echo "Data OSM z minulého běhu nejsou."; exit 0; fi
+          if gh api "repos/${{ github.repository }}/actions/artifacts/$id/zip" > "$RUNNER_TEMP/osm-raw.zip" \
+             && unzip -o -q "$RUNNER_TEMP/osm-raw.zip" -d build/raw; then ls -l build/raw; \
+          else echo "Data OSM z minulého běhu se nepodařilo načíst."; fi
       - name: Stáhnout data a postavit databázi
         run: python3 build/build_db.py --refresh
+      - uses: actions/upload-artifact@v4
+        name: Uložit data OSM pro příští běh
+        if: always()   # also after a failed run: what was downloaded helps the next one
+        with:
+          name: osm-raw
+          path: build/raw/osm_*.json
+          retention-days: 90
+          if-no-files-found: ignore
       - name: Export pro appku
         run: python3 build/export_app.py
       - name: Uložit změny
@@ -69,6 +89,9 @@ jobs:
     needs: [test]
     if: always() && needs.test.result == 'success'
     runs-on: ubuntu-latest
+    concurrency:   # GitHub Pages: one deploy at a time
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

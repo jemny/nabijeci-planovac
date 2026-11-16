@@ -46,6 +46,9 @@ OVERPASS_SERVERS = [
 ]
 OVERPASS_ROUNDS = 4        # rounds over all servers; waits 30, 60, 90 s between rounds
 OVERPASS_TIMEOUT = 300     # s per request; queries ask the server for at most 240 s
+OVERPASS_BUDGET_S = 40 * 60  # all downloads together; then a file with data from the last run uses it (D24)
+OVERPASS_DEADLINE = None     # time.monotonic() when the budget is up, set in main()
+OSM_SOURCES = {}             # file name -> {"fresh": bool, "date": "YYYY-MM-DD"} (R35, D24)
 UA = "elektroauta-chargers-db/0.1 (personal, non-commercial)"
 COUNTRIES = ["CZ", "SK", "PL", "AT", "DE"]  # neighbours for trips abroad (OSM + OCM; E.ON map only CZ/SK)
 
@@ -86,17 +89,44 @@ class Grid:
         return best
 
 
+def _usable(parsed):
+    """Overpass JSON with data: not an HTML error page and no "runtime error" remark (no or partial data)."""
+    return isinstance(parsed, dict) and "elements" in parsed and "error" not in str(parsed.get("remark") or "").lower()
+
+
+def _osm_date(parsed):
+    return (parsed.get("osm3s", {}).get("timestamp_osm_base") or "")[:10] or None
+
+
+def _previous(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            prev = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return prev if _usable(prev) else None
+
+
 def overpass(query, path, refresh):
+    name = os.path.basename(path)
     if os.path.exists(path) and not refresh:
         age = dt.date.today() - dt.date.fromtimestamp(os.path.getmtime(path))
-        if age.days < 1:
-            try:
-                return json.load(open(path, encoding="utf-8"))
-            except ValueError:
-                pass  # a cached error page: download again
-    name = os.path.basename(path)
+        cached = _previous(path) if age.days < 1 else None  # a cached error page: download again
+        if cached is not None:
+            OSM_SOURCES[name] = {"fresh": True, "date": _osm_date(cached)}
+            return cached
+    # data from the last run (in GitHub Actions the artifact osm-raw): used only when no server answers (D24)
+    prev = _previous(path)
+
+    def use_previous(why):
+        print(f"overpass: {name} {why}, using data from the last run ({_osm_date(prev)})")
+        OSM_SOURCES[name] = {"fresh": False, "date": _osm_date(prev)}
+        return prev
+
     for rnd in range(OVERPASS_ROUNDS):
         for server in OVERPASS_SERVERS:
+            if prev is not None and OVERPASS_DEADLINE is not None and time.monotonic() > OVERPASS_DEADLINE:
+                return use_previous("time for downloads is up")
             host = urllib.parse.urlsplit(server).netloc
             body = _overpass_post(server, query)
             try:
@@ -106,20 +136,33 @@ def overpass(query, path, refresh):
             if not isinstance(parsed, dict):
                 print(f"overpass {host} busy for {name}")
                 continue
-            remark = str(parsed.get("remark") or "")
-            if "error" in remark.lower():  # e.g. "runtime error: Query timed out": no or partial data
-                print(f"overpass {host} error for {name}: {remark[:120]}")
+            if not _usable(parsed):  # e.g. "runtime error: Query timed out": no or partial data
+                print(f"overpass {host} error for {name}: {str(parsed.get('remark'))[:120]}")
                 continue
             with open(path, "wb") as f:
                 f.write(body)
             print(f"overpass {name} from {host}")
+            OSM_SOURCES[name] = {"fresh": True, "date": _osm_date(parsed)}
             time.sleep(3)
             return parsed
         if rnd + 1 < OVERPASS_ROUNDS:
             wait = 30 * (rnd + 1)
             print(f"overpass: no server answered {name}, retry in {wait}s")
             time.sleep(wait)
+    if prev is not None:
+        return use_previous("no server answered")
     raise RuntimeError(f"Overpass failed for {path} (servers: {', '.join(OVERPASS_SERVERS)})")
+
+
+def osm_countries(sources, countries):
+    """Per country: the older date of its charging and fuel data, fresh only when both were downloaded now (D24)."""
+    out = {}
+    for cc in countries:
+        files = [sources[f] for f in (f"osm_charging_{cc}.json", f"osm_fuel_{cc}.json") if f in sources]
+        if files:
+            dates = [f["date"] for f in files if f.get("date")]
+            out[cc] = {"date": min(dates) if dates else None, "fresh": all(f["fresh"] for f in files)}
+    return out
 
 
 def _overpass_post(server, query):
@@ -499,6 +542,8 @@ def main():
     a = ap.parse_args()
     os.makedirs(RAW, exist_ok=True)
 
+    global OVERPASS_DEADLINE
+    OVERPASS_DEADLINE = time.monotonic() + OVERPASS_BUDGET_S
     stations, fuel_elements, osm_base = [], [], None
     for cc in COUNTRIES:
         charging = overpass(q_amenity(cc, "charging_station"), os.path.join(RAW, f"osm_charging_{cc}.json"), a.refresh)
@@ -508,6 +553,10 @@ def main():
         osm_base = charging.get("osm3s", {}).get("timestamp_osm_base") or osm_base
     fuel = {"elements": fuel_elements}
     n_osm = len(stations)
+    osm_cc = osm_countries(OSM_SOURCES, COUNTRIES)
+    stale = {cc: v["date"] for cc, v in osm_cc.items() if not v["fresh"]}
+    if stale:
+        print(f"OSM data from the last run (no server answered): {stale}")
     ocm_added, ocm_date = 0, None
     if not a.no_ocm:
         ensure_ocm(a.ocm)
@@ -552,6 +601,7 @@ def main():
     con.execute("CREATE INDEX idx_latlon ON stations(lat, lon)")
     meta = {"built": dt.datetime.now().isoformat(timespec="minutes"),
             "osm_base": osm_base, "countries": ",".join(COUNTRIES),
+            "osm_countries": json.dumps(osm_cc),
             "ocm_export_date": ocm_date, "stations": len(stations), "from_osm": n_osm,
             "added_from_ocm": ocm_added, "manual_fixed": n_fixed, "manual_added": n_added_manual,
             "fuel_stations": len(pumps), "importers": json.dumps(importers, ensure_ascii=False),

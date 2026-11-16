@@ -1,6 +1,28 @@
 {
- "exported": "2026-11-16T13:40",
+ "exported": "2026-11-16T15:26",
  "osm_base": "2026-11-14T23:03:36Z",
+ "osm_countries": {
+  "CZ": {
+   "date": "2026-11-15",
+   "fresh": true
+  },
+  "SK": {
+   "date": "2026-11-15",
+   "fresh": true
+  },
+  "PL": {
+   "date": "2026-11-15",
+   "fresh": true
+  },
+  "AT": {
+   "date": "2026-11-14",
+   "fresh": true
+  },
+  "DE": {
+   "date": "2026-11-14",
+   "fresh": true
+  }
+ },
  "ocm_export_date": "2026-04-22",
  "dc_stations": 8444,
  "fast_150": 6368,

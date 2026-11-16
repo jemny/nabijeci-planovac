@@ -216,7 +216,12 @@ def main():
             importers = json.loads(meta["importers"])
         except ValueError:
             pass
+    try:  # per country: date of the OSM data and whether it was downloaded now or reused from the last run (D24)
+        osm_cc = json.loads(meta.get("osm_countries") or "{}")
+    except ValueError:
+        osm_cc = {}
     out_meta = {"exported": dt.datetime.now().isoformat(timespec="minutes"), "osm_base": meta.get("osm_base"),
+                "osm_countries": osm_cc,
                 "ocm_export_date": meta.get("ocm_export_date"), "dc_stations": len(rows),
                 "fast_150": sum(1 for r in rows if r[4] and r[4] >= 150), "importers": importers,
                 "license": meta.get("license")}
