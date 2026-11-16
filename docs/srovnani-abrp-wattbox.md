@@ -107,3 +107,14 @@ V obou stejné auto (Mercedes CLA Shooting Brake 350 4MATIC, 85 kWh) a stejná t
 - **Volby „méně zastávek“:** naše zastávky dělá pravidlo přestávek po čase nebo km, ne baterie.
 - **Výchozí spotřeba 155 Wh/km:** na zimu příliš optimistická. My bereme skutečnou spotřebu z auta.
 - **Živá data z auta přes ABRP:** jen s účtem a placenou verzí. My máme vlastní data z Home Assistantu.
+
+## Další appky (16. 11. 2026, D27 N6)
+
+- **PlugShare:** komunita hlásí po nabíjení „funguje / nefunguje“ (check-in) a z toho je hodnocení spolehlivosti PlugScore 1–10, k tomu fotky. Plánovač tras je jen seznam nabíječek u trasy, bez baterie a doby nabíjení. Placené API, data k nám nejdou. Podobná hlášení mají i komentáře Open Charge Map, které už stahujeme.
+- **Google Mapy (Android Auto, zatím jen USA):** baterie při příjezdu, zastávky s dobou nabíjení, nejnižší % při příjezdu, spotřeba podle dopravy, kopců a počasí. Stav baterie se zadává ručně. To všechno už máme, kromě počasí a kopců ve spotřebě (D7) a živé dopravy.
+- **Mapy.com:** nabíječky na mapě a navigace k nim. Plánování zastávek podle baterie nemá, uživatelé chtějí aspoň filtr „po trase“.
+- **Navigace Mercedes s Electric Intelligence (návod k obsluze X174, s. 538–541):** plánuje zastávky podle baterie, dostupnosti a výkonu stanic, s energií a dobou nabíjení pro každou. Stav nabití na nabíjecích stanicích a v cíli jde nastavit zvlášť (jako naše D19). Filtr jen stanice MB.CHARGE Public, nebo všechny. Nastavení nosiče kol nebo přívěsu zpřesní spotřebu. Za jízdy hledá nabíjecí zastávku v blízkosti cíle. Při navádění předehřívá baterii (naše R49). Upozorní na telefon, když je nabito na požadovaný stav.
+
+Co z toho jde u nás: hlášení „funguje“ z komentářů Open Charge Map (potřebuje datové vlákno), nosič kol nebo přívěs ve spotřebě, nabíječky poblíž cíle. Nejde: živá dostupnost stanic, živá doprava, upozornění do telefonu.
+
+Zdroje: [PlugShare v App Store](https://apps.apple.com/app/id421788217), [PlugShare vs ABRP](https://recharged.com/articles/plugshare-vs-abrp-vs-chargepoint-app/), [Google blog: EV v Android Auto](https://blog.google/products-and-platforms/products/maps/google-maps-simplifies-battery-predictions-and-trip-planning-for-350-android-auto-ev-models/), [electrive: Google Maps EV routing](https://www.electrive.com/2026/03/31/google-maps-adds-ai-based-ev-route-planning-to-android-auto/), [Mapy.com komunita: plánování nabíjení](https://community.mapy.com/topic/1017/zleh%C4%8Den%C3%AD-pl%C3%A1nov%C3%A1n%C3%AD-nab%C3%ADjen%C3%AD-elektroaut-na-trase), návod k obsluze CLA Shooting Brake X174 (září 2026).
