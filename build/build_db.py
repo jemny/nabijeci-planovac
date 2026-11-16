@@ -23,11 +23,12 @@ import time
 import csv
 import datetime as dt
 import glob
+import http.client
 import json
 import math
 import os
 import re
-import socket
+import ssl
 import sqlite3
 import subprocess
 import urllib.parse
@@ -46,7 +47,8 @@ OVERPASS_SERVERS = [
 ]
 OVERPASS_ROUNDS = 4        # rounds over all servers; waits 30, 60, 90 s between rounds
 OVERPASS_TIMEOUT = 300     # s per request; queries ask the server for at most 240 s
-OVERPASS_BUDGET_S = 40 * 60  # all downloads together; then a file with data from the last run uses it (D24)
+OVERPASS_BUDGET_S = 30 * 60  # all downloads together; then a file with data from the last run uses it (D24);
+                             # leaves time for OCM, importers, export and saving within the 60 min job limit
 OVERPASS_DEADLINE = None     # time.monotonic() when the budget is up, set in main()
 OSM_SOURCES = {}             # file name -> {"fresh": bool, "date": "YYYY-MM-DD"} (R35, D24)
 UA = "elektroauta-chargers-db/0.1 (personal, non-commercial)"
@@ -90,8 +92,21 @@ class Grid:
 
 
 def _usable(parsed):
-    """Overpass JSON with data: not an HTML error page and no "runtime error" remark (no or partial data)."""
-    return isinstance(parsed, dict) and "elements" in parsed and "error" not in str(parsed.get("remark") or "").lower()
+    """Overpass JSON with data: not an HTML error page, no "runtime error" remark (no or partial data) and not empty
+    (a whole country never has no charging station or pump: an empty answer is a server without area data)."""
+    return (isinstance(parsed, dict) and isinstance(parsed.get("elements"), list) and len(parsed["elements"]) > 0
+            and "error" not in str(parsed.get("remark") or "").lower())
+
+
+def _past_deadline():
+    return OVERPASS_DEADLINE is not None and time.monotonic() > OVERPASS_DEADLINE
+
+
+def _request_timeout(has_previous):
+    """Seconds one request may wait: with data from the last run never much past the download time (D24)."""
+    if not has_previous or OVERPASS_DEADLINE is None:
+        return OVERPASS_TIMEOUT
+    return min(OVERPASS_TIMEOUT, max(60, int(OVERPASS_DEADLINE - time.monotonic())))
 
 
 def _osm_date(parsed):
@@ -124,11 +139,13 @@ def overpass(query, path, refresh):
         return prev
 
     for rnd in range(OVERPASS_ROUNDS):
+        if rnd and _past_deadline():
+            break  # no data from the last run: one round after the time is up, then fail within the job limit
         for server in OVERPASS_SERVERS:
-            if prev is not None and OVERPASS_DEADLINE is not None and time.monotonic() > OVERPASS_DEADLINE:
+            if prev is not None and _past_deadline():
                 return use_previous("time for downloads is up")
             host = urllib.parse.urlsplit(server).netloc
-            body = _overpass_post(server, query)
+            body = _overpass_post(server, query, _request_timeout(prev is not None))
             try:
                 parsed = json.loads(body)
             except ValueError:  # a busy server answers an HTML error page: never cache it
@@ -136,8 +153,8 @@ def overpass(query, path, refresh):
             if not isinstance(parsed, dict):
                 print(f"overpass {host} busy for {name}")
                 continue
-            if not _usable(parsed):  # e.g. "runtime error: Query timed out": no or partial data
-                print(f"overpass {host} error for {name}: {str(parsed.get('remark'))[:120]}")
+            if not _usable(parsed):  # e.g. "runtime error: Query timed out", or no elements at all
+                print(f"overpass {host} error for {name}: {str(parsed.get('remark') or 'no elements')[:120]}")
                 continue
             with open(path, "wb") as f:
                 f.write(body)
@@ -145,7 +162,7 @@ def overpass(query, path, refresh):
             OSM_SOURCES[name] = {"fresh": True, "date": _osm_date(parsed)}
             time.sleep(3)
             return parsed
-        if rnd + 1 < OVERPASS_ROUNDS:
+        if rnd + 1 < OVERPASS_ROUNDS and not _past_deadline():
             wait = 30 * (rnd + 1)
             print(f"overpass: no server answered {name}, retry in {wait}s")
             time.sleep(wait)
@@ -165,25 +182,26 @@ def osm_countries(sources, countries):
     return out
 
 
-def _overpass_post(server, query):
-    """POST one query; returns the raw body (b"" on an HTTP error or no answer)."""
+def _overpass_post(server, query, timeout=None):
+    """POST one query; returns the raw body (b"" on an HTTP error, no answer or a cut-off answer)."""
+    timeout = timeout or OVERPASS_TIMEOUT
+    host = urllib.parse.urlsplit(server).netloc
     req = urllib.request.Request(server, data=urllib.parse.urlencode({"data": query}).encode(),
                                  headers={"User-Agent": UA})
     try:
-        with urllib.request.urlopen(req, timeout=OVERPASS_TIMEOUT) as r:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
             return r.read()
     except urllib.error.HTTPError as e:
-        print(f"overpass {urllib.parse.urlsplit(server).netloc} HTTP {e.code}")
+        print(f"overpass {host} HTTP {e.code}")
         return b""
     except urllib.error.URLError as e:
-        if isinstance(e.reason, socket.timeout):  # no answer in time: the next server, not a second wait via curl
-            print(f"overpass {urllib.parse.urlsplit(server).netloc} no answer: {e.reason}")
-            return b""
-        # old local Python/LibreSSL can fail the TLS handshake: fall back to curl
-        return subprocess.run(["curl", "-s", "-m", str(OVERPASS_TIMEOUT), "-A", UA,
-                               "--data-urlencode", f"data={query}", server], capture_output=True).stdout
-    except OSError as e:  # read timeout / connection reset: try the next server
-        print(f"overpass {urllib.parse.urlsplit(server).netloc} no answer: {e}")
+        if isinstance(e.reason, ssl.SSLError):  # old local Python/LibreSSL can fail the TLS handshake: use curl
+            return subprocess.run(["curl", "-s", "-m", str(timeout), "-A", UA,
+                                   "--data-urlencode", f"data={query}", server], capture_output=True).stdout
+        print(f"overpass {host} no answer: {e.reason}")  # timeout, reset, refused: the next server
+        return b""
+    except (OSError, http.client.HTTPException) as e:  # read timeout, reset, cut-off answer (IncompleteRead)
+        print(f"overpass {host} no answer: {e.__class__.__name__} {e}"[:200])
         return b""
 
 
