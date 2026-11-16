@@ -11,7 +11,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16i';
+  const APP_VERSION = '2026-11-16j';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -337,6 +337,41 @@
   ['by-time', 'by-km', 'int-time', 'tol-time', 'int-km', 'tol-km', 'round-trip'].forEach((id) => $(id).addEventListener('input', syncStopUi));
   ['by-time', 'by-km', 'round-trip'].forEach((id) => $(id).addEventListener('change', syncStopUi));
   syncStopUi();
+
+  // ---- R41 (D11 = A): sliders next to the number fields, preset buttons for the reserve, interval, tolerance and detour.
+  // The fields keep their ids; a slider or a button only sets the field and tells it changed.
+  const ranges = [...document.querySelectorAll('input[type=range][data-for]')];
+  const presetBoxes = [...document.querySelectorAll('.presets[data-for]')];
+  const presetLabel = (id, v) => (id === 'int-time' ? hm(v) : id === 'tol-time' ? `${v} min` : id === 'reserve' ? `${v} %` : `${fmt(v, v % 1 ? 1 : 0)} km`);
+  const touch = (ctl) => { ctl.dispatchEvent(new Event('input', { bubbles: true })); ctl.dispatchEvent(new Event('change', { bubbles: true })); };
+  function syncControls() {
+    ranges.forEach((r) => { const n = $(r.dataset.for); if (n.value !== '') r.value = n.value; });
+    presetBoxes.forEach((box) => {
+      const ctl = $(box.dataset.for), v = parseFloat(ctl.value), wrap = ctl.closest('.other-wrap');
+      const chips = [...box.querySelectorAll('.chip[data-v]')], hit = chips.some((c) => +c.dataset.v === v);
+      chips.forEach((c) => c.setAttribute('aria-pressed', String(+c.dataset.v === v)));
+      const other = box.querySelector('.chip[data-other]');
+      if (other) other.setAttribute('aria-pressed', String(!hit));
+      if (wrap) wrap.hidden = !(other && (!hit || box.dataset.open === '1'));
+    });
+  }
+  presetBoxes.forEach((box) => {
+    const id = box.dataset.for, ctl = $(id);
+    box.dataset.values.split(',').map(Number).forEach((v) => {
+      const opt = ctl.tagName === 'SELECT' ? [...ctl.options].find((x) => +x.value === v) : null;
+      box.append(el('button', { type: 'button', class: 'chip', 'data-v': v, 'aria-pressed': 'false', title: opt ? opt.textContent : null, text: presetLabel(id, v),
+        onclick: () => { ctl.value = String(v); delete box.dataset.open; touch(ctl); syncControls(); } }));
+    });
+    if ('other' in box.dataset) box.append(el('button', { type: 'button', class: 'chip', 'data-other': '', 'aria-pressed': 'false', text: 'Jiný',
+      onclick: () => { box.dataset.open = '1'; syncControls(); ctl.focus(); } }));
+    ['input', 'change'].forEach((t) => ctl.addEventListener(t, syncControls));
+  });
+  ranges.forEach((r) => {
+    const n = $(r.dataset.for);
+    r.addEventListener('input', () => { n.value = r.value; touch(n); });
+    ['input', 'change'].forEach((t) => n.addEventListener(t, () => { if (n.value !== '') r.value = n.value; syncControls(); }));
+  });
+  syncControls();
 
   // ---- R36: the form in three steps, all of them always open (D17: "drž je rozbalené")
   const formSteps = [...document.querySelectorAll('#form .form-step')];
@@ -1476,6 +1511,7 @@
     $('at-pump').checked = inp.atPump !== false; $('round-trip').checked = !!inp.roundTrip;
     $('ret-time').value = inp.retTime || '16:00';
     syncStopUi();
+    syncControls();
   }
   async function openTrip(t, fromLink) {
     await dataReady;
@@ -1757,6 +1793,7 @@
     renderPlaces();
     $('depart').value = nowLocal();
     $('soc0').value = String(Math.max(0, Math.round(atDest ? plan.socDest : o.soc0)));
+    syncControls();
     socLabel().textContent = 'Baterie teď';
     $('round-trip').checked = false; syncStopUi();
     reroute = { tripId: curTrip.id, old: { rt, o, plan, pts } };

@@ -354,3 +354,11 @@ a.btn.primary{color:var(--ev-ink)}
 .soc-line{fill:none;stroke:var(--ev);stroke-width:2.2;stroke-linejoin:round}
 .soc-dot{fill:var(--ev)}
 .soc-ax{fill:var(--muted);font-size:9.5px;font-family:var(--font-mono)}
+/* R41 sliders and preset buttons in the form */
+.slider-field{display:flex;flex-direction:column;gap:6px}
+.slider-head{display:grid;grid-template-columns:minmax(0,1fr) 104px;align-items:center;gap:10px}
+.presets{gap:6px}
+.presets .chip{min-height:36px;padding:4px 12px}
+.window-rows{display:flex;flex-direction:column;gap:6px}
+.wr-label{color:var(--muted);font-size:.85rem}
+.window-rows .other-wrap{max-width:200px}
