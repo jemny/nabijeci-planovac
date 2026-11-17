@@ -13,7 +13,7 @@
   const MAX_TARGET = 90;         // don't plan charging above this in one stop
   const SOFT_MIN = 10;           // also show stops up to 10 min outside the window (marked)
   const FAV_DETOUR_KM = 3;       // a favourite pump this far off the route is still offered (never picked) next to a stop
-  const APP_VERSION = '2026-11-16v';
+  const APP_VERSION = '2026-11-17a';
   const PREFS_KEY = 'np.prefs.v1';
   const DEFAULT_FAVS = ['MOL', 'ORLEN'];
   const GENERIC_BRANDS = new Set(['pumpa', 'Pumpa', 'Innogy', 'CNG zemní plyn']);
@@ -1189,15 +1189,18 @@
       const samples = wxSamples(rt, o, plan);
       if (!samples.length) return done({ state: 'none' });
       const last = Math.max(...samples.map((x) => x.at.getTime()));
-      if (last > Date.now() + (WX_DAYS - 1) * 864e5) return done({ state: 'far' });
+      // Open-Meteo has whole days from today − 92 to today + 15: compare calendar days, not "now + 15 × 24 h"
+      // (a trip on the last day after this hour was taken as too far; bug reported 17. 11. 2026)
+      const maxDay = ymd(new Date(Date.now() + (WX_DAYS - 1) * 864e5)), minDay = ymd(new Date(Date.now() - 92 * 864e5));
+      if (ymd(new Date(last)) > maxDay) return done({ state: 'far' });
       const uniq = [...new Map(samples.map((x) => [`${x.lat},${x.lon}`, x])).values()];
       const first = Math.min(...samples.map((x) => x.at.getTime()));
       // Open-Meteo has days from today − 92 to today + 15: ask for the trip ± 1 day inside that range
-      const maxEnd = Date.now() + (WX_DAYS - 1) * 864e5, minStart = Date.now() - 92 * 864e5;
-      const end = Math.min(last + 864e5, maxEnd), start = Math.max(first - 864e5, Math.min(minStart, end));
+      const endDay = [ymd(new Date(last + 864e5)), maxDay].sort()[0];
+      const startDay = [ymd(new Date(first - 864e5)), [minDay, endDay].sort()[0]].sort()[1];
       const url = `${METEO}?latitude=${uniq.map((x) => x.lat).join(',')}&longitude=${uniq.map((x) => x.lon).join(',')}` +
         `&hourly=temperature_2m,precipitation,weather_code&timeformat=unixtime&timezone=GMT` +
-        `&start_date=${ymd(new Date(start))}&end_date=${ymd(new Date(end))}`;
+        `&start_date=${startDay}&end_date=${endDay}`;
       let j = wxCache.get(url);
       if (!j) {
         // no answer in 10 s (weak signal in the car) → say so instead of "Načítám…" forever

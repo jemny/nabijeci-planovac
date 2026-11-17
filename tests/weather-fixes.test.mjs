@@ -53,3 +53,15 @@ test('[R45] varování na cestě zpět počítá km od cíle jako karty zastáve
   assert.ok(nums.length, `km u varování zpět (${t})`);
   for (const n of nums) assert.ok(n <= D + 1, `km ${n} cesty zpět je od cíle (cesta má ${D.toFixed(0)} km)`);
 });
+
+// Nahlášená chyba (datové vlákno 17. 11. 2026): ráno v 8:15 UTC se pro odjezd dnes + 15 dní v 6:00 dotaz na počasí
+// neposlal. Appka brala hranici předpovědi jako „teď + 15 × 24 h“, Open-Meteo ale má celý den dnes + 15.
+test('[R45] poslední den předpovědi: dotaz se pošle i ráno, rozhoduje den, ne hodina', async () => {
+  const now = new Date('2026-11-17T08:15:00').getTime();
+  const setup = (w) => { w.Date.now = () => now; };
+  const { w, d } = await search({ 'round-trip': false }, { depart: '2026-12-02T06:00', setup });
+  await settled(d);
+  const urls = w.__wxUrls || [];
+  assert.equal(urls.length, 1, 'dotaz se pošle (2. 12. je dnes + 15 dní)');
+  assert.equal(new URL(urls[0]).searchParams.get('end_date'), '2026-12-02', 'nejvýš dnes + 15');
+});
