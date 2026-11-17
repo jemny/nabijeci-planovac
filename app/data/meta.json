@@ -1,31 +1,31 @@
 {
- "exported": "2026-11-16T23:10",
- "osm_base": "2026-11-14T23:03:36Z",
+ "exported": "2026-11-17T05:18",
+ "osm_base": "2026-11-17T04:46:28Z",
  "osm_countries": {
   "CZ": {
-   "date": "2026-11-15",
+   "date": "2026-11-17",
    "fresh": true
   },
   "SK": {
-   "date": "2026-11-15",
+   "date": "2026-11-17",
    "fresh": true
   },
   "PL": {
-   "date": "2026-11-15",
+   "date": "2026-11-17",
    "fresh": true
   },
   "AT": {
-   "date": "2026-11-14",
+   "date": "2026-05-31",
    "fresh": true
   },
   "DE": {
-   "date": "2026-11-14",
+   "date": "2026-11-17",
    "fresh": true
   }
  },
  "ocm_export_date": "2026-04-22",
- "dc_stations": 8444,
- "fast_150": 6368,
+ "dc_stations": 8421,
+ "fast_150": 6371,
  "importers": {
   "eon_map": {
    "ok": true,
@@ -36,8 +36,8 @@
   "tesla": {
    "ok": true,
    "rows": 433,
-   "updated": 419,
-   "added": 14
+   "updated": 418,
+   "added": 15
   }
  },
  "license": "OSM data © OpenStreetMap contributors (ODbL); OCM data CC BY 4.0; E.ON Drive map (roaming stations); supercharge.info"
