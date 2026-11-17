@@ -1,6 +1,6 @@
 {
- "exported": "2026-11-17T05:18",
- "osm_base": "2026-11-17T04:46:28Z",
+ "exported": "2026-11-17T09:19",
+ "osm_base": "2026-11-17T08:33:18Z",
  "osm_countries": {
   "CZ": {
    "date": "2026-11-17",
@@ -15,7 +15,7 @@
    "fresh": true
   },
   "AT": {
-   "date": "2026-05-31",
+   "date": "2026-11-17",
    "fresh": true
   },
   "DE": {
@@ -24,8 +24,8 @@
   }
  },
  "ocm_export_date": "2026-04-22",
- "dc_stations": 8421,
- "fast_150": 6371,
+ "dc_stations": 8725,
+ "fast_150": 6646,
  "importers": {
   "eon_map": {
    "ok": true,
@@ -36,8 +36,8 @@
   "tesla": {
    "ok": true,
    "rows": 433,
-   "updated": 418,
-   "added": 15
+   "updated": 419,
+   "added": 14
   }
  },
  "license": "OSM data © OpenStreetMap contributors (ODbL); OCM data CC BY 4.0; E.ON Drive map (roaming stations); supercharge.info"
