@@ -52,6 +52,8 @@ OVERPASS_BUDGET_S = 330 * 60  # all downloads together (D26: as long as GitHub a
 SLOW_FAIL_S = 60           # a request that failed only after this long ...
 COOLDOWN_S = 15 * 60       # ... skips its server for this long, so it does not hold up the other files (D26)
 _COOLDOWN = {}             # server -> time.monotonic() until which it is skipped
+STALE_GAP_DAYS = 2         # an answer whose map is this much older than the newest one in this run is not used
+_NEWEST_BASE = None        # newest timestamp_osm_base seen in this run (17. 11. 2026 a mirror had 31. 5. 2026)
 # big countries are downloaded in tiles of their bounding box (D26: Germany as a whole was refused on 16. 11. 2026)
 TILES = {"DE": ((47.27, 5.86, 55.06, 15.05), 3, 3)}  # (south, west, north, east), rows, columns
 OVERPASS_DEADLINE = None     # time.monotonic() when the budget is up, set in main()
@@ -139,6 +141,26 @@ def _request_timeout(has_previous):
     return min(OVERPASS_TIMEOUT, max(60, int(OVERPASS_DEADLINE - time.monotonic())))
 
 
+def _ts(value):
+    return dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def _stale_map(parsed, prev):
+    """A mirror can lag months behind (17. 11. 2026: overpass.private.coffee had the map of 31. 5. 2026). Its answer
+    is not used when its map is older than the data from the last run, or more than STALE_GAP_DAYS older than the
+    newest map another server sent in this run."""
+    base = (parsed.get("osm3s") or {}).get("timestamp_osm_base") or ""
+    if not base:
+        return False
+    old = ((prev or {}).get("osm3s") or {}).get("timestamp_osm_base") or ""
+    try:
+        if old and _ts(base) < _ts(old):
+            return True
+        return bool(_NEWEST_BASE) and _ts(_NEWEST_BASE) - _ts(base) > dt.timedelta(days=STALE_GAP_DAYS)
+    except ValueError:
+        return False
+
+
 def _osm_date(parsed):
     return (parsed.get("osm3s", {}).get("timestamp_osm_base") or "")[:10] or None
 
@@ -196,10 +218,21 @@ def overpass(query, path, refresh, final=True):
                     _COOLDOWN[server] = time.monotonic() + COOLDOWN_S
                     print(f"overpass {host} failed slowly, skipped for {COOLDOWN_S // 60} min")
                 continue
+            if _stale_map(parsed, prev):  # an old map would replace newer data: skip this server for the rest of the run
+                print(f"overpass {host} has an old map ({_osm_date(parsed)}) for {name}, not used; server skipped")
+                _COOLDOWN[server] = time.monotonic() + 10 ** 9
+                continue
             with open(path, "wb") as f:
                 f.write(body)
             print(f"overpass {name} from {host}")
             OSM_SOURCES[name] = {"fresh": True, "date": _osm_date(parsed)}
+            base = (parsed.get("osm3s") or {}).get("timestamp_osm_base")
+            global _NEWEST_BASE
+            try:
+                if base and (not _NEWEST_BASE or _ts(base) > _ts(_NEWEST_BASE)):
+                    _NEWEST_BASE = base
+            except ValueError:
+                pass
             time.sleep(3)
             return parsed
         if rnd + 1 < OVERPASS_ROUNDS and not _past_deadline():
