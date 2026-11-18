@@ -179,6 +179,9 @@ Pod „Víc o zastávce“ jsou až 3 nejbližší další nabíječky do 5 km o
 ### R51 — Služby u stanice ikonou
 V kartě zastávky malé ikony služeb do 300 m (WC, jídlo, obchod) ze sloupce `svc` v `stations.json`, bez textu. Bez údaje nic. Data jsou jen ze služeb pumpy (D28 = C), takže chybějící ikona neznamená, že služba není. Hlídá to tests/station-services.test.mjs. (D27, N3, ze srovnání s ABRP a WattBoxem)
 
+### R52 — Chybějící cena
+Uživatel 18. 11. 2026: „když nemáme všechny ceny, tak nemůžeme říkat, kolik bude stát celá cesta peněz“. Zastávka bez ceny (např. IONITY na Slovensku, „? Kč“) se nikdy nepočítá jako 0 Kč. Cenu takové zastávky appka odhadne podle ceny stejné sítě v ČR s tvými kartami („~636 Kč“, „Shell Senec odhadem 19,95 Kč/kWh jako IONITY v ČR“), a když ji nezná, podle nejdražší zastávky s cenou na téže cestě. Odhad je v kartě, v souhrnu i ve srovnání označený „~“ a srovnání píše „asi o X Kč“. Když není z čeho odhadnout, souhrn i srovnání píšou „od“ a jmenují zastávku bez ceny (D30 = B). Hlídá to tests/missing-price.test.mjs.
+
 ## Rozpracované
 
 Schválený požadavek, na kterém se pracuje, je tady i se svým rozhodnutím, dokud nemá testy; pak se přesune do „Požadavky“ a „Rozhodnutí“.
@@ -220,6 +223,7 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 - **D27 (16. 11. 2026, uživatel vybral ze srovnání s dalšími appkami):** N1 předehřev baterie (R49), N2 nabíječky poblíž zastávky (R50), N3 služby u stanice ikonou (R51, čeká na data D28), N6 projít další appky (PlugShare, Google Mapy, Mapy.com, navigace v Mercedesu). Nevybráno: N4 víc stojanů má přednost, N5 vícedenní cesta.
 - **D28 (16. 11. 2026, uživatel vybral C):** služby u stanice (sloupec `svc` pro ikony v plánovacím vlákně) jen z údajů uvedených přímo u pumpy, bez nových dotazů na OpenStreetMap (R35). Nevybráno: A (WC, jídlo a obchod do 300 m pro ČR a SK, 6 dotazů navíc) a B (všechny státy, 39 dotazů navíc). Rozhodl jsem k tomu sám: WC = `toilets` yes nebo customers, jídlo = `cuisine`, nebo `food`, `fast_food`, `cafe`, `restaurant` = yes, obchod = `shop` kromě no. Data 15. 11. 2026: služby má 779 z 3 947 stanic s pumpou (20 %), nejčastěji obchod.
 - **D29 (16. 11. 2026, uživatel):** z dalších appek nic dalšího („Z dalších appek nic dalšího nechci“): ne M1 hlášení „funguje“ z Open Charge Map, M2 nosič kol nebo přívěs, M3 nabíječky poblíž cíle. Srovnání je v docs/srovnani-abrp-wattbox.md. (bez funkce v appce)
+- **D30 (18. 11. 2026, uživatel vybral B):** chybějící cenu zastávky appka odhadne podle ceny stejné sítě v ČR a označí „~“ (R52). Nevybráno: A („od“), C (celek neukázat). Rozhodl jsem k tomu sám: když síť nemá cenu ani v ČR, odhad podle nejdražší zastávky s cenou na téže cestě; když ani tu, „od“ a jméno zastávky jako u A.
 
 ## Otevřené rozpory
 
