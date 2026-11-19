@@ -106,7 +106,7 @@ Zadání je ve třech očíslovaných, podbarvených blocích pod sebou:
 **Všechny tři bloky jsou pořád rozbalené**, nic v nich není schované a nadpis bloku je jen nadpis, ťuknutím se nic nesbalí (D17). Když chybí odkud nebo kam, appka řekne, co chybí, a posune se ke kroku 1. (Uživatel 15. 11. 2026, D6 = B: „když dáš těm blokům nějaké podbarvení, takže bude lépe vidět, že tam jsou“. Uživatel 16. 11. 2026: „těch boxů není vidět, že by něco skrývaly, dokud se na ně neťukne… drž je rozbalené“.)
 
 ### R29 — Nabíjecí model
-Doba nabíjení podle křivky (fdrive.cz) × k z vlastních měření. Čím plnější baterie, tím pomaleji. Data z auta (Home Assistant) model zpřesňují.
+Doba nabíjení podle křivky (fdrive.cz) × k z vlastních měření. Čím plnější baterie, tím pomaleji. Data z auta (Home Assistant) model zpřesňují. k se počítá jen z měření s teplou baterií: body a nabíjení, kde auto hlásí omezení teplotou baterie (BATTERY_TEMPERATURE_TOO_LOW), se do k nepočítají, protože plánovač počítá s předehřátou baterií (R49). Sběr ukládá ke každému bodu křivky i limit, který auto hlásí v kW, a průběh limitu za jízdy. Kalkulačka nabíjení ukáže limit v grafu a vedle doby s předehřátou baterií i dobu se studenou, kde výkon nepřekročí naměřený limit studené baterie (D31 = A).
 
 ### R30 — Mapa
 Tlačítko Mapa ukáže trasu se zastávkami, Seznam se vrátí.
@@ -224,10 +224,9 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 - **D28 (16. 11. 2026, uživatel vybral C):** služby u stanice (sloupec `svc` pro ikony v plánovacím vlákně) jen z údajů uvedených přímo u pumpy, bez nových dotazů na OpenStreetMap (R35). Nevybráno: A (WC, jídlo a obchod do 300 m pro ČR a SK, 6 dotazů navíc) a B (všechny státy, 39 dotazů navíc). Rozhodl jsem k tomu sám: WC = `toilets` yes nebo customers, jídlo = `cuisine`, nebo `food`, `fast_food`, `cafe`, `restaurant` = yes, obchod = `shop` kromě no. Data 15. 11. 2026: služby má 779 z 3 947 stanic s pumpou (20 %), nejčastěji obchod.
 - **D29 (16. 11. 2026, uživatel):** z dalších appek nic dalšího („Z dalších appek nic dalšího nechci“): ne M1 hlášení „funguje“ z Open Charge Map, M2 nosič kol nebo přívěs, M3 nabíječky poblíž cíle. Srovnání je v docs/srovnani-abrp-wattbox.md. (bez funkce v appce)
 - **D30 (18. 11. 2026, uživatel vybral B):** chybějící cenu zastávky appka odhadne podle ceny stejné sítě v ČR a označí „~“ (R52). Nevybráno: A („od“), C (celek neukázat). Rozhodl jsem k tomu sám: když síť nemá cenu ani v ČR, odhad podle nejdražší zastávky s cenou na téže cestě; když ani tu, „od“ a jméno zastávky jako u A.
+- **D31 (19. 11. 2026, uživatel vybral A; podnět relace „Mercedes nabíjení – maximální rychlost“):** sběr ukládá limit kW ke každému bodu křivky i za jízdy, k jen z teplé baterie, kalkulačka ukáže dvě doby (předehřátá a studená podle naměřeného limitu) a poznámku o předehřevu (R29). Nevybráno: B přepínač, C výpočet beze změny. Rozhodl jsem k tomu sám: nad a pod naměřeným rozsahem % bere studená doba nejbližší naměřený limit; studená doba je označená „až“ jako horní odhad, protože limit auto hlásilo za jízdy a při nabíjení doma a při rychlonabíjení se baterie zahřívá.
 
 ## Otevřené rozpory
-
-- **D31 Limit nabíjecího výkonu a studená baterie (R29; podnět relace „Mercedes nabíjení – maximální rychlost“, varianty nakreslené 19. 11. 2026, doplněné o kalkulačku, čekají na uživatele):** ve všech variantách sběr ukládá limit kW ke každému bodu křivky a kalkulačka ho ukáže v grafu s poznámkou o předehřevu (uživatel: „ať máme všechna data“). A kalkulačka dvě doby, předehřátá a studená podle limitu, k jen z teplé baterie (doporučuju); B přepínač předehřátá/studená; C výpočet beze změny, limit jen v grafu.
 
 Návrhy z WattBoxu a ABRP (D7–D14) jsou rozhodnuté výše, celé srovnání je v [docs/srovnani-abrp-wattbox.md](docs/srovnani-abrp-wattbox.md).
 - **Nedoporučuju:** nejlevnější a nejkratší trasa (pravidlo jen nejrychlejší), CarPlay, widgety a upozornění do telefonu (webová appka bez serveru to neumí), Apple Mapy a Mapy.com (pravidlo Google Mapy), katalog aut, STK, doklady.
