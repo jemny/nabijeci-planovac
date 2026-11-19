@@ -227,6 +227,8 @@ Volby, které padly mezi variantami. Mění se jen zadáním uživatele.
 
 ## Otevřené rozpory
 
+- **D31 Limit nabíjecího výkonu a studená baterie v kalibraci (R29; podnět relace „Mercedes nabíjení – maximální rychlost“, varianty nakreslené 19. 11. 2026, čekají na uživatele):** A ukládat limit kW k bodům křivky, k jen z předehřáté baterie a zvlášť „za studena“ v kalkulačce (doporučuju); B ukládat limit a studené body z k vyřadit; C jen ukládat limit.
+
 Návrhy z WattBoxu a ABRP (D7–D14) jsou rozhodnuté výše, celé srovnání je v [docs/srovnani-abrp-wattbox.md](docs/srovnani-abrp-wattbox.md).
 - **Nedoporučuju:** nejlevnější a nejkratší trasa (pravidlo jen nejrychlejší), CarPlay, widgety a upozornění do telefonu (webová appka bez serveru to neumí), Apple Mapy a Mapy.com (pravidlo Google Mapy), katalog aut, STK, doklady.
 
