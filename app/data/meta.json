@@ -1,42 +1,42 @@
 {
- "exported": "2026-11-17T09:19",
- "osm_base": "2026-11-17T08:33:18Z",
+ "exported": "2026-11-23T13:47",
+ "osm_base": "2026-11-23T12:42:25Z",
  "osm_countries": {
   "CZ": {
-   "date": "2026-11-17",
+   "date": "2026-11-23",
    "fresh": true
   },
   "SK": {
-   "date": "2026-11-17",
+   "date": "2026-11-23",
    "fresh": true
   },
   "PL": {
-   "date": "2026-11-17",
+   "date": "2026-11-23",
    "fresh": true
   },
   "AT": {
-   "date": "2026-11-17",
+   "date": "2026-11-23",
    "fresh": true
   },
   "DE": {
-   "date": "2026-11-17",
+   "date": "2026-11-23",
    "fresh": true
   }
  },
  "ocm_export_date": "2026-04-22",
- "dc_stations": 8725,
- "fast_150": 6646,
+ "dc_stations": 8762,
+ "fast_150": 6682,
  "importers": {
   "eon_map": {
    "ok": true,
    "rows": 1493,
-   "updated": 1102,
-   "added": 391
+   "updated": 1101,
+   "added": 392
   },
   "tesla": {
    "ok": true,
-   "rows": 433,
-   "updated": 419,
+   "rows": 431,
+   "updated": 417,
    "added": 14
   }
  },
